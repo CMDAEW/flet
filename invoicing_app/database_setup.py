@@ -25,7 +25,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def get_db_path():
-    app_dir = appdirs.user_data_dir("InvoicingApp", "YourCompanyName")
+    app_dir = appdirs.user_data_dir("InvoicingApp", "KAEFER Industrie GmbH")
     if not os.path.exists(app_dir):
         os.makedirs(app_dir)
     return os.path.join(app_dir, 'invoicing.db')
