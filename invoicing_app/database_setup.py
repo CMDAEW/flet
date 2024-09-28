@@ -80,7 +80,7 @@ def initialize_database():
         ''')
         logging.info("invoices Tabelle erfolgreich erstellt oder existiert bereits.")
         
-        # Erstelle invoice_items Tabelle
+        # Erstelle invoice_items Tabellew
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS invoice_items (
                 id INTEGER PRIMARY KEY,
