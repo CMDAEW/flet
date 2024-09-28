@@ -1,0 +1,16 @@
+# Compiled and packaged files
+*.toc
+*.pkg
+*.exe
+*.dist
+
+# Specific files
+invoicing_app.exe
+invoicing_app.dist
+
+# Build and distribution folders
+/dist/
+/build/
+
+# For the Flutter project
+/flutter_application_1/build/
