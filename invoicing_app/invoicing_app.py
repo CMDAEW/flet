@@ -863,12 +863,20 @@ def get_unique_customers():
     return customers
 
 def get_unique_customer_names():
-    customers = get_unique_customers()
-    return sorted(list(set([customer[0] for customer in customers])))
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT client_name FROM invoices ORDER BY client_name')
+    names = [row[0] for row in cursor.fetchall() if row[0]]  # Filtere leere Namen
+    conn.close()
+    return names
 
 def get_unique_customer_emails():
-    customers = get_unique_customers()
-    return sorted(list(set([customer[1] for customer in customers])))
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT client_email FROM invoices ORDER BY client_email')
+    emails = [row[0] for row in cursor.fetchall() if row[0]]  # Filtere leere E-Mails
+    conn.close()
+    return emails
 
 def get_price(bauteil, dn, da, size):
     conn = get_db_connection()
