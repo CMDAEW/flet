@@ -188,7 +188,13 @@ def main(page: ft.Page):
                     label="Dämmdicke",
                     width=100
                 ),
-                "price": ft.TextField(label="Preis", width=100),
+                "price": ft.TextField(
+                    label="Preis",
+                    width=100,
+                    read_only=True,
+                    filled=True,
+                    bgcolor=ft.colors.GREY_200,  # oder eine andere Farbe Ihrer Wahl
+                ),
                 "quantity": ft.TextField(label="Menge", width=100),
             }
 
@@ -529,7 +535,9 @@ def main(page: ft.Page):
                         label="Preis",
                         width=100,
                         value=f"{item_data[9]:.2f}",
-                        read_only=True
+                        read_only=True,
+                        filled=True,
+                        bgcolor=ft.colors.GREY_200,  # oder eine andere Farbe Ihrer Wahl
                     ),
                     "quantity": ft.TextField(label="Menge", width=100, value=str(item_data[10]))
                 }
