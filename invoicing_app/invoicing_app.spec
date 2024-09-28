@@ -3,7 +3,7 @@
 a = Analysis(['invoicing_app.py'],
              pathex=[],
              binaries=[],
-             datas=[('EP_SWF.csv', '.'), ('invoicing.db', '.')],  # invoicing.db wird als initiale Datenbank verwendet
+             datas=[('EP_SWF.csv', '.')],  # invoicing.db wird als initiale Datenbank verwendet
              hiddenimports=['flet', 'sqlite3', 'csv', 'reportlab', 'appdirs'],
              hookspath=[],
              hooksconfig={},

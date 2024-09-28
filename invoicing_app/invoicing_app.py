@@ -124,6 +124,7 @@ def main(page: ft.Page):
     page.theme = ft.Theme(font_family="Roboto")
     
     def build_ui():
+        global client_name_dropdown, client_email_dropdown
         bauteil_values = get_unique_bauteil_values()
         logging.info(f"Geladene Bauteil-Werte: {bauteil_values}")
         customer_names = get_unique_customer_names()
@@ -133,33 +134,32 @@ def main(page: ft.Page):
         client_name_dropdown = ft.Dropdown(
             label="Kundenname",
             width=300,
-            options=[ft.dropdown.Option(name) for name in customer_names] + [ft.dropdown.Option("Neuer Kunde")],
+            options=[ft.dropdown.Option("Neuer Kunde")] + [ft.dropdown.Option(name) for name in customer_names],
+            on_change=lambda _: toggle_name_entry()
         )
         client_name_entry = ft.TextField(label="Neuer Kundenname", width=300, visible=False)
 
         client_email_dropdown = ft.Dropdown(
             label="Kunden-E-Mail",
             width=300,
-            options=[ft.dropdown.Option(email) for email in customer_emails] + [ft.dropdown.Option("Neue E-Mail")],
+            options=[ft.dropdown.Option("Neue E-Mail")] + [ft.dropdown.Option(email) for email in customer_emails],
+            on_change=lambda _: toggle_email_entry()
         )
         client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False)
 
-        def on_client_name_change(e):
+        def toggle_name_entry():
             if client_name_dropdown.value == "Neuer Kunde":
                 client_name_entry.visible = True
             else:
                 client_name_entry.visible = False
             page.update()
 
-        def on_client_email_change(e):
+        def toggle_email_entry():
             if client_email_dropdown.value == "Neue E-Mail":
                 client_email_entry.visible = True
             else:
                 client_email_entry.visible = False
             page.update()
-
-        client_name_dropdown.on_change = on_client_name_change
-        client_email_dropdown.on_change = on_client_email_change
 
         items = []
         items_container = ft.Column()
@@ -379,6 +379,9 @@ def main(page: ft.Page):
                     return
                 
                 rechnung_einfuegen(**rechnungsdaten)
+                
+                # Aktualisiere die Dropdown-Menüs
+                update_customer_dropdowns()
                 
                 # Clear fields
                 client_name_dropdown.value = None
@@ -715,6 +718,9 @@ def main(page: ft.Page):
                 
                 rechnung_aktualisieren(**rechnungsdaten)
                 
+                # Aktualisiere die Dropdown-Menüs
+                update_customer_dropdowns()
+                
                 # Clear fields and reset form
                 client_name_dropdown.value = None
                 client_email_dropdown.value = None
@@ -1010,7 +1016,21 @@ def update_price(item):
             item["price"].value = ""
     item.update()
 
+def update_customer_dropdowns():
+    global client_name_dropdown, client_email_dropdown
+    
+    # Aktualisiere Kundennamen
+    customer_names = get_unique_customer_names()
+    client_name_dropdown.options = [ft.dropdown.Option("Neuer Kunde")] + [ft.dropdown.Option(name) for name in customer_names]
+    
+    # Aktualisiere Kunden-E-Mails
+    customer_emails = get_unique_customer_emails()
+    client_email_dropdown.options = [ft.dropdown.Option("Neue E-Mail")] + [ft.dropdown.Option(email) for email in customer_emails]
+    
+    # Anstatt page.update() zu verwenden, aktualisieren wir die Dropdown-Menüs direkt
+    client_name_dropdown.update()
+    client_email_dropdown.update()
+
 if __name__ == "__main__":
     initialize_database()
     ft.app(target=main)
-    
