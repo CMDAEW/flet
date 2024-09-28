@@ -45,14 +45,6 @@ def initialize_database():
     db_path = get_db_path()
     logging.info(f"Datenbankpfad: {db_path}")
     
-    if not os.path.exists(db_path):
-        logging.info("Datenbank existiert nicht. Erstelle neue Datenbank.")
-        initial_db_path = resource_path('invoicing.db')
-        shutil.copy2(initial_db_path, db_path)
-        logging.info(f"Initiale Datenbank kopiert nach: {db_path}")
-    else:
-        logging.info("Datenbank existiert bereits.")
-    
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -84,7 +76,7 @@ def initialize_database():
         ''')
         logging.info("invoices Tabelle erfolgreich erstellt oder existiert bereits.")
         
-        # Erstelle invoice_items Tabellew
+        # Erstelle invoice_items Tabelle
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS invoice_items (
                 id INTEGER PRIMARY KEY,
