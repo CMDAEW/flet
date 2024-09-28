@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sqlite3
 import csv
 import os
@@ -13,7 +15,9 @@ import shutil
 
 def get_db_connection():
     db_path = get_db_path()
-    return sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+    conn.text_factory = str  # Fügen Sie diese Zeile hinzu
+    return conn
 
 def resource_path(relative_path):
     if getattr(sys, 'frozen', False):
@@ -101,7 +105,7 @@ def initialize_database():
         if cursor.fetchone()[0] == 0:
             logging.info("price_list ist leer. Fülle mit Daten aus CSV...")
             csv_path = resource_path('EP_SWF.csv')
-            with open(csv_path, 'r') as csvfile:
+            with open(csv_path, 'r', encoding='utf-8') as csvfile:
                 csvreader = csv.reader(csvfile)
                 next(csvreader)  # Überspringe die Kopfzeile
                 for row in csvreader:

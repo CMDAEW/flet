@@ -32,6 +32,7 @@ exe = EXE(pyz,
           console=False,  # Behalten Sie dies auf True für Debugging-Zwecke
           disable_windowed_traceback=False,
           argv_emulation=False,
+          
           target_arch=None,
           codesign_identity=None,
           entitlements_file=None )

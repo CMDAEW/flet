@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+import logging
 import flet as ft
 import sqlite3
 from datetime import datetime
@@ -116,11 +118,16 @@ def main(page: ft.Page):
     initialize_database()
     page.title = "Rechnungs-App"
     page.theme_mode = ft.ThemeMode.LIGHT
+    page.fonts = {
+        "Roboto": "https://github.com/google/fonts/raw/main/apache/roboto/static/Roboto-Regular.ttf"
+    }
+    page.theme = ft.Theme(font_family="Roboto")
     
     def build_ui():
+        bauteil_values = get_unique_bauteil_values()
+        logging.info(f"Geladene Bauteil-Werte: {bauteil_values}")
         customer_names = get_unique_customer_names()
         customer_emails = get_unique_customer_emails()
-        bauteil_values = get_unique_bauteil_values()
         dn_da_pairs = get_unique_dn_da_pairs()
 
         client_name_dropdown = ft.Dropdown(
@@ -803,8 +810,11 @@ def main(page: ft.Page):
             )
 
             def close_dialog(dialog):
-                dialog.open = False
+                dialog.open = False   
                 page.update()
+
+
+
 
             page.dialog = confirm_dialog
             confirm_dialog.open = True
