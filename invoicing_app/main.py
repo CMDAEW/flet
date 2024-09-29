@@ -725,13 +725,16 @@ class InvoicingApp:
             item["dn"].visible = bool(dn_options)
             item["da"].visible = bool(da_options)
 
+            # Set the label of DN dropdown to an empty string
+            item["dn"].label = ""
+
             print(f"DN options: {dn_options}")
             print(f"DA options: {da_options}")
 
             if changed_field == "description":
                 # Reset DN and DA values
-                item["dn"].value = dn_options[0] if dn_options else None
-                item["da"].value = da_options[0] if da_options else None
+                item["dn"].value = f"{dn_options[0]:.0f}" if dn_options and float(dn_options[0]).is_integer() else f"{dn_options[0]}" if dn_options else None
+                item["da"].value = f"{da_options[0]:.1f}" if da_options else None
             
             elif changed_field in ["dn", "da"]:
                 # Update the other dimension based on the selected one
@@ -834,7 +837,7 @@ class InvoicingApp:
             ),
             "size": ft.Dropdown(
                 label="Dämmdicke",
-                width=100
+                width=150
             ),
             "price": ft.TextField(
                 label="Preis",
@@ -846,7 +849,7 @@ class InvoicingApp:
             "quantity": ft.TextField(label="Menge", width=100, value="1"),
             "subtotal": ft.TextField(
                 label="Zwischensumme",
-                width=100,
+                width=150,
                 read_only=True,
                 filled=True,
                 bgcolor=ft.colors.GREY_200
@@ -986,7 +989,8 @@ class InvoicingApp:
             self.page.snack_bar = ft.SnackBar(content=ft.Text(f"Rechnung erfolgreich erstellt und gespeichert als: {pdf_path}"))
             self.page.overlay.append(self.page.snack_bar)
             self.page.snack_bar.open = True
-            self.reset_form()
+            self.update_client_dropdowns()  # Update dropdowns with new data
+            self.reset_form()  # Reset the form, including hiding entry fields
         else:
             self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Erstellen der Rechnung"))
             self.page.overlay.append(self.page.snack_bar)
@@ -1023,10 +1027,11 @@ class InvoicingApp:
         self.client_email_dropdown.value = None
         self.client_name_entry.value = ""
         self.client_email_entry.value = ""
+        self.client_name_entry.visible = False
+        self.client_email_entry.visible = False
         self.items.clear()
         self.items_container.controls.clear()
         self.update_gesamtpreis()
-        self.add_item()  # Add an initial empty item
         self.page.update()
         
         # ... (rest of the rechnung_absenden implementation)
@@ -1104,17 +1109,43 @@ class InvoicingApp:
         conn.close()
         return rechnungen
 
-    def pdf_generieren(self, rechnungsdaten):
-        # Get the directory of the current script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
+    def update_client_dropdowns(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        # Create a 'PDFs' directory in the script directory if it doesn't exist
-        pdf_dir = os.path.join(script_dir, "PDFs")
-        os.makedirs(pdf_dir, exist_ok=True)
+        # Fetch unique client names
+        cursor.execute('SELECT DISTINCT client_name FROM invoices ORDER BY client_name')
+        client_names = [row[0] for row in cursor.fetchall()]
+        self.client_name_dropdown.options = [ft.dropdown.Option(name) for name in client_names] + [ft.dropdown.Option("Neuer Kunde")]
+        
+        # Fetch unique client emails
+        cursor.execute('SELECT DISTINCT client_email FROM invoices ORDER BY client_email')
+        client_emails = [row[0] for row in cursor.fetchall()]
+        self.client_email_dropdown.options = [ft.dropdown.Option(email) for email in client_emails] + [ft.dropdown.Option("Neue E-Mail")]
+        
+        conn.close()
 
+        # Reset dropdown values and hide entry fields
+        self.client_name_dropdown.value = None
+        self.client_email_dropdown.value = None
+        self.client_name_entry.visible = False
+        self.client_email_entry.visible = False
+
+        # Update the UI
+        self.page.update()
+
+    def pdf_generieren(self, rechnungsdaten):
+        # Get the root directory (where the script or exe is located)
+        if getattr(sys, 'frozen', False):
+            # If running as compiled executable
+            root_dir = os.path.dirname(sys.executable)
+        else:
+            # If running as script
+            root_dir = os.path.dirname(os.path.abspath(__file__))
+        
         # Generate a unique filename
         pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        pdf_path = os.path.join(pdf_dir, pdf_dateiname)
+        pdf_path = os.path.join(root_dir, pdf_dateiname)
 
         # Create the PDF document
         doc = SimpleDocTemplate(pdf_path, pagesize=letter)
