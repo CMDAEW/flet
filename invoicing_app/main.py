@@ -796,6 +796,11 @@ class InvoicingApp:
         self.update_item_subtotal(item)  # Update subtotal when price changes
         self.page.update()
 
+    def show_snackbar(self, message):
+        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
+        self.page.snack_bar.open = True
+        self.page.update()
+
     def update_item_options(self, item, changed_field):
         print(f"Updating options for {changed_field}")
         bauteil = item["description"].value
@@ -955,32 +960,24 @@ class InvoicingApp:
         new_item["size"].on_change = lambda e: self.update_item_options(new_item, "size")
         new_item["quantity"].on_change = lambda e: self.update_item_subtotal(new_item)
 
-        # Check if an identical item already exists
-        existing_item = self.find_existing_item(new_item)
-        if existing_item:
-            # Increase the quantity of the existing item
-            current_quantity = int(existing_item["quantity"].value)
-            existing_item["quantity"].value = str(current_quantity + 1)
-            self.update_item_subtotal(existing_item)
-        else:
-            # Create a row for the new item
-            item_row = ft.Row([
-                new_item["description"],
-                new_item["dn"],
-                new_item["da"],
-                new_item["size"],
-                new_item["price"],
-                new_item["quantity"],
-                new_item["subtotal"],
-                ft.IconButton(
-                    icon=ft.icons.DELETE,
-                    on_click=lambda _: self.remove_item(new_item)
-                )
-            ])
+        # Create a row for the new item
+        item_row = ft.Row([
+            new_item["description"],
+            new_item["dn"],
+            new_item["da"],
+            new_item["size"],
+            new_item["price"],
+            new_item["quantity"],
+            new_item["subtotal"],
+            ft.IconButton(
+                icon=ft.icons.DELETE,
+                on_click=lambda _: self.remove_item(new_item)
+            )
+        ])
 
-            # Add the new item to the list and update the UI
-            self.items.append(new_item)
-            self.items_container.controls.append(item_row)
+        # Add the new item to the list and update the UI
+        self.items.append(new_item)
+        self.items_container.controls.append(item_row)
 
         self.update_gesamtpreis()
         self.page.update()
@@ -1053,49 +1050,46 @@ class InvoicingApp:
 
     def rechnung_absenden(self, e):
         if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
-            snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
-            self.page.overlay.append(snack_bar)
-            snack_bar.open = True
-            self.page.update()
+            self.show_snackbar("Bitte füllen Sie alle Felder aus")
             return
         
         client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
         client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
         
         invoice_date = datetime.now().strftime("%Y-%m-%d")
-        total = sum(float(item["price"].value) * int(item["quantity"].value) for item in self.items)
         
+        # Filter out items with empty prices
         invoice_items = [
             {
                 "description": item["description"].value,
                 "dn": item["dn"].value,
                 "da": item["da"].value,
                 "size": item["size"].value,
-                "price": float(item["price"].value),
+                "price": float(item["price"].value) if item["price"].value else 0,
                 "quantity": int(item["quantity"].value)
             }
             for item in self.items
+            if item["price"].value and float(item["price"].value) > 0
         ]
+        
+        total = sum(item["price"] * item["quantity"] for item in invoice_items)
         
         invoice_data = {
             "client_name": client_name,
             "client_email": client_email,
             "invoice_date": invoice_date,
-            "total": total,
-            "items": invoice_items
+            "items": invoice_items,
+            "total": total
         }
         
         if self.rechnung_einfuegen(invoice_data):
             pdf_path = self.pdf_generieren(invoice_data)
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"Rechnung erfolgreich erstellt und gespeichert als: {pdf_path}"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
-            self.update_client_dropdowns()  # Update dropdowns with new data
-            self.reset_form()  # Reset the form, including hiding entry fields
+            self.show_snackbar(f"Rechnung erfolgreich erstellt und gespeichert als: {pdf_path}")
+            self.update_client_dropdowns()
+            self.reset_form()
         else:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Erstellen der Rechnung"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
+            self.show_snackbar("Fehler beim Erstellen der Rechnung")
+        
         self.page.update()
 
     def rechnung_einfuegen(self, invoice_data):
