@@ -453,11 +453,11 @@ class InvoicingApp:
         }
 
         # Set up event handlers for the dropdowns
-        new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
-        new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
-        new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
-        new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
-        new_item["quantity"].on_change = lambda _: self.update_gesamtpreis()
+        new_item["description"].on_change = lambda e: self.update_item_options(new_item, "description")
+        new_item["dn"].on_change = lambda e: self.update_item_options(new_item, "dn")
+        new_item["da"].on_change = lambda e: self.update_item_options(new_item, "da")
+        new_item["size"].on_change = lambda e: self.update_item_options(new_item, "size")
+        new_item["quantity"].on_change = lambda e: self.update_gesamtpreis()
 
         # Create a row for the new item
         item_row = ft.Row([
@@ -480,6 +480,7 @@ class InvoicingApp:
         self.page.update()
 
     def update_item_options(self, item, changed_field):
+        print(f"Updating options for {changed_field}")
         bauteil = item["description"].value
         selected_dn = item["dn"].value
         selected_da = item["da"].value
@@ -487,52 +488,56 @@ class InvoicingApp:
 
         if bauteil:
             available_options = self.get_available_options(bauteil)
+            print(f"Available options: {available_options}")
+
+            # Update DN and DA options with available values
+            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0 and dn is not None))
+            da_options = sorted(set(da for _, da, _ in available_options if da != 0 and da is not None))
             
+            # Always show DN and DA fields when they are not null
+            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
+            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
+            item["dn"].visible = bool(dn_options)
+            item["da"].visible = bool(da_options)
+
+            print(f"DN options: {dn_options}")
+            print(f"DA options: {da_options}")
+
             if changed_field == "description":
-                # Reset all values
-                item["dn"].value = None
-                item["da"].value = None
-                item["size"].value = None
-                
-                # Update DN options
-                dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
-                item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-                item["dn"].visible = bool(dn_options)
-                
-                # Update DA options
-                da_options = sorted(set(da for _, da, _ in available_options if da != 0))
-                item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-                item["da"].visible = bool(da_options)
-                
-                # Update size options
-                size_options = sorted(set(size for _, _, size in available_options), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-                item["size"].options = [ft.dropdown.Option(value) for value in size_options]
-
+                # Reset DN and DA values
+                item["dn"].value = dn_options[0] if dn_options else None
+                item["da"].value = da_options[0] if da_options else None
+            
             elif changed_field in ["dn", "da"]:
-                # Update the other dimension and size
+                # Update the other dimension based on the selected one
                 if changed_field == "dn" and selected_dn:
-                    matching_da = sorted(set(da for dn, da, _ in available_options if dn == float(selected_dn) and da != 0))
-                    item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in matching_da]
-                    item["da"].value = None
+                    matching_da = sorted(set(da for dn, da, _ in available_options if dn == float(selected_dn) and da != 0 and da is not None))
+                    item["da"].value = f"{matching_da[0]:.1f}" if matching_da else None
                 elif changed_field == "da" and selected_da:
-                    matching_dn = sorted(set(dn for dn, da, _ in available_options if da == float(selected_da) and dn != 0))
-                    item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in matching_dn]
-                    item["dn"].value = None
-                
-                # Update size options based on DN and DA
-                if selected_dn and selected_da:
-                    matching_size = sorted(set(size for dn, da, size in available_options if dn == float(selected_dn) and da == float(selected_da)),
-                                           key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-                    item["size"].options = [ft.dropdown.Option(value) for value in matching_size]
-                    item["size"].value = None
+                    matching_dn = sorted(set(dn for dn, da, _ in available_options if da == float(selected_da) and dn != 0 and dn is not None))
+                    item["dn"].value = f"{matching_dn[0]:.0f}" if matching_dn and float(matching_dn[0]).is_integer() else f"{matching_dn[0]}" if matching_dn else None
 
-            elif changed_field == "size":
-                # Update DN and DA based on the selected size
-                matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
-                if matching_dn_da:
-                    dn, da = matching_dn_da[0]
-                    item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
-                    item["da"].value = f"{da:.1f}"
+            # Update size options based on current DN and DA selection
+            selected_dn = item["dn"].value
+            selected_da = item["da"].value
+
+            if selected_dn and selected_da:
+                matching_size = sorted(set(size for dn, da, size in available_options 
+                                           if dn == float(selected_dn) and da == float(selected_da)),
+                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+            else:
+                # If DN or DA is not selected, show all available sizes for the Bauteil
+                matching_size = sorted(set(size for _, _, size in available_options),
+                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+
+            print(f"Matching sizes: {matching_size}")
+
+            item["size"].options = [ft.dropdown.Option(value) for value in matching_size]
+            if selected_size in matching_size:
+                item["size"].value = selected_size
+            elif matching_size:
+                item["size"].value = matching_size[0]
+            item["size"].visible = True
 
         # Update the dropdowns
         item["dn"].update()
@@ -541,6 +546,11 @@ class InvoicingApp:
         
         # Update the price
         self.update_price(item)
+
+        print(f"Final values - DN: {item['dn'].value}, DA: {item['da'].value}, Size: {item['size'].value}")
+
+        # Ensure the page is updated
+        self.page.update()
 
     def get_available_options(self, bauteil):
         conn = get_db_connection()
@@ -557,8 +567,8 @@ class InvoicingApp:
         size = item["size"].value
         
         if bauteil and size:
-            dn_value = float(dn) if dn else 0
-            da_value = float(da) if da else 0
+            dn_value = float(dn) if dn else None
+            da_value = float(da) if da else None
             price = self.get_price(bauteil, dn_value, da_value, size)
             if price is not None:
                 item["price"].value = f"{price:.2f}"
@@ -567,17 +577,61 @@ class InvoicingApp:
         else:
             item["price"].value = ""
         item["price"].update()
-        self.update_gesamtpreis()  # Add this line
+        self.update_gesamtpreis()
         self.page.update()
 
     def get_price(self, bauteil, dn, da, size):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''
-                SELECT value FROM price_list
-                WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
-            ''', (bauteil, dn, da, size))
+            if dn is not None and da is not None:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
+                ''', (bauteil, dn, da, size))
+            else:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
+                ''', (bauteil, size))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        finally:
+            conn.close()
+
+    def get_price(self, bauteil, dn, da, size):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            if dn is not None and da is not None:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
+                ''', (bauteil, dn, da, size))
+            else:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
+                ''', (bauteil, size))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        finally:
+            conn.close()
+
+    def get_price(self, bauteil, dn, da, size):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            if dn is not None and da is not None:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
+                ''', (bauteil, dn, da, size))
+            else:
+                cursor.execute('''
+                    SELECT value FROM price_list
+                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
+                ''', (bauteil, size))
             result = cursor.fetchone()
             return result[0] if result else None
         finally:
@@ -594,9 +648,9 @@ class InvoicingApp:
 
     def rechnung_absenden(self, e):
         if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
+            snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
+            self.page.overlay.append(snack_bar)
+            snack_bar.open = True
             self.page.update()
             return
         
@@ -756,7 +810,7 @@ class InvoicingApp:
 
         # Generate a unique filename
         pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        pdf_path = os.path.join(script_dir, pdf_dateiname)
+        pdf_path = os.path.join(pdf_dir, pdf_dateiname)
 
         # Create the PDF document
         doc = SimpleDocTemplate(pdf_path, pagesize=letter)
