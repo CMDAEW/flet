@@ -128,54 +128,6 @@ def initialize_database():
     finally:
         conn.close()
 
-def get_unique_bauteil_values():
-    db_path = get_db_path()
-    print(f"Versuche, Datenbank zu öffnen: {db_path}")
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
-        bauteil_values = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return bauteil_values
-    except sqlite3.Error as e:
-        print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
-        print(f"Tabellen in der Datenbank:")
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        for table in tables:
-            print(f"- {table[0]}")
-        conn.close()
-        return []
-
-def get_unique_dn_da_pairs():
-    logging.info("Versuche, eindeutige DN/DA-Paare abzurufen...")
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        logging.info(f"Vorhandene Tabellen: {tables}")
-        
-        cursor.execute('SELECT DISTINCT DN, DA FROM price_list ORDER BY DN, DA')
-        dn_da_pairs = cursor.fetchall()
-        logging.info(f"Gefundene DN/DA-Paare: {dn_da_pairs}")
-        return dn_da_pairs
-    except sqlite3.Error as e:
-        logging.error(f"Fehler beim Abrufen der DN/DA-Paare: {e}")
-        return []
-    finally:
-        conn.close()
-
-def get_unique_customer_names():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT DISTINCT customer_name FROM invoices ORDER BY customer_name')
-    names = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return names
 
 def check_database_structure():
     conn = get_db_connection()
@@ -190,6 +142,7 @@ def check_database_structure():
         print(f"Spalten in {table[0]}:", columns)
     
     conn.close()
+
 
 if __name__ == "__main__":
     initialize_database()

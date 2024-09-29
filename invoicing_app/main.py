@@ -7,7 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
-from database_setup import get_db_connection, initialize_database, get_unique_bauteil_values, get_unique_dn_da_pairs
+from database_setup import get_db_connection, get_db_path, initialize_database
 
 def rechnung_einfuegen(client_name, client_email, invoice_date, total, items):
     conn = get_db_connection()
@@ -933,6 +933,25 @@ def get_unique_customer_names():
     conn.close()
     return names
 
+def get_unique_dn_da_pairs():
+    logging.info("Versuche, eindeutige DN/DA-Paare abzurufen...")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        logging.info(f"Vorhandene Tabellen: {tables}")
+        
+        cursor.execute('SELECT DISTINCT DN, DA FROM price_list ORDER BY DN, DA')
+        dn_da_pairs = cursor.fetchall()
+        logging.info(f"Gefundene DN/DA-Paare: {dn_da_pairs}")
+        return dn_da_pairs
+    except sqlite3.Error as e:
+        logging.error(f"Fehler beim Abrufen der DN/DA-Paare: {e}")
+        return []
+    finally:
+        conn.close()
+
 def get_unique_customer_emails():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1052,6 +1071,27 @@ def update_price(item):
     item["price"].update()
     print(f"Debug: Preisaktualisierung abgeschlossen. Neuer Preis: {item['price'].value}")
 
+def get_unique_bauteil_values():
+    db_path = get_db_path()
+    print(f"Versuche, Datenbank zu öffnen: {db_path}")
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
+        bauteil_values = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return bauteil_values
+    except sqlite3.Error as e:
+        print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
+        print(f"Tabellen in der Datenbank:")
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        for table in tables:
+            print(f"- {table[0]}")
+        conn.close()
+        return []
 
 def update_customer_dropdowns():
     global client_name_dropdown, client_email_dropdown
