@@ -331,98 +331,6 @@ class InvoicingApp:
             print(f"No invoice found with id {rechnung_id}")
             return
 
-        # Clear existing items
-        self.items.clear()
-        self.items_container.controls.clear()
-
-        # Set client name and email
-        self.client_name_dropdown.value = invoice_items[0][1]
-        self.client_email_dropdown.value = invoice_items[0][2]
-
-        # Update the title
-        self.page.title = "Rechnung bearbeiten"
-
-        # Populate items
-        for item in invoice_items:
-            new_item = {
-                "description": ft.Dropdown(
-                    label="Artikelbeschreibung",
-                    width=200,
-                    options=[ft.dropdown.Option(b) for b in get_unique_bauteil_values()],
-                    value=item[5]
-                ),
-                "dn": ft.Dropdown(
-                    label="DN",
-                    width=100,
-                    options=[ft.dropdown.Option(str(item[6]))],
-                    value=str(item[6]) if item[6] else None,
-                    visible=bool(item[6])
-                ),
-                "da": ft.Dropdown(
-                    label="DA",
-                    width=100,
-                    options=[ft.dropdown.Option(str(item[7]))],
-                    value=str(item[7]) if item[7] else None,
-                    visible=bool(item[7])
-                ),
-                "size": ft.Dropdown(
-                    label="Dämmdicke",
-                    width=150,
-                    options=[ft.dropdown.Option(item[8])],
-                    value=item[8]
-                ),
-                "price": ft.TextField(
-                    label="Preis",
-                    width=100,
-                    value=str(item[9]),
-                    read_only=True,
-                    filled=True,
-                    bgcolor=ft.colors.GREY_200
-                ),
-                "quantity": ft.TextField(
-                    label="Menge",
-                    width=100,
-                    value=str(item[10])
-                )
-            }
-
-            # Set up event handlers
-            new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
-            new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
-            new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
-            new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
-            new_item["quantity"].on_change = lambda _: self.update_gesamtpreis()
-
-            # Create a row for the item
-            item_row = ft.Row([
-                new_item["description"],
-                new_item["dn"],
-                new_item["da"],
-                new_item["size"],
-                new_item["price"],
-                new_item["quantity"],
-                ft.IconButton(
-                    icon=ft.icons.DELETE,
-                    on_click=lambda _: self.remove_item(new_item)
-                )
-            ])
-
-            self.items.append(new_item)
-            self.items_container.controls.append(item_row)
-
-        # Update total price
-        self.update_gesamtpreis()
-
-        # Add buttons
-        add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item())
-        update_invoice_button = ft.FilledButton("Rechnung aktualisieren", on_click=lambda _: self.update_rechnung(rechnung_id))
-
-        # Add buttons to the container
-        self.items_container.controls.append(ft.Row([add_item_button, update_invoice_button]))
-
-        # Update the UI
-        self.page.update()
-
         # ... (rest of the implementation)
 
     def pdf_neu_generieren_und_anzeigen(self, rechnung_id):
@@ -532,7 +440,7 @@ class InvoicingApp:
             ),
             "size": ft.Dropdown(
                 label="Dämmdicke",
-                width=150
+                width=100
             ),
             "price": ft.TextField(
                 label="Preis",
@@ -573,67 +481,58 @@ class InvoicingApp:
 
     def update_item_options(self, item, changed_field):
         bauteil = item["description"].value
+        selected_dn = item["dn"].value
+        selected_da = item["da"].value
+        selected_size = item["size"].value
 
         if bauteil:
             available_options = self.get_available_options(bauteil)
             
-            # Always update DN and DA options with all available values
-            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
-            da_options = sorted(set(da for _, da, _ in available_options if da != 0))
-            
-            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-            
-            item["dn"].visible = bool(dn_options)
-            item["da"].visible = bool(da_options)
-
             if changed_field == "description":
-                # Reset values when description changes
+                # Reset all values
                 item["dn"].value = None
                 item["da"].value = None
                 item["size"].value = None
+                
+                # Update DN options
+                dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
+                item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
+                item["dn"].visible = bool(dn_options)
+                
+                # Update DA options
+                da_options = sorted(set(da for _, da, _ in available_options if da != 0))
+                item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
+                item["da"].visible = bool(da_options)
                 
                 # Update size options
                 size_options = sorted(set(size for _, _, size in available_options), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
                 item["size"].options = [ft.dropdown.Option(value) for value in size_options]
 
-            elif changed_field == "dn":
-                selected_dn = float(item["dn"].value) if item["dn"].value else None
-                if selected_dn is not None:
-                    compatible_da = [da for dn, da, _ in available_options if dn == selected_dn]
-                    if compatible_da:
-                        item["da"].value = f"{compatible_da[0]:.1f}"
-
-            elif changed_field == "da":
-                selected_da = float(item["da"].value) if item["da"].value else None
-                if selected_da is not None:
-                    compatible_dn = [dn for dn, da, _ in available_options if da == selected_da]
-                    if compatible_dn:
-                        item["dn"].value = f"{compatible_dn[0]:.0f}" if float(compatible_dn[0]).is_integer() else f"{compatible_dn[0]}"
+            elif changed_field in ["dn", "da"]:
+                # Update the other dimension and size
+                if changed_field == "dn" and selected_dn:
+                    matching_da = sorted(set(da for dn, da, _ in available_options if dn == float(selected_dn) and da != 0))
+                    item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in matching_da]
+                    item["da"].value = None
+                elif changed_field == "da" and selected_da:
+                    matching_dn = sorted(set(dn for dn, da, _ in available_options if da == float(selected_da) and dn != 0))
+                    item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in matching_dn]
+                    item["dn"].value = None
+                
+                # Update size options based on DN and DA
+                if selected_dn and selected_da:
+                    matching_size = sorted(set(size for dn, da, size in available_options if dn == float(selected_dn) and da == float(selected_da)),
+                                           key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+                    item["size"].options = [ft.dropdown.Option(value) for value in matching_size]
+                    item["size"].value = None
 
             elif changed_field == "size":
-                selected_size = item["size"].value
-                if selected_size:
-                    # Update DN and DA if they're not set
-                    matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
-                    if matching_dn_da:
-                        dn, da = matching_dn_da[0]
-                        if not item["dn"].value:
-                            item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
-                        if not item["da"].value:
-                            item["da"].value = f"{da:.1f}"
-
-            # Update size options based on current DN and DA selection
-            selected_dn = float(item["dn"].value) if item["dn"].value else None
-            selected_da = float(item["da"].value) if item["da"].value else None
-            
-            matching_sizes = [
-                size for dn, da, size in available_options 
-                if (selected_dn is None or dn == selected_dn) and (selected_da is None or da == selected_da)
-            ]
-            
-            size_options = sorted(set(matching_sizes), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-            item["size"].options = [ft.dropdown.Option(value) for value in size_options]
+                # Update DN and DA based on the selected size
+                matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
+                if matching_dn_da:
+                    dn, da = matching_dn_da[0]
+                    item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
+                    item["da"].value = f"{da:.1f}"
 
         # Update the dropdowns
         item["dn"].update()
@@ -668,6 +567,8 @@ class InvoicingApp:
         else:
             item["price"].value = ""
         item["price"].update()
+        self.update_gesamtpreis()  # Add this line
+        self.page.update()
 
     def get_price(self, bauteil, dn, da, size):
         conn = get_db_connection()
@@ -789,6 +690,18 @@ class InvoicingApp:
         invoice_date = datetime.now().strftime("%Y-%m-%d")
         total = sum(float(item["price"].value) * int(item["quantity"].value) for item in self.items)
         
+        invoice_items = [
+            {
+                "description": item["description"].value,
+                "dn": item["dn"].value,
+                "da": item["da"].value,
+                "size": item["size"].value,
+                "price": float(item["price"].value),
+                "quantity": int(item["quantity"].value)
+            }
+            for item in self.items
+        ]
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
@@ -800,11 +713,11 @@ class InvoicingApp:
             
             cursor.execute('DELETE FROM invoice_items WHERE invoice_id=?', (rechnung_id,))
             
-            for item in self.items:
+            for item in invoice_items:
                 cursor.execute('''
                     INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (rechnung_id, item["description"].value, item["dn"].value, item["da"].value, item["size"].value, float(item["price"].value), int(item["quantity"].value)))
+                ''', (rechnung_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"]))
             
             conn.commit()
             self.page.snack_bar = ft.SnackBar(content=ft.Text("Rechnung erfolgreich aktualisiert"))
@@ -837,9 +750,10 @@ class InvoicingApp:
         return rechnungen
 
     def pdf_generieren(self, rechnungsdaten):
-        # Get the directory where the script is running from
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        
+        # Create a directory for storing PDFs if it doesn't exist
+        pdf_dir = os.path.join(appdirs.user_data_dir("InvoicingApp", "KAEFER Industrie GmbH"), "PDFs")
+        os.makedirs(pdf_dir, exist_ok=True)
+
         # Generate a unique filename
         pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
         pdf_path = os.path.join(script_dir, pdf_dateiname)
