@@ -145,159 +145,93 @@ class InvoicingApp:
         self.client_name_entry = None
         self.client_email_entry = None
 
-    def update_gesamtpreis(self):
-        total = sum(
-            float(item["subtotal"].value.replace('€', '')) 
-            for item in self.items 
-            if item["subtotal"].value
+    def build_ui(self):
+        bauteil_values = get_unique_bauteil_values()
+        customer_names = self.get_unique_client_names()
+        customer_emails = self.get_unique_customer_emails()
+
+        self.client_name_dropdown = ft.Dropdown(
+            label="Kundenname",
+            width=300,
+            options=[ft.dropdown.Option("Neuer Kunde")] + [ft.dropdown.Option(name) for name in customer_names],
+            on_change=lambda _: self.toggle_name_entry()
         )
-        self.gesamtpreis_text.value = f"Gesamtpreis: €{total:.2f}"
-        self.page.update()
+        self.client_name_entry = ft.TextField(label="Neuer Kundenname", width=300, visible=False, adaptive=True)
 
-    def add_item(self):
-        bauteil_values = self.get_unique_bauteil_values()
+        self.client_email_dropdown = ft.Dropdown(
+            label="Kunden-E-Mail",
+            width=300,
+            options=[ft.dropdown.Option("Neue E-Mail")] + [ft.dropdown.Option(email) for email in customer_emails],
+            on_change=lambda _: self.toggle_email_entry()
+        )
+        self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False, adaptive=True)
+
+        absenden_btn = ft.FilledButton(text="Rechnung absenden", on_click=self.rechnung_absenden, adaptive=True)
+        rechnungen_anzeigen_btn = ft.OutlinedButton(text="Vorhandene Rechnungen anzeigen", on_click=self.rechnungen_anzeigen, adaptive=True)
+        add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item(), adaptive=True)
         
-        new_item = {
-            "description": ft.Dropdown(
-                label="Artikelbeschreibung",
-                width=200,
-                options=[ft.dropdown.Option(b) for b in bauteil_values]
-            ),
-            "dn": ft.Dropdown(
-                label="DN",
-                width=100,
-                visible=False
-            ),
-            "da": ft.Dropdown(
-                label="DA",
-                width=100,
-                visible=False
-            ),
-            "size": ft.Dropdown(
-                label="Dämmdicke",
-                width=150
-            ),
-            "price": ft.TextField(
-                label="Preis",
-                width=100,
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            ),
-            "quantity": ft.TextField(label="Menge", width=100, value="1"),
-            "subtotal": ft.TextField(
-                label="Zwischensumme",
-                width=100,
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            )
+        main_column = ft.Column([
+            self.client_name_dropdown,
+            self.client_name_entry,
+            self.client_email_dropdown,
+            self.client_email_entry,
+            add_item_button,
+            self.items_container,
+            self.gesamtpreis_text,
+            ft.Row([absenden_btn, rechnungen_anzeigen_btn])
+        ], scroll=ft.ScrollMode.ALWAYS)
+
+        scrollable_view = ft.Row(
+            [main_column],
+            scroll=ft.ScrollMode.ALWAYS,
+            expand=True,
+        )
+
+        # Add an initial empty item
+        self.add_item()
+
+        return scrollable_view
+
+    # ... (rest of the class methods)
+
+    def main(self, page: ft.Page):
+        self.page = page
+        self.page.title = "Rechnungs-App"
+        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.fonts = {
+            "Roboto": "https://github.com/google/fonts/raw/main/apache/roboto/static/Roboto-Regular.ttf"
         }
+        self.page.theme = ft.Theme(font_family="Roboto")
+        self.page.adaptive = True
 
-        # Set up event handlers for the dropdowns
-        new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
-        new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
-        new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
-        new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
-        new_item["quantity"].on_change = lambda _: self.update_item_subtotal(new_item)
-
-        # Create a row for the new item
-        item_row = ft.Row([
-            new_item["description"],
-            new_item["dn"],
-            new_item["da"],
-            new_item["size"],
-            new_item["price"],
-            new_item["quantity"],
-            new_item["subtotal"],
-            ft.IconButton(
-                icon=ft.icons.DELETE,
-                on_click=lambda _: self.remove_item(new_item)
+        def route_change(route):
+            self.page.views.clear()
+            self.page.views.append(
+                ft.View(
+                    "/",
+                    [
+                        self.build_ui()
+                    ],
+                )
             )
-        ])
-
-        # Add the new item to the list and update the UI
-        self.items.append(new_item)
-        self.items_container.controls.append(item_row)
-        self.update_item_subtotal(new_item)
-        self.update_gesamtpreis()
-        self.page.update()
-
-    def get_unique_client_names(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('SELECT DISTINCT client_name FROM invoices ORDER BY client_name')
-            client_names = [row[0] for row in cursor.fetchall()]
-            return client_names
-        except sqlite3.Error as e:
-            print(f"Fehler beim Abrufen der Kundennamen: {e}")
-            return []
-        finally:
-            conn.close()
-
-    def get_unique_customer_emails(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT client_email FROM invoices ORDER BY client_email')
-        emails = [row[0] for row in cursor.fetchall() if row[0]]  # Filter out empty emails
-        conn.close()
-        return emails
-    
-    def update_item_subtotal(self, item):
-        price = float(item["price"].value) if item["price"].value else 0
-        quantity = int(item["quantity"].value) if item["quantity"].value else 0
-        subtotal = price * quantity
-        item["subtotal"].value = f"€{subtotal:.2f}"
-        self.update_gesamtpreis()
-        self.page.update()
-    
-    def rechnung_absenden(self, e):
-        if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
             self.page.update()
-            return
-        
-        client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
-        client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
-        
-        invoice_date = datetime.now().strftime("%Y-%m-%d")
-        total = sum(float(item["price"].value) * int(item["quantity"].value) for item in self.items)
-        
-        invoice_items = [
-            {
-                "description": item["description"].value,
-                "dn": item["dn"].value,
-                "da": item["da"].value,
-                "size": item["size"].value,
-                "price": float(item["price"].value),
-                "quantity": int(item["quantity"].value)
-            }
-            for item in self.items
-        ]
-        
-        invoice_data = {
-            "client_name": client_name,
-            "client_email": client_email,
-            "invoice_date": invoice_date,
-            "total": total,
-            "items": invoice_items
-        }
-        
-        if self.rechnung_einfuegen(invoice_data):
-            pdf_path = self.pdf_generieren(invoice_data)
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"Rechnung erfolgreich erstellt und gespeichert als: {pdf_path}"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
-            self.reset_form()
+
+        self.page.on_route_change = route_change
+        self.page.go('/')
+
+    def toggle_name_entry(self):
+        if self.client_name_dropdown.value == "Neuer Kunde":
+            self.client_name_entry.visible = True
         else:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Erstellen der Rechnung"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
+            self.client_name_entry.visible = False
         self.page.update()
 
+    def toggle_email_entry(self):
+        if self.client_email_dropdown.value == "Neue E-Mail":
+            self.client_email_entry.visible = True
+        else:
+            self.client_email_entry.visible = False
+        self.page.update()
 
     def rechnungen_anzeigen(self, e):
         rechnungen = self.rechnungen_abrufen()
@@ -364,117 +298,21 @@ class InvoicingApp:
         rechnungs_dialog.open = True
         self.page.update()
 
+    def get_unique_client_names(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT client_name FROM invoices ORDER BY client_name')
+        names = [row[0] for row in cursor.fetchall() if row[0]]  # Filter out empty names
+        conn.close()
+        return names
 
-    def route_change(self, route):
-        self.page.views.clear()
-        if route.route == "/":
-            self.page.views.append(
-                ft.View(
-                    "/",
-                    [
-                        # Your main page controls here
-                    ]
-                )
-            )
-        # Add other routes as needed
-        self.page.update()
-
-    def build_ui(self):
-        customer_names = self.get_unique_client_names()
-        customer_emails = self.get_unique_customer_emails()
-
-        self.client_name_dropdown = ft.Dropdown(
-            label="Kundenname",
-            options=[ft.dropdown.Option(name) for name in customer_names] + [ft.dropdown.Option("Neuer Kunde")],
-            width=300,
-            on_change=self.toggle_name_entry
-        )
-        self.client_name_entry = ft.TextField(label="Neuer Kundenname", visible=False, width=300)
-
-        self.client_email_dropdown = ft.Dropdown(
-            label="Kunden-E-Mail",
-            options=[ft.dropdown.Option(email) for email in customer_emails] + [ft.dropdown.Option("Neue E-Mail")],
-            width=300,
-            on_change=self.toggle_email_entry
-        )
-        self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", visible=False, width=300)
-
-        add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_item)
-        show_invoices_button = ft.ElevatedButton("Rechnungen anzeigen", on_click=self.rechnungen_anzeigen)
-
-        main_view = ft.Column([
-            ft.Text("Rechnungs-App", size=30, weight=ft.FontWeight.BOLD),
-            self.client_name_dropdown,
-            self.client_name_entry,
-            self.client_email_dropdown,
-            self.client_email_entry,
-            add_item_button,
-            self.items_container,
-            self.gesamtpreis_text,
-            self.submit_invoice_button,
-            self.update_invoice_button,
-            show_invoices_button
-        ])
-
-        return main_view
-
-    # ... (rest of the class methods)
-
-    def main(self, page: ft.Page):
-        self.page = page
-        self.page.title = "Rechnungs-App"
-        self.page.theme_mode = ft.ThemeMode.LIGHT
-        self.page.fonts = {
-            "Roboto": "https://github.com/google/fonts/raw/main/apache/roboto/static/Roboto-Regular.ttf"
-        }
-        self.page.theme = ft.Theme(font_family="Roboto")
-        self.page.adaptive = True
-
-        self.submit_invoice_button = ft.ElevatedButton("Rechnung absenden", on_click=self.rechnung_absenden)
-        self.update_invoice_button = ft.ElevatedButton("Rechnung aktualisieren", visible=False)
-
-        # Build the UI and add it to the page
-        main_view = self.build_ui()
-        self.page.add(main_view)
-
-        self.page.on_route_change = self.route_change
-        self.page.go('/')
-
-def main(page: ft.Page):
-    app = InvoicingApp()
-    app.main(page)
-
-if __name__ == "__main__":
-    initialize_database()
-    ft.app(target=main)
-
-    def get_unique_bauteil_values(self):
-        db_path = get_db_path()
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
-            bauteil_values = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            return bauteil_values
-        except sqlite3.Error as e:
-            print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
-            return []
-
-    def toggle_name_entry(self):
-        if self.client_name_dropdown.value == "Neuer Kunde":
-            self.client_name_entry.visible = True
-        else:
-            self.client_name_entry.visible = False
-        self.page.update()
-
-    def toggle_email_entry(self):
-        if self.client_email_dropdown.value == "Neue E-Mail":
-            self.client_email_entry.visible = True
-        else:
-            self.client_email_entry.visible = False
-        self.page.update()
-
+    def get_unique_customer_emails(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT client_email FROM invoices ORDER BY client_email')
+        emails = [row[0] for row in cursor.fetchall() if row[0]]  # Filter out empty emails
+        conn.close()
+        return emails
 
     def rechnung_bearbeiten(self, rechnung_id):
         conn = get_db_connection()
@@ -493,36 +331,97 @@ if __name__ == "__main__":
             print(f"No invoice found with id {rechnung_id}")
             return
 
-        # Update the main form with the invoice data
-        self.client_name_dropdown.value = invoice_items[0][1]
-        self.client_email_dropdown.value = invoice_items[0][2]
-        
         # Clear existing items
         self.items.clear()
         self.items_container.controls.clear()
 
+        # Set client name and email
+        self.client_name_dropdown.value = invoice_items[0][1]
+        self.client_email_dropdown.value = invoice_items[0][2]
+
+        # Update the title
+        self.page.title = "Rechnung bearbeiten"
+
+        # Populate items
         for item in invoice_items:
-            bauteil = item[5]
-            new_item = self.create_item_dict(bauteil, item[6], item[7], item[8], item[9], item[10])
+            new_item = {
+                "description": ft.Dropdown(
+                    label="Artikelbeschreibung",
+                    width=200,
+                    options=[ft.dropdown.Option(b) for b in get_unique_bauteil_values()],
+                    value=item[5]
+                ),
+                "dn": ft.Dropdown(
+                    label="DN",
+                    width=100,
+                    options=[ft.dropdown.Option(str(item[6]))],
+                    value=str(item[6]) if item[6] else None,
+                    visible=bool(item[6])
+                ),
+                "da": ft.Dropdown(
+                    label="DA",
+                    width=100,
+                    options=[ft.dropdown.Option(str(item[7]))],
+                    value=str(item[7]) if item[7] else None,
+                    visible=bool(item[7])
+                ),
+                "size": ft.Dropdown(
+                    label="Dämmdicke",
+                    width=150,
+                    options=[ft.dropdown.Option(item[8])],
+                    value=item[8]
+                ),
+                "price": ft.TextField(
+                    label="Preis",
+                    width=100,
+                    value=str(item[9]),
+                    read_only=True,
+                    filled=True,
+                    bgcolor=ft.colors.GREY_200
+                ),
+                "quantity": ft.TextField(
+                    label="Menge",
+                    width=100,
+                    value=str(item[10])
+                )
+            }
+
+            # Set up event handlers
+            new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
+            new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
+            new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
+            new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
+            new_item["quantity"].on_change = lambda _: self.update_gesamtpreis()
+
+            # Create a row for the item
+            item_row = ft.Row([
+                new_item["description"],
+                new_item["dn"],
+                new_item["da"],
+                new_item["size"],
+                new_item["price"],
+                new_item["quantity"],
+                ft.IconButton(
+                    icon=ft.icons.DELETE,
+                    on_click=lambda _: self.remove_item(new_item)
+                )
+            ])
+
             self.items.append(new_item)
-            item_row = self.create_item_row(new_item)
             self.items_container.controls.append(item_row)
 
-        # Update the total price
+        # Update total price
         self.update_gesamtpreis()
 
-        # Change the "Rechnung aktualisieren" button to be visible and update its on_click event
-        self.update_invoice_button.visible = True
-        self.update_invoice_button.on_click = lambda _: self.update_rechnung(rechnung_id)
+        # Add buttons
+        add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item())
+        update_invoice_button = ft.FilledButton("Rechnung aktualisieren", on_click=lambda _: self.update_rechnung(rechnung_id))
 
-        # Hide the "Rechnung absenden" button
-        self.submit_invoice_button.visible = False
+        # Add buttons to the container
+        self.items_container.controls.append(ft.Row([add_item_button, update_invoice_button]))
 
-        # Update the page
+        # Update the UI
         self.page.update()
-
-        # Close the invoice list dialog
-        self.close_dialog(self.page.dialog)
 
         # ... (rest of the implementation)
 
@@ -603,151 +502,146 @@ if __name__ == "__main__":
         dialog.open = False
         self.page.update()
 
-
-    def update_item_subtotal(self, item):
-        price = float(item["price"].value) if item["price"].value else 0
-        quantity = int(item["quantity"].value) if item["quantity"].value else 0
-        subtotal = price * quantity
-        item["subtotal"].value = f"€{subtotal:.2f}"
-        self.update_gesamtpreis()
-        self.page.update()
-
-    def update_price(self, item):
-        bauteil = item["description"].value
-        dn = item["dn"].value
-        da = item["da"].value
-        size = item["size"].value
-        
-        if bauteil and size:
-            dn_value = float(dn) if dn else 0
-            da_value = float(da) if da else 0
-            price = self.get_price(bauteil, dn_value, da_value, size)
-            if price is not None:
-                item["price"].value = f"{price:.2f}"
-            else:
-                item["price"].value = ""
-        else:
-            item["price"].value = ""
-        item["price"].update()
-        self.update_item_subtotal(item)
-
     def update_gesamtpreis(self):
         total = sum(
-            float(item["subtotal"].value.replace('€', '')) 
-            for item in self.items 
-            if item["subtotal"].value
+            float(item["price"].value) * int(item["quantity"].value)
+            for item in self.items
+            if item["price"].value and item["quantity"].value
         )
         self.gesamtpreis_text.value = f"Gesamtpreis: €{total:.2f}"
+        self.page.update()
+
+    def add_item(self):
+        bauteil_values = get_unique_bauteil_values()
+        
+        new_item = {
+            "description": ft.Dropdown(
+                label="Artikelbeschreibung",
+                width=200,
+                options=[ft.dropdown.Option(b) for b in bauteil_values]
+            ),
+            "dn": ft.Dropdown(
+                label="DN",
+                width=100,
+                visible=False
+            ),
+            "da": ft.Dropdown(
+                label="DA",
+                width=100,
+                visible=False
+            ),
+            "size": ft.Dropdown(
+                label="Dämmdicke",
+                width=150
+            ),
+            "price": ft.TextField(
+                label="Preis",
+                width=100,
+                read_only=True,
+                filled=True,
+                bgcolor=ft.colors.GREY_200
+            ),
+            "quantity": ft.TextField(label="Menge", width=100, value="1")
+        }
+
+        # Set up event handlers for the dropdowns
+        new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
+        new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
+        new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
+        new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
+        new_item["quantity"].on_change = lambda _: self.update_gesamtpreis()
+
+        # Create a row for the new item
+        item_row = ft.Row([
+            new_item["description"],
+            new_item["dn"],
+            new_item["da"],
+            new_item["size"],
+            new_item["price"],
+            new_item["quantity"],
+            ft.IconButton(
+                icon=ft.icons.DELETE,
+                on_click=lambda _: self.remove_item(new_item)
+            )
+        ])
+
+        # Add the new item to the list and update the UI
+        self.items.append(new_item)
+        self.items_container.controls.append(item_row)
+        self.update_gesamtpreis()
         self.page.update()
 
     def update_item_options(self, item, changed_field):
         bauteil = item["description"].value
 
         if bauteil:
+            available_options = self.get_available_options(bauteil)
+            
+            # Always update DN and DA options with all available values
+            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
+            da_options = sorted(set(da for _, da, _ in available_options if da != 0))
+            
+            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
+            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
+            
+            item["dn"].visible = bool(dn_options)
+            item["da"].visible = bool(da_options)
+
             if changed_field == "description":
-                self.reset_item_fields(item)
-                self.update_item_dropdowns(item, bauteil)
-            elif changed_field in ["dn", "da", "size"]:
-                self.update_compatible_options(item, bauteil)
+                # Reset values when description changes
+                item["dn"].value = None
+                item["da"].value = None
+                item["size"].value = None
+                
+                # Update size options
+                size_options = sorted(set(size for _, _, size in available_options), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+                item["size"].options = [ft.dropdown.Option(value) for value in size_options]
 
+            elif changed_field == "dn":
+                selected_dn = float(item["dn"].value) if item["dn"].value else None
+                if selected_dn is not None:
+                    compatible_da = [da for dn, da, _ in available_options if dn == selected_dn]
+                    if compatible_da:
+                        item["da"].value = f"{compatible_da[0]:.1f}"
+
+            elif changed_field == "da":
+                selected_da = float(item["da"].value) if item["da"].value else None
+                if selected_da is not None:
+                    compatible_dn = [dn for dn, da, _ in available_options if da == selected_da]
+                    if compatible_dn:
+                        item["dn"].value = f"{compatible_dn[0]:.0f}" if float(compatible_dn[0]).is_integer() else f"{compatible_dn[0]}"
+
+            elif changed_field == "size":
+                selected_size = item["size"].value
+                if selected_size:
+                    # Update DN and DA if they're not set
+                    matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
+                    if matching_dn_da:
+                        dn, da = matching_dn_da[0]
+                        if not item["dn"].value:
+                            item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
+                        if not item["da"].value:
+                            item["da"].value = f"{da:.1f}"
+
+            # Update size options based on current DN and DA selection
+            selected_dn = float(item["dn"].value) if item["dn"].value else None
+            selected_da = float(item["da"].value) if item["da"].value else None
+            
+            matching_sizes = [
+                size for dn, da, size in available_options 
+                if (selected_dn is None or dn == selected_dn) and (selected_da is None or da == selected_da)
+            ]
+            
+            size_options = sorted(set(matching_sizes), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+            item["size"].options = [ft.dropdown.Option(value) for value in size_options]
+
+        # Update the dropdowns
+        item["dn"].update()
+        item["da"].update()
+        item["size"].update()
+        
+        # Update the price
         self.update_price(item)
-        self.update_item_row_layout(item)
-        self.page.update()
-
-    def update_item_dropdowns(self, item, bauteil):
-        dn_options = self.get_available_dn(bauteil)
-        da_options = self.get_available_da(bauteil)
-        size_options = self.get_available_sizes(bauteil)
-
-        item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-        item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-        item["size"].options = [ft.dropdown.Option(value) for value in size_options]
-
-        item["dn"].visible = bool(dn_options)
-        item["da"].visible = bool(da_options)
-
-    def update_compatible_options(self, item, bauteil):
-        selected_dn = float(item["dn"].value) if item["dn"].value else None
-        selected_da = float(item["da"].value) if item["da"].value else None
-        selected_size = item["size"].value
-
-        available_options = self.get_available_options(bauteil)
-
-        # ... (rest of the method remains the same)
-
-    def reset_item_fields(self, item):
-        item["dn"].value = None
-        item["da"].value = None
-        item["size"].value = None
-
-    def update_item_dropdowns(self, item, available_options):
-        dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
-        da_options = sorted(set(da for _, da, _ in available_options if da != 0))
-        size_options = sorted(set(size for _, _, size in available_options), 
-                              key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-
-        item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-        item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-        item["size"].options = [ft.dropdown.Option(value) for value in size_options]
-
-        item["dn"].visible = bool(dn_options)
-        item["da"].visible = bool(da_options)
-
-    def update_item_row_layout(self, item):
-        item_row = next((row for row in self.items_container.controls if item["description"] in row.controls), None)
-        if item_row is None:
-            print(f"Could not find item row for {item['description'].value}")
-            return
-
-        new_controls = [
-            item["description"],
-            item["dn"] if item["dn"].visible else ft.Container(width=0),
-            item["da"] if item["da"].visible else ft.Container(width=0),
-            item["size"],
-            item["price"],
-            item["quantity"],
-            item["subtotal"],
-            item_row.controls[-1]  # Keep the delete button
-        ]
-
-        if any(control is None for control in new_controls):
-            print(f"Found None control in new_controls for {item['description'].value}")
-            return
-
-        item_row.controls = new_controls
-        self.page.update()
-
-    def update_compatible_options(self, item, available_options):
-        selected_dn = float(item["dn"].value) if item["dn"].value else None
-        selected_da = float(item["da"].value) if item["da"].value else None
-        selected_size = item["size"].value
-
-        if selected_dn:
-            compatible_da = [da for dn, da, _ in available_options if dn == selected_dn]
-            if compatible_da and not item["da"].value:
-                item["da"].value = f"{compatible_da[0]:.1f}"
-
-        if selected_da:
-            compatible_dn = [dn for dn, da, _ in available_options if da == selected_da]
-            if compatible_dn and not item["dn"].value:
-                item["dn"].value = f"{compatible_dn[0]:.0f}" if float(compatible_dn[0]).is_integer() else f"{compatible_dn[0]}"
-
-        if selected_size:
-            matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
-            if matching_dn_da:
-                dn, da = matching_dn_da[0]
-                if not item["dn"].value:
-                    item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
-                if not item["da"].value:
-                    item["da"].value = f"{da:.1f}"
-
-        # Update size options based on current DN and DA selection
-        matching_sizes = [
-            size for dn, da, size in available_options 
-            if (selected_dn is None or dn == selected_dn) and (selected_da is None or da == selected_da)
-        ]
-        size_options = sorted(set(matching_sizes), key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-        item["size"].options = [ft.dropdown.Option(value) for value in size_options]
 
     def get_available_options(self, bauteil):
         conn = get_db_connection()
@@ -797,6 +691,52 @@ if __name__ == "__main__":
         self.update_gesamtpreis()
         self.page.update()
 
+    def rechnung_absenden(self, e):
+        if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
+            self.page.overlay.append(self.page.snack_bar)
+            self.page.snack_bar.open = True
+            self.page.update()
+            return
+        
+        client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
+        client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
+        
+        invoice_date = datetime.now().strftime("%Y-%m-%d")
+        total = sum(float(item["price"].value) * int(item["quantity"].value) for item in self.items)
+        
+        invoice_items = [
+            {
+                "description": item["description"].value,
+                "dn": item["dn"].value,
+                "da": item["da"].value,
+                "size": item["size"].value,
+                "price": float(item["price"].value),
+                "quantity": int(item["quantity"].value)
+            }
+            for item in self.items
+        ]
+        
+        invoice_data = {
+            "client_name": client_name,
+            "client_email": client_email,
+            "invoice_date": invoice_date,
+            "total": total,
+            "items": invoice_items
+        }
+        
+        if self.rechnung_einfuegen(invoice_data):
+            pdf_path = self.pdf_generieren(invoice_data)
+            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"Rechnung erfolgreich erstellt und gespeichert als: {pdf_path}"))
+            self.page.overlay.append(self.page.snack_bar)
+            self.page.snack_bar.open = True
+            self.reset_form()
+        else:
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Erstellen der Rechnung"))
+            self.page.overlay.append(self.page.snack_bar)
+            self.page.snack_bar.open = True
+        self.page.update()
+
     def rechnung_einfuegen(self, invoice_data):
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -831,8 +771,6 @@ if __name__ == "__main__":
         self.items_container.controls.clear()
         self.update_gesamtpreis()
         self.add_item()  # Add an initial empty item
-        self.update_invoice_button.visible = False
-        self.submit_invoice_button.visible = True
         self.page.update()
         
         # ... (rest of the rechnung_absenden implementation)
@@ -972,112 +910,20 @@ if __name__ == "__main__":
         finally:
             conn.close()
 
-    def create_item_dict(self, bauteil, dn, da, size, price, quantity):
-        return {
-            "description": ft.Dropdown(
-                label="Artikelbeschreibung",
-                width=300,
-                options=[ft.dropdown.Option(b) for b in get_unique_bauteil_values()],
-                value=bauteil
-            ),
-            "dn": ft.Dropdown(
-                label="DN",
-                width=80,
-                options=[ft.dropdown.Option(f"{d:.0f}" if float(d).is_integer() else f"{d}") for d in self.get_available_dn(bauteil)],
-                value=str(dn) if dn and dn != 0 else None,
-                visible=bool(dn and dn != 0)
-            ),
-            "da": ft.Dropdown(
-                label="DA",
-                width=80,
-                options=[ft.dropdown.Option(f"{d:.1f}") for d in self.get_available_da(bauteil)],
-                value=str(da) if da and da != 0 else None,
-                visible=bool(da and da != 0)
-            ),
-            "size": ft.Dropdown(
-                label="Dämmdicke",
-                width=120,
-                options=[ft.dropdown.Option(s) for s in self.get_available_sizes(bauteil)],
-                value=size
-            ),
-            "price": ft.TextField(
-                label="Preis",
-                width=100,
-                value=str(price),
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            ),
-            "quantity": ft.TextField(
-                label="Menge",
-                width=80,
-                value=str(quantity)
-            ),
-            "subtotal": ft.TextField(
-                label="Zwischensumme",
-                width=120,
-                value=f"€{float(price) * int(quantity):.2f}",
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            )
-        }
-
-    def create_item_row(self, item):
-        return ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    item["description"],
-                    item["dn"] if item["dn"].visible else ft.Container(width=0),
-                    item["da"] if item["da"].visible else ft.Container(width=0),
-                    item["size"],
-                ], wrap=True),
-                ft.Row([
-                    item["price"],
-                    item["quantity"],
-                    item["subtotal"],
-                    ft.IconButton(
-                        icon=ft.icons.DELETE,
-                        on_click=lambda _, item=item: self.remove_item(item)
-                    )
-                ], wrap=True)
-            ]),
-            border=ft.border.all(1, ft.colors.GREY_400),
-            border_radius=5,
-            padding=5,
-            margin=ft.margin.only(bottom=10)
-        )
-
-    def setup_item_event_handlers(self, item):
-        item["description"].on_change = lambda _, item=item: self.update_item_options(item, "description")
-        item["dn"].on_change = lambda _, item=item: self.update_item_options(item, "dn")
-        item["da"].on_change = lambda _, item=item: self.update_item_options(item, "da")
-        item["size"].on_change = lambda _, item=item: self.update_item_options(item, "size")
-        item["quantity"].on_change = lambda _, item=item: self.update_item_subtotal(item)
-
-    def get_available_dn(self, bauteil):
-        conn = get_db_connection()
+def get_unique_bauteil_values():
+    db_path = get_db_path()
+    try:
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT dn FROM price_list WHERE bauteil = ? AND dn != 0 ORDER BY dn', (bauteil,))
-        dn_values = [row[0] for row in cursor.fetchall()]
+        cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
+        bauteil_values = [row[0] for row in cursor.fetchall()]
         conn.close()
-        return dn_values
-
-    def get_available_da(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND da != 0 ORDER BY da', (bauteil,))
-        da_values = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return da_values
-
-    def get_available_sizes(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT size FROM price_list WHERE bauteil = ? ORDER BY size', (bauteil,))
-        size_values = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        return size_values
+        return bauteil_values
+    except sqlite3.Error as e:
+        print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
+        return []
+        
+        # ... (rest of the update_rechnung implementation)
 
 def main(page: ft.Page):
     app = InvoicingApp()
