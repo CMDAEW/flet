@@ -218,8 +218,16 @@ def main(page: ft.Page):
                     available_options = get_available_options(bauteil)
                     
                     # Update size options
-                    size_options = sorted(set(d[2] for d in available_options if len(d) > 2), key=lambda x: float(x.rstrip('mm')))
-                    new_item["size"].options = [ft.dropdown.Option(str(value)) for value in size_options]
+                    def size_sort_key(x):
+                        try:
+                            # Für Bereiche wie "180 - 220", nehmen wir den ersten Wert
+                            return float(x.split('-')[0].strip().rstrip('mm'))
+                        except ValueError:
+                            return 0
+
+                    size_options = sorted(set(d[2] for d in available_options if len(d) > 2), key=size_sort_key)
+                    new_item["size"].options = [ft.dropdown.Option(value) for value in size_options]
+                    print(f"Debug: Verfügbare Größenoptionen: {size_options}")
                     
                     # Update DN and DA options
                     dn_options = sorted(set(d[0] for d in available_options if len(d) > 0 and d[0] != 0))
@@ -974,7 +982,8 @@ def update_options(changed_field, item):
         # Update size options
         def size_sort_key(x):
             try:
-                return float(x.split('-')[0].strip())
+                # Für Bereiche wie "180 - 220", nehmen wir den ersten Wert
+                return float(x.split('-')[0].strip().rstrip('mm'))
             except ValueError:
                 return 0
 
