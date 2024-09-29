@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-a = Analysis(['invoicing_app.py'],
+a = Analysis(['main.py'],
              pathex=[],
              binaries=[],
-             datas=[('EP_SWF.csv', '.')],  # invoicing.db wird als initiale Datenbank verwendet
+             datas=[('EP_SWF.csv', '.')], 
              hiddenimports=['flet', 'sqlite3', 'csv', 'reportlab', 'appdirs'],
              hookspath=[],
              hooksconfig={},
@@ -29,7 +29,7 @@ exe = EXE(pyz,
           upx=True,
           upx_exclude=[],
           runtime_tmpdir=None,
-          console=False,  # Behalten Sie dies auf True für Debugging-Zwecke
+          console=False, 
           disable_windowed_traceback=False,
           argv_emulation=False,
           

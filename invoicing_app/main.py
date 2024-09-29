@@ -217,7 +217,17 @@ def main(page: ft.Page):
                     available_options = get_available_options(bauteil)
                     
                     # Update size options
-                    size_options = sorted(set(size for _, _, size in available_options))
+                    def size_sort_key(x):
+                        try:
+                            return float(x.rstrip('mm'))
+                        except ValueError:
+                            # Für Bereiche wie "30 - 100" oder "120 - 160", nehmen wir den Durchschnitt
+                            parts = x.split('-')
+                            if len(parts) == 2:
+                                return (float(parts[0].strip()) + float(parts[1].strip())) / 2
+                            return 0  # Fallback für unerwartete Formate
+
+                    size_options = sorted(set(size for _, _, size in available_options), key=size_sort_key)
                     item["size"].options = [ft.dropdown.Option(value) for value in size_options]
                     
                     # Show/hide DN and DA fields
@@ -258,6 +268,7 @@ def main(page: ft.Page):
                                 dn, da = matching_dn_da[0]
                                 item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
                                 item["da"].value = f"{da:.1f}"
+                            print(f"Debug: Größe geändert zu {selected_size}, DN: {item['dn'].value}, DA: {item['da'].value}")
 
                 else:
                     item["dn"].options = []
@@ -269,20 +280,32 @@ def main(page: ft.Page):
                     item["dn"].visible = False
                     item["da"].visible = False
 
-                update_price()
-                page.update()
+                print(f"Debug: Optionen aktualisiert. Bauteil: {bauteil}, DN: {selected_dn}, DA: {selected_da}, Größe: {selected_size}")
+                print(f"Debug: Verfügbare Größen: {size_options}")
 
-            def update_price():
+                print(f"Debug: Werte nach Aktualisierung - Bauteil: {bauteil}, DN: {item['dn'].value}, DA: {item['da'].value}, Größe: {item['size'].value}")
+                update_price(item)
+
+            def update_price(item):
                 bauteil = item["description"].value
                 dn = item["dn"].value
                 da = item["da"].value
                 size = item["size"].value
+                print(f"Debug: update_price aufgerufen mit Bauteil: {bauteil}, DN: {dn}, DA: {da}, Größe: {size}")
                 if bauteil and size:
                     price = get_price(bauteil, float(dn) if dn else 0, float(da) if da else 0, size)
                     if price is not None:
                         item["price"].value = f"{price:.2f}"
+                        print(f"Debug: Neuer Preis berechnet: {price:.2f}")
                     else:
                         item["price"].value = ""
+                        print(f"Debug: Kein Preis gefunden für Bauteil: {bauteil}, DN: {dn}, DA: {da}, Größe: {size}")
+                else:
+                    item["price"].value = ""
+                    print(f"Debug: Nicht genug Informationen für Preisberechnung. Bauteil: {bauteil}, DN: {dn}, DA: {da}, Größe: {size}")
+                item["price"].update()
+                print(f"Debug: Preisaktualisierung abgeschlossen. Neuer Preis: {item['price'].value}")
+                update_gesamtpreis()
                 page.update()
 
             def on_description_change(e):
@@ -525,7 +548,7 @@ def main(page: ft.Page):
                 # Prepare options for DN, DA, and size
                 dn_options = sorted(set(d[0] for d in available_options if len(d) > 0 and d[0] != 0))
                 da_options = sorted(set(d[1] for d in available_options if len(d) > 1 and d[1] != 0))
-                size_options = sorted(set(d[2] for d in available_options if len(d) > 2))
+                size_options = sorted(set(d[2] for d in available_options if len(d) > 2), key=lambda x: float(x.rstrip('mm')))
 
                 new_item = {
                     "description": ft.Dropdown(
@@ -575,7 +598,7 @@ def main(page: ft.Page):
                         available_options = get_available_options(bauteil)
                         
                         # Update size options
-                        size_options = sorted(set(d[2] for d in available_options if len(d) > 2))
+                        size_options = sorted(set(d[2] for d in available_options if len(d) > 2), key=lambda x: float(x.rstrip('mm')))
                         new_item["size"].options = [ft.dropdown.Option(str(value)) for value in size_options]
                         
                         # Update DN and DA options
@@ -587,7 +610,15 @@ def main(page: ft.Page):
                         new_item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
                         new_item["da"].visible = bool(da_options)
 
-                        if changed_field in ["dn", "da", "size"]:
+                        if changed_field == "size":
+                            # Aktualisiere DN und DA basierend auf der ausgewählten Größe
+                            matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
+                            if matching_dn_da:
+                                dn, da = matching_dn_da[0]
+                                new_item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
+                                new_item["da"].value = f"{da:.1f}"
+                            print(f"Debug: Größe geändert zu {selected_size}, DN: {new_item['dn'].value}, DA: {new_item['da'].value}")
+                        elif changed_field in ["dn", "da"]:
                             # Update other fields based on the changed field
                             if changed_field == "dn" and selected_dn:
                                 matching_da = [d[1] for d in available_options if len(d) > 1 and d[0] == float(selected_dn)]
@@ -602,30 +633,34 @@ def main(page: ft.Page):
                                 matching_size = [d[2] for d in available_options if len(d) > 2 and d[0] == float(selected_dn) and d[1] == float(selected_da)]
                                 if matching_size:
                                     new_item["size"].value = str(matching_size[0])
-                            elif changed_field == "size" and selected_size:
-                                matching_dn_da = [(d[0], d[1]) for d in available_options if len(d) > 2 and d[2] == selected_size]
-                                if matching_dn_da:
-                                    dn, da = matching_dn_da[0]
-                                    new_item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
-                                    new_item["da"].value = f"{da:.1f}"
 
+                    print(f"Debug: Werte nach Aktualisierung - Bauteil: {bauteil}, DN: {new_item['dn'].value}, DA: {new_item['da'].value}, Größe: {new_item['size'].value}")
                     update_item_price()
-                    update_gesamtpreis()
-                    page.update()
+
+                new_item["description"].on_change = lambda _: update_item_options("description")
+                new_item["dn"].on_change = lambda _: update_item_options("dn")
+                new_item["da"].on_change = lambda _: update_item_options("da")
+                new_item["size"].on_change = lambda _: update_item_options("size")
 
                 def update_item_price():
                     bauteil = new_item["description"].value
                     dn = new_item["dn"].value
                     da = new_item["da"].value
                     size = new_item["size"].value
+                    print(f"Debug (rechnung_bearbeiten): Preisaktualisierung gestartet für Bauteil: {bauteil}, DN: {dn}, DA: {da}, Größe: {size}")
                     if bauteil and size:
                         price = get_price(bauteil, float(dn) if dn else 0, float(da) if da else 0, size)
                         if price is not None:
                             new_item["price"].value = f"{price:.2f}"
+                            print(f"Debug (rechnung_bearbeiten): Neuer Preis berechnet: {price:.2f}")
                         else:
                             new_item["price"].value = ""
+                            print("Debug (rechnung_bearbeiten): Kein Preis gefunden")
+                    else:
+                        print("Debug (rechnung_bearbeiten): Nicht genug Informationen für Preisberechnung")
                     update_gesamtpreis()
                     page.update()
+                    print("Debug (rechnung_bearbeiten): Preisaktualisierung abgeschlossen")
 
                 new_item["description"].on_change = lambda _: update_item_options("description")
                 new_item["dn"].on_change = lambda _: update_item_options("dn")
@@ -948,37 +983,42 @@ def get_available_options(bauteil):
         conn.close()
 
 def update_options(changed_field, item):
+    print(f"Debug: update_options aufgerufen mit changed_field: {changed_field}")
     bauteil = item["description"].value
     selected_dn = item["dn"].value
     selected_da = item["da"].value
     selected_size = item["size"].value
+    print(f"Debug: Aktuelle Werte vor Aktualisierung - Bauteil: {bauteil}, DN: {selected_dn}, DA: {selected_da}, Größe: {selected_size}")
 
     if bauteil:
         available_options = get_available_options(bauteil)
         
         # Update size options
-        size_options = sorted(set(size for _, _, size in available_options))
+        def size_sort_key(x):
+            try:
+                return float(x.split('-')[0].strip())
+            except ValueError:
+                return 0
+
+        size_options = sorted(set(size for _, _, size in available_options), key=size_sort_key)
         item["size"].options = [ft.dropdown.Option(value) for value in size_options]
+        print(f"Debug: Verfügbare Größenoptionen: {size_options}")
         
-        # Show/hide DN and DA fields
-        item["dn"].visible = any(dn != 0 for dn, _, _ in available_options)
-        item["da"].visible = any(da != 0 for _, da, _ in available_options)
-
-        if item["dn"].visible:
-            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0))
-            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-
-        if item["da"].visible:
-            da_options = sorted(set(da for _, da, _ in available_options if da != 0))
-            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-
         if changed_field == "description":
             # Reset DN, DA, and size when description changes
             item["dn"].value = None
             item["da"].value = None
             item["size"].value = None
-        elif changed_field in ["dn", "da", "size"]:
-            # Update other fields based on the changed field
+        elif changed_field == "size":
+            # Aktualisiere DN und DA basierend auf der ausgewählten Größe
+            matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
+            if matching_dn_da:
+                dn, da = matching_dn_da[0]
+                item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
+                item["da"].value = f"{da:.1f}"
+            print(f"Debug: Größe geändert zu {selected_size}, DN: {item['dn'].value}, DA: {item['da'].value}")
+        elif changed_field in ["dn", "da"]:
+            # Aktualisiere die andere Dimension und die Größe
             if changed_field == "dn" and selected_dn:
                 matching_da = [da for dn, da, _ in available_options if dn == float(selected_dn)]
                 if matching_da:
@@ -992,49 +1032,33 @@ def update_options(changed_field, item):
                 matching_size = [size for dn, da, size in available_options if dn == float(selected_dn) and da == float(selected_da)]
                 if matching_size:
                     item["size"].value = matching_size[0]
-            elif changed_field == "size" and selected_size:
-                matching_dn_da = [(dn, da) for dn, da, size in available_options if size == selected_size]
-                if matching_dn_da:
-                    dn, da = matching_dn_da[0]
-                    item["dn"].value = f"{dn:.0f}" if float(dn).is_integer() else f"{dn}"
-                    item["da"].value = f"{da:.1f}"
 
-    else:
-        item["dn"].options = []
-        item["da"].options = []
-        item["size"].options = []
-        item["dn"].value = None
-        item["da"].value = None
-        item["size"].value = None
-        item["dn"].visible = False
-        item["da"].visible = False
-
-    def update_price(item, page):
-        bauteil = item["description"].value
-        dn = item["dn"].value
-        da = item["da"].value
-        size = item["size"].value
-        if bauteil and size:
-            price = get_price(bauteil, float(dn) if dn else 0, float(da) if da else 0, size)
-            if price is not None:
-                item["price"].value = f"{price:.2f}"
-            else:
-                item["price"].value = ""
-        page.update()
-
+    print(f"Debug: Werte nach Aktualisierung - Bauteil: {bauteil}, DN: {item['dn'].value}, DA: {item['da'].value}, Größe: {item['size'].value}")
+    
+    # Aktualisieren Sie den Preis am Ende der Funktion
+    update_price(item)
 
 def update_price(item):
     bauteil = item["description"].value
     dn = item["dn"].value
     da = item["da"].value
     size = item["size"].value
+    print(f"Debug: update_price aufgerufen mit Bauteil: {bauteil}, DN: {dn}, DA: {da}, Größe: {size}")
+    
     if bauteil and size:
         price = get_price(bauteil, float(dn) if dn else 0, float(da) if da else 0, size)
         if price is not None:
             item["price"].value = f"{price:.2f}"
+            print(f"Debug: Neuer Preis berechnet: {price:.2f}")
         else:
             item["price"].value = ""
-    item.update()
+            print("Debug: Kein Preis gefunden")
+    else:
+        item["price"].value = ""
+        print("Debug: Nicht genug Informationen für Preisberechnung")
+    item["price"].update()
+    print(f"Debug: Preisaktualisierung abgeschlossen. Neuer Preis: {item['price'].value}")
+
 
 def update_customer_dropdowns():
     global client_name_dropdown, client_email_dropdown
