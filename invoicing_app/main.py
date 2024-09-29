@@ -166,9 +166,9 @@ class InvoicingApp:
         )
         self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False, adaptive=True)
 
-        absenden_btn = ft.FilledButton(text="Abrechnung absenden", on_click=self.rechnung_absenden, adaptive=True)
-        ohne_preise_btn = ft.OutlinedButton(text="Rechnung ohne Preise generieren", on_click=self.rechnung_ohne_preise_generieren, adaptive=True)
-        rechnungen_anzeigen_btn = ft.OutlinedButton(text="Vorhandene Rechnungen anzeigen", on_click=self.rechnungen_anzeigen, adaptive=True)
+        self.submit_invoice_button = ft.ElevatedButton("Abrechnung absenden", on_click=self.rechnung_absenden)
+        self.generate_invoice_without_prices_button = ft.ElevatedButton("Rechnung ohne Preise generieren", on_click=self.rechnung_ohne_preise_generieren)
+        self.show_existing_invoices_button = ft.ElevatedButton("Vorhandene Rechnungen anzeigen", on_click=self.rechnungen_anzeigen)
         add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item(), adaptive=True)
         
         main_column = ft.Column([
@@ -179,7 +179,7 @@ class InvoicingApp:
             add_item_button,
             self.items_container,
             self.gesamtpreis_text,
-            ft.Row([absenden_btn, ohne_preise_btn, rechnungen_anzeigen_btn])
+            ft.Row([self.submit_invoice_button, self.generate_invoice_without_prices_button, self.show_existing_invoices_button])
         ], scroll=ft.ScrollMode.ALWAYS)
 
         scrollable_view = ft.Row(
@@ -194,6 +194,8 @@ class InvoicingApp:
         return scrollable_view
 
     def rechnung_ohne_preise_generieren(self, e):
+        if self.handle_duplicate_check():
+            return
         if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
             self.show_snackbar("Bitte füllen Sie alle Felder aus")
             return
@@ -326,6 +328,8 @@ class InvoicingApp:
         self.page.update()
 
     def rechnungen_anzeigen(self, e):
+        if self.handle_duplicate_check():
+            return
         rechnungen = self.rechnungen_abrufen()
         rechnungsliste = ft.DataTable(
             columns=[
@@ -795,6 +799,29 @@ class InvoicingApp:
         item["price"].update()
         self.update_item_subtotal(item)  # Update subtotal when price changes
         self.page.update()
+    
+    def check_for_duplicates(self):
+        seen_items = set()
+        duplicates = []
+        for item in self.items:
+            item_key = (
+                item["description"].value,
+                item["dn"].value,
+                item["da"].value,
+                item["size"].value
+            )
+            if item_key in seen_items:
+                duplicates.append(item_key)
+            else:
+                seen_items.add(item_key)
+        return duplicates
+
+    def handle_duplicate_check(self):
+        duplicates = self.check_for_duplicates()
+        if duplicates:
+            self.show_snackbar("Hast du Tomaten auf den Augen?")
+            return True
+        return False
 
     def show_snackbar(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
@@ -1049,6 +1076,9 @@ class InvoicingApp:
         self.page.update()
 
     def rechnung_absenden(self, e):
+        if self.handle_duplicate_check():
+            return
+        
         if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
             self.show_snackbar("Bitte füllen Sie alle Felder aus")
             return
