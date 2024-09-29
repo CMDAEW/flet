@@ -408,12 +408,14 @@ def main(page: ft.Page):
             rechnungen = rechnungen_abrufen()
             rechnungsliste = ft.DataTable(
                 columns=[
-                    ft.DataColumn(ft.Text("Kunde")),
-                    ft.DataColumn(ft.Text("Datum")),
-                    ft.DataColumn(ft.Text("Gesamt")),
-                    ft.DataColumn(ft.Text("Aktionen")),
+                    ft.DataColumn(ft.Text("Kunde"), numeric=False),
+                    ft.DataColumn(ft.Text("Datum"), numeric=False),
+                    ft.DataColumn(ft.Text("Gesamt"), numeric=True),
+                    ft.DataColumn(ft.Text("Aktionen"), numeric=False),
                 ],
-                rows=[]
+                rows=[],
+                column_spacing=50,
+                horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             )
             
             for rechnung in rechnungen:
@@ -450,12 +452,21 @@ def main(page: ft.Page):
                 dialog.open = False
                 page.update()
 
+            # Einbetten der Rechnungsliste in einen ListView
+            scrollable_content = ft.ListView(
+                controls=[rechnungsliste],
+                expand=1,
+                spacing=10,
+                padding=20,
+                auto_scroll=True
+            )
+
             rechnungs_dialog = ft.AlertDialog(
                 title=ft.Text("Vorhandene Rechnungen"),
                 content=ft.Container(
-                    content=rechnungsliste,
-                    width=700,
-                    height=400,
+                    content=scrollable_content,
+                    width=800,
+                    height=500,
                 ),
                 actions=[
                     ft.TextButton("Schließen", on_click=lambda _: close_dialog(rechnungs_dialog))
