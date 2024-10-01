@@ -1,0 +1,90 @@
+RV Pos;Benennung;Material;Abmessung;ME;E,P;per
+100;Mineralwollmatten;RTD2 bzw. MD2;30 mm;Qm;7,20;1
+101;Mineralwollmatten;RTD2 bzw. MD2;40 mm;Qm;9,25;1
+102;Mineralwollmatten;RTD2 bzw. MD2;50 mm;Qm;11,18;1
+103;Mineralwollmatten;RTD2 bzw. MD2;60 mm;Qm;12,35;1
+104;Mineralwollmatten;RTD2 bzw. MD2;80 mm;Qm;14,27;1
+105;Mineralwollmatten;RTD2 bzw. MD2;100 mm;Qm;16,11;1
+106;Mineralwollmatten;RTD2 bzw. MD2;120 mm;Qm;17,34;1
+107;Stahlblech 275g;Verzinkt;0,6 mm;Qm;11,03;1
+108;Stahlblech 275g;Verzinkt;0,7 mm;Qm;12,87;1
+109;Stahlblech 275g;Verzinkt;0,8 mm;Qm;14,63;1
+110;Stahlblech 275g;Verzinkt;1,0 mm;Qm;18,38;1
+111;Blech seewasserbeständig;Alu;0,6 mm;Qm;18,38;1
+112;Blech seewasserbeständig;Alu;0,7 mm;Qm;19,85;1
+113;Blech seewasserbeständig;Alu;0,8 mm;Qm;25,15;1
+114;Blech seewasserbeständig;Alu;1,0 mm;Qm;30,88;1
+115;Blech seewasserbeständig;Alu;1,2 mm;Qm;36,77;1
+116;Blechtreibschrauben m. PE Scheibe;Verzinkt;4,2 x 13 mm;ST;36,17;1000
+117;Blechtreibschrauben m. PE Scheibe;Verzinkt;4,8 x 19 mm;ST;42,06;1000
+118;Blechtreibschrauben m. VA-Neop.-Scheibe;Edelstahl;4,2 x 13 mm;ST;99,25;1000
+119;Blechtreibschrauben m. VA-Neop.-Scheibe;Edelstahl;4,8 x 19 mm;ST;121,74;1000
+120;Fassadenschrauben m. Scheibe;Edelstahl;6,3 x 19 mm;ST;258,17;1000
+121;Blindnieten;Verzinkt;3,2 x 9,1 mm;ST;86,96;1000
+122;Blindnieten;Verzinkt;3,2 x 12,4 mm;ST;91,16;1000
+123;Blindnieten;Edelstahl;3,2 x 9,1 mm;ST;106,82;1000
+124;Blindnieten;Edelstahl;3,2 x 12,4 mm;ST;114,46;1000
+125;Mattenhaken;;;ST;39,04;1000
+126;Signodeband;;19 x 0,5;kg;6,54;1
+127;Anbohrer;;3,25;ST;0,67;1
+128;Anbohrer;;4,5;ST;0,95;1
+129;Kantenschutzband schwarz;;;M;2,43;1
+130;"Kappenschlößer selbstsichernd ""klein""";Verzinkt;;ST;2,57;1
+131;"Kappenschlößer selbstsichernd ""groß""";Verzinkt;;ST;5,15;1
+132;"Kappenschlößer selbstsichernd ""klein""";Edelstahl;;ST;10,81;1
+133;"Kappenschlößer selbstsichernd ""groß""";Edelstahl;;ST;18,53;1
+134;Einwegenzüge;;;ST;17,64;1
+135;Atemschutzmasken P2;;;ST;3,68;1
+136;Big Bags;;;ST;12,49;1
+137;Mineralwollmatten;Isover ML 03;30mm;QM;7,21;1
+138;Mineralwollmatten;Isover ML 03;40mm;QM;8,81;1
+139;Mineralwollmatten;Isover ML 03;50mm;QM;10,07;1
+140;Mineralwollmatten;Isover ML 03;60mm;QM;11,11;1
+141;Mineralwollmatten;Isover ML 03;70mm;QM;12,52;1
+142;Mineralwollmatten;Isover ML 03;80mm;QM;13,83;1
+143;Mineralwollmatten;Isover ML 03;100mm;QM;15,95;1
+144;Lochblech;verz.;1,0mm;QM;57,93;1
+145;Lochblech;Alu;1,0mm;QM;69,85;1
+146;Blech;Edelstahl;0,6mm;QM;118,59;1
+147;Blech;Edelstahl;0,8mm;QM;151,53;1
+148;Blech;Edelstahl;1,0mm;QM;186,55;1
+149;Armaflex;Plattenmaterial;19mm;QM;43,02;1
+150;Armaflex;Kleber;500ml;Dose;20,80;1
+151;Promatec;Plattenmaterial;25mm;QM;77,49;1
+152;Trapezblech;Verzi.Ral.9002;1mm;QM;31,99;1
+153;Silicon;weiss;Tube;ST;8,31;1
+154;Ral 9002-Blech;verz.;1mm;QM;34,58;1
+155;Panele;Ral-9002;40mm;QM;75,83;1
+156;Dichtungsband;w;3;Rolle;13,47;1
+157;Bitum-Dichtungsband;Bitum;100mm;Rolle;33,76;1
+158;R�ckschlagklappe;Verz.;100mm;Stck;243,42;1
+159;Keramikwolle;Promat 130;50mm;Katon;129,05;1
+160;Armaflex;Plattenmaterial;10mm;QM;29,42;1
+161;Armaflex;Klebeband;50mm;Rolle;15,23;1
+162;Matrazenisolierung;Gewebetuch;50mm;Qm;129,43;1
+163;Brunnenschaum;Schaum;1;Dose;20,39;1
+164;Paroc Rohrschalen;ALUKASCHIERT;30;mm;5,81;1
+165;Klebeband;Alu;100;mm;13,55;1
+166;Riffelblech;Alu;3;QM;26,84;1
+167;Holzbohlen;Holz;50;m;16,52;1
+168;Dachpappe;Bitum;1;Qm;48,78;1
+169;Kaiman Alu-Tec;Selbstklebend;19;mm;90,24;1
+170;Glasband Selbstklebend;Glasfaser;30x50;Rolle;51,49;1
+171;Obertürschließer;ABUS;8603;stck;123,37;1
+172;Farbe;2 Kom;25;l;756,21;1
+173;Pu Panele;Ral9002;22,2;qm;2726,62;1
+174;Trapezblech;Alu-Stucco;22,3;qm;1161,81;1
+175;Spanngurte;;3x30mm;stck;13,23;1
+176;iso-Kissen;Nineralwolle;50x20;stck;13,16;1
+177;Schaumkatuschen;2 KM;20 liter;Stck;271,55;1
+178;Armacell chek;Silver;19mm;QM;90,22;1
+179;Arma chek 50mm;Klebeband;50m;stck;105,94;1
+180;Hensomastik 5KS;Spachtel;12,5;kg;144,83;1
+181;Hensomastik;Farbe;12,5;KG;144,83;1
+182;Hensomastik;Tuben Spachtel;310;ml;14,31;1
+183;Hensomastik;Mineralfaserplatten;60;mm;33,90;1
+184;isover Akustic spp 12,9;Mineralfaserplatte;1250x600x50mm;QM;15,13;1
+185;Glasgewebe Schwarz;Glasvilies;1 Rolle;stck;258,44;1
+186;Brandschutzkleber;Vatrat;15 Kg Eimer;stck;101,13;1
+187;Edelstahl Nieten;VA;4,8x19mm;stck;162,60;1000
+198;Bauschrauben;VA;6x60;stck;83,88;100

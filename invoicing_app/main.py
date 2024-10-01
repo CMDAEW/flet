@@ -86,6 +86,45 @@ def initialize_database():
             )
         ''')
         
+        # Create Formteile table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Formteile (
+                Position INTEGER PRIMARY KEY,
+                Formteilbezeichnung TEXT NOT NULL,
+                Faktor REAL NOT NULL
+            )
+        ''')
+        
+        # Create Ausführung table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Ausfuehrung (
+                Position INTEGER PRIMARY KEY,
+                Taetigkeit TEXT NOT NULL,
+                Faktor REAL NOT NULL
+            )
+        ''')
+        
+        # Create Sonstige Zuschläge table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Sonstige_Zuschlaege (
+                Position INTEGER PRIMARY KEY,
+                Zuschlag TEXT NOT NULL,
+                Faktor REAL NOT NULL
+            )
+        ''')
+        
+        # Create Materialpreise table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Materialpreise (
+                RV_Pos INTEGER PRIMARY KEY,
+                Benennung TEXT NOT NULL,
+                Material TEXT,
+                Abmessung_ME TEXT,
+                EP REAL,
+                per TEXT
+            )
+        ''')
+        
         # Fill price_list table if empty
         cursor.execute("SELECT COUNT(*) FROM price_list")
         if cursor.fetchone()[0] == 0:
@@ -111,11 +150,79 @@ def initialize_database():
                             ))
                         except Exception as e:
                             logging.error(f"Fehler beim Einfügen der Zeile {row}: {e}")
+
+        # Fill Materialpreise table if empty
+        cursor.execute("SELECT COUNT(*) FROM Materialpreise")
+        if cursor.fetchone()[0] == 0:
+            csv_path = resource_path('Mappe2.CSV')
+            with open(csv_path, 'r', encoding='utf-8') as csvfile:
+                csvreader = csv.reader(csvfile, delimiter=';')
+                next(csvreader)  # Skip header
+                for row in csvreader:
+                    if len(row) == 7:
+                        try:
+                            cursor.execute('''
+                                INSERT INTO Materialpreise (RV_Pos, Benennung, Material, Abmessung_ME, EP, per)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (
+                                int(row[0]),
+                                row[1],
+                                row[2] if row[2] != '' else None,
+                                f"{row[3]} {row[4]}".strip(),
+                                float(row[5].replace(',', '.')),
+                                row[6]
+                            ))
+                        except Exception as e:
+                            logging.error(f"Fehler beim Einfügen der Zeile {row}: {e}")
         
         conn.commit()
         logging.info("Datenbankinitialisierung erfolgreich abgeschlossen.")
     except Exception as e:
         logging.error(f"Fehler bei der Datenbankinitialisierung: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+# Add a new function to insert Materialpreise data
+def insert_materialpreise_data(csv_file_path):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Clear existing data
+        cursor.execute("DELETE FROM Materialpreise")
+        
+        # Read CSV file
+        with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=';')
+            next(csv_reader)  # Skip the header row
+            
+            # Prepare data for insertion
+            data_to_insert = []
+            for row in csv_reader:
+                if len(row) != 7:  # Ensure each row has 7 columns
+                    logging.warning(f"Skipping invalid row: {row}")
+                    continue
+                
+                rv_pos = int(row[0])
+                benennung = row[1]
+                material = row[2] if row[2] != '' else None
+                abmessung_me = f"{row[3]} {row[4]}".strip()
+                ep = float(row[5].replace(',', '.'))  # Replace comma with dot for float conversion
+                per = row[6]
+                
+                data_to_insert.append((rv_pos, benennung, material, abmessung_me, ep, per))
+        
+        # Insert data
+        cursor.executemany('''
+            INSERT INTO Materialpreise (RV_Pos, Benennung, Material, Abmessung_ME, EP, per)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', data_to_insert)
+        
+        conn.commit()
+        logging.info(f"{len(data_to_insert)} Materialpreise Einträge erfolgreich eingefügt.")
+    except Exception as e:
+        logging.error(f"Fehler beim Einfügen der Materialpreise: {e}")
         conn.rollback()
     finally:
         conn.close()
