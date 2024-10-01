@@ -9,6 +9,7 @@ import appdirs
 import shutil
 import tempfile
 from datetime import datetime
+from httpx import options
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -227,6 +228,14 @@ def insert_materialpreise_data(csv_file_path):
     finally:
         conn.close()
 
+def get_taetigkeit_options():
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT Taetigkeit FROM Ausfuehrung ORDER BY Position")
+        options = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return options
+
 def check_database_structure():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -251,6 +260,7 @@ class InvoicingApp:
         self.client_email_dropdown = None
         self.client_name_entry = None
         self.client_email_entry = None
+        self.taetigkeit_options = get_taetigkeit_options()
 
     def build_ui(self):
         bauteil_values = get_unique_bauteil_values()
@@ -299,6 +309,68 @@ class InvoicingApp:
         self.add_item()
 
         return scrollable_view
+    
+    def get_available_options(self, bauteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            if self.is_formteil(bauteil):
+                # For Formteile, use Rohrleitung options
+                cursor.execute('SELECT dn, da, size FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0', ('Rohrleitung',))
+            else:
+                cursor.execute('SELECT dn, da, size FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0', (bauteil,))
+            options = cursor.fetchall()
+            return options
+        finally:
+            conn.close()
+
+    def update_price(self, item):
+        bauteil = item["description"].value
+        dn = item["dn"].value
+        da = item["da"].value
+        size = item["size"].value
+        
+        if bauteil and size:
+            dn_value = float(dn) if dn else None
+            da_value = float(da) if da else None
+            base_price = self.get_price(bauteil, dn_value, da_value, size)
+            
+            if base_price is not None:
+                # Check if it's a Formteil and apply the factor
+                formteil_factor = self.get_formteil_factor(bauteil)
+                if formteil_factor is not None:
+                    price = base_price * formteil_factor
+                else:
+                    price = base_price
+                
+                item["price"].value = f"{price:.2f}"
+            else:
+                item["price"].value = ""
+        else:
+            item["price"].value = ""
+        
+        item["price"].update()
+        self.update_item_subtotal(item)  # Update subtotal when price changes
+        self.page.update()
+
+    def get_formteil_factor(self, formteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (formteil,))
+            result = cursor.fetchone()
+            return float(result[0]) if result else None
+        finally:
+            conn.close()
+
+    def is_formteil(self, bauteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT 1 FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+            return cursor.fetchone() is not None
+        finally:
+            conn.close()
 
     def rechnung_ohne_preise_generieren(self, e):
         if self.handle_duplicate_check():
@@ -314,6 +386,7 @@ class InvoicingApp:
         
         invoice_items = [
             {
+                "taetigkeit": item["taetigkeit"].value,
                 "description": item["description"].value,
                 "dn": item["dn"].value,
                 "da": item["da"].value,
@@ -522,9 +595,8 @@ class InvoicingApp:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT i.id, i.client_name, i.client_email, i.invoice_date, i.total,
-                   ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity
-            FROM invoices i
-            JOIN invoice_items ii ON i.id = ii.invoice_id
+                   ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity, ii.taetigkeit
+            FROM            JOIN invoice_items ii ON i.id = ii.invoice_id
             WHERE i.id = ?
         ''', (rechnung_id,))
         invoice_items = cursor.fetchall()
@@ -546,56 +618,7 @@ class InvoicingApp:
         for item in invoice_items:
             self.add_item()
             new_item = self.items[-1]
-            new_item["description"].value = item[5]
-            new_item["dn"].value = str(item[6]) if item[6] is not None else None
-            new_item["da"].value = str(item[7]) if item[7] is not None else None
-            new_item["size"].value = item[8]
-            new_item["price"].value = str(item[9])
-            new_item["quantity"].value = str(item[10])
-
-            # Update options for the item
-            self.update_item_options(new_item, "description")
-
-        # Update total price
-        self.update_gesamtpreis()
-
-        # Change the "Rechnung absenden" button to "Rechnung aktualisieren"
-        update_button = next((control for control in self.page.controls if isinstance(control, ft.FilledButton) and control.text == "Rechnung absenden"), None)
-        if update_button:
-            update_button.text = "Rechnung aktualisieren"
-            update_button.on_click = lambda _: self.rechnung_aktualisieren(rechnung_id)
-
-        self.page.update()
-
-    def rechnung_bearbeiten(self, rechnung_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT i.id, i.client_name, i.client_email, i.invoice_date, i.total,
-                   ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity
-            FROM invoices i
-            JOIN invoice_items ii ON i.id = ii.invoice_id
-            WHERE i.id = ?
-        ''', (rechnung_id,))
-        invoice_items = cursor.fetchall()
-        conn.close()
-
-        if not invoice_items:
-            print(f"No invoice found with id {rechnung_id}")
-            return
-
-        # Clear existing items
-        self.items.clear()
-        self.items_container.controls.clear()
-
-        # Set client name and email
-        self.client_name_dropdown.value = invoice_items[0][1]
-        self.client_email_dropdown.value = invoice_items[0][2]
-
-        # Add items from the invoice
-        for item in invoice_items:
-            self.add_item()
-            new_item = self.items[-1]
+            new_item["taetigkeit"].value = item[11]  # Set the Tätigkeit value
             new_item["description"].value = item[5]
             new_item["dn"].value = str(item[6]) if item[6] is not None else None
             new_item["da"].value = str(item[7]) if item[7] is not None else None
@@ -629,7 +652,6 @@ class InvoicingApp:
             self.page.update()
             return
         
-        client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
         client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
         
         invoice_date = datetime.now().strftime("%Y-%m-%d")
@@ -649,7 +671,7 @@ class InvoicingApp:
         
         invoice_data = {
             "id": rechnung_id,
-            "client_name": client_name,
+            "client_name": self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value,
             "client_email": client_email,
             "invoice_date": invoice_date,
             "total": total,
@@ -696,34 +718,93 @@ class InvoicingApp:
         finally:
             conn.close()
 
-    def update_rechnung(self, invoice_data):
+    def update_item_options(self, item, changed_field):
+        print(f"Updating options for {changed_field}")
+        bauteil = item["description"].value
+        selected_dn = item["dn"].value
+        selected_da = item["da"].value
+        selected_size = item["size"].value
+
+        # Check if the selected item is a Formteil
+        is_formteil = self.is_formteil(bauteil)
+
+        if bauteil:
+            available_options = self.get_available_options(bauteil)
+            print(f"Available options: {available_options}")
+
+            # Update DN and DA options with available values
+            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0 and dn is not None))
+            da_options = sorted(set(da for _, da, _ in available_options if da != 0 and da is not None))
+            
+            # Always show DN and DA fields for Formteile, otherwise show when they are not null
+            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
+            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
+            item["dn"].visible = is_formteil or bool(dn_options)
+            item["da"].visible = is_formteil or bool(da_options)
+
+            # Set the label of DN dropdown to an empty string
+            item["dn"].label = ""
+
+            print(f"DN options: {dn_options}")
+            print(f"DA options: {da_options}")
+
+            if changed_field == "description":
+                # Reset DN and DA values
+                item["dn"].value = f"{dn_options[0]:.0f}" if dn_options and float(dn_options[0]).is_integer() else f"{dn_options[0]}" if dn_options else None
+                item["da"].value = f"{da_options[0]:.1f}" if da_options else None
+            
+            elif changed_field in ["dn", "da"]:
+                # Update the other dimension based on the selected one
+                if changed_field == "dn" and selected_dn:
+                    matching_da = sorted(set(da for dn, da, _ in available_options if dn == float(selected_dn) and da != 0 and da is not None))
+                    item["da"].value = f"{matching_da[0]:.1f}" if matching_da else None
+                elif changed_field == "da" and selected_da:
+                    matching_dn = sorted(set(dn for dn, da, _ in available_options if da == float(selected_da) and dn != 0 and dn is not None))
+                    item["dn"].value = f"{matching_dn[0]:.0f}" if matching_dn and float(matching_dn[0]).is_integer() else f"{matching_dn[0]}" if matching_dn else None
+
+            # Update size options based on current DN and DA selection
+            selected_dn = item["dn"].value
+            selected_da = item["da"].value
+            
+            if selected_dn and selected_da:
+                matching_size = sorted(set(size for dn, da, size in available_options 
+                                           if dn == float(selected_dn) and da == float(selected_da)),
+                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+            else:
+                # If DN or DA is not selected, show all available sizes for the Bauteil
+                matching_size = sorted(set(size for _, _, size in available_options),
+                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
+
+            print(f"Matching sizes: {matching_size}")
+
+            item["size"].options = [ft.dropdown.Option(value) for value in matching_size]
+            if selected_size in matching_size:
+                item["size"].value = selected_size
+            elif matching_size:
+                item["size"].value = matching_size[0]
+            item["size"].visible = True
+
+        # Update the dropdowns
+        item["dn"].update()
+        item["da"].update()
+        item["size"].update()
+        
+        # Update the price
+        self.update_price(item)
+
+        print(f"Final values - DN: {item['dn'].value}, DA: {item['da'].value}, Size: {item['size'].value}")
+
+        # Ensure the page is updated
+        self.page.update()
+
+    def is_formteil(self, bauteil):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('''
-                UPDATE invoices
-                SET client_name = ?, client_email = ?, invoice_date = ?, total = ?
-                WHERE id = ?
-            ''', (invoice_data['client_name'], invoice_data['client_email'], invoice_data['invoice_date'], invoice_data['total'], invoice_data['id']))
-
-            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_data['id'],))
-
-            for item in invoice_data['items']:
-                cursor.execute('''
-                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (invoice_data['id'], item['description'], item['dn'], item['da'], item['size'], item['price'], item['quantity']))
-
-            conn.commit()
-            return True
-        except sqlite3.Error as e:
-            print(f"An error occurred: {e}")
-            conn.rollback()
-            return False
+            cursor.execute('SELECT 1 FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+            return cursor.fetchone() is not None
         finally:
             conn.close()
-
-        # ... (rest of the implementation)
 
     def pdf_neu_generieren_und_anzeigen(self, rechnung_id):
         result = self.pdf_neu_generieren(rechnung_id)
@@ -803,258 +884,26 @@ class InvoicingApp:
         self.page.update()
 
     def update_gesamtpreis(self):
-        total = sum(
-            float(item["price"].value) * int(item["quantity"].value)
-            for item in self.items
-            if item["price"].value and item["quantity"].value
-        )
-        self.gesamtpreis_text.value = f"Gesamtpreis: €{total:.2f}"
+        gesamtpreis = sum(float(item["subtotal"].value) for item in self.items if item["subtotal"].value)
+        self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
         self.page.update()
 
     def add_item(self):
         bauteil_values = get_unique_bauteil_values()
+        taetigkeit_options = get_taetigkeit_options()
         
         new_item = {
-            "description": ft.Dropdown(
-                label="Artikelbeschreibung",
-                width=200,
-                options=[ft.dropdown.Option(b) for b in bauteil_values]
+            "taetigkeit": ft.Dropdown(
+                label="Tätigkeit",
+                width=300,
+                options=[ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeit_options],
+                on_change=lambda _: self.update_item_subtotal(new_item)
             ),
-            "dn": ft.Dropdown(
-                label="DN",
-                width=100,
-                visible=False
-            ),
-            "da": ft.Dropdown(
-                label="DA",
-                width=100,
-                visible=False
-            ),
-            "size": ft.Dropdown(
-                label="Dämmdicke",
-                width=100
-            ),
-            "price": ft.TextField(
-                label="Preis",
-                width=100,
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            ),
-            "quantity": ft.TextField(label="Menge", width=100, value="1"),
-            "subtotal": ft.TextField(
-                label="Zwischensumme",
-                width=100,
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
-            )
-        }
-
-        # Set up event handlers for the dropdowns and quantity
-        new_item["description"].on_change = lambda e: self.update_item_options(new_item, "description")
-        new_item["dn"].on_change = lambda e: self.update_item_options(new_item, "dn")
-        new_item["da"].on_change = lambda e: self.update_item_options(new_item, "da")
-        new_item["size"].on_change = lambda e: self.update_item_options(new_item, "size")
-        new_item["quantity"].on_change = lambda e: self.update_item_subtotal(new_item)
-
-        # Create a row for the new item
-        item_row = ft.Row([
-            new_item["description"],
-            new_item["dn"],
-            new_item["da"],
-            new_item["size"],
-            new_item["price"],
-            new_item["quantity"],
-            new_item["subtotal"],
-            ft.IconButton(
-                icon=ft.icons.DELETE,
-                on_click=lambda _: self.remove_item(new_item)
-            )
-        ])
-
-        # Add the new item to the list and update the UI
-        self.items.append(new_item)
-        self.items_container.controls.append(item_row)
-        self.update_gesamtpreis()
-        self.page.update()
-
-    def update_item_subtotal(self, item):
-        price = float(item["price"].value) if item["price"].value else 0
-        quantity = int(item["quantity"].value) if item["quantity"].value else 0
-        subtotal = price * quantity
-        item["subtotal"].value = f"{subtotal:.2f}"
-        self.update_gesamtpreis()
-        self.page.update()
-
-    def update_price(self, item):
-        bauteil = item["description"].value
-        dn = item["dn"].value
-        da = item["da"].value
-        size = item["size"].value
-        
-        if bauteil and size:
-            dn_value = float(dn) if dn else None
-            da_value = float(da) if da else None
-            price = self.get_price(bauteil, dn_value, da_value, size)
-            if price is not None:
-                item["price"].value = f"{price:.2f}"
-            else:
-                item["price"].value = ""
-        else:
-            item["price"].value = ""
-        item["price"].update()
-        self.update_item_subtotal(item)  # Update subtotal when price changes
-        self.page.update()
-    
-    def check_for_duplicates(self):
-        seen_items = set()
-        duplicates = []
-        for item in self.items:
-            item_key = (
-                item["description"].value,
-                item["dn"].value,
-                item["da"].value,
-                item["size"].value
-            )
-            if item_key in seen_items:
-                duplicates.append(item_key)
-            else:
-                seen_items.add(item_key)
-        return duplicates
-
-    def handle_duplicate_check(self):
-        duplicates = self.check_for_duplicates()
-        if duplicates:
-            self.show_snackbar("Hast du Tomaten auf den Augen?")
-            return True
-        return False
-
-    def show_snackbar(self, message):
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
-        self.page.snack_bar.open = True
-        self.page.update()
-
-    def update_item_options(self, item, changed_field):
-        print(f"Updating options for {changed_field}")
-        bauteil = item["description"].value
-        selected_dn = item["dn"].value
-        selected_da = item["da"].value
-        selected_size = item["size"].value
-
-        if bauteil:
-            available_options = self.get_available_options(bauteil)
-            print(f"Available options: {available_options}")
-
-            # Update DN and DA options with available values
-            dn_options = sorted(set(dn for dn, _, _ in available_options if dn != 0 and dn is not None))
-            da_options = sorted(set(da for _, da, _ in available_options if da != 0 and da is not None))
-            
-            # Always show DN and DA fields when they are not null
-            item["dn"].options = [ft.dropdown.Option(f"{dn:.0f}" if float(dn).is_integer() else f"{dn}") for dn in dn_options]
-            item["da"].options = [ft.dropdown.Option(f"{da:.1f}") for da in da_options]
-            item["dn"].visible = bool(dn_options)
-            item["da"].visible = bool(da_options)
-
-            # Set the label of DN dropdown to an empty string
-            item["dn"].label = ""
-
-            print(f"DN options: {dn_options}")
-            print(f"DA options: {da_options}")
-
-            if changed_field == "description":
-                # Reset DN and DA values
-                item["dn"].value = f"{dn_options[0]:.0f}" if dn_options and float(dn_options[0]).is_integer() else f"{dn_options[0]}" if dn_options else None
-                item["da"].value = f"{da_options[0]:.1f}" if da_options else None
-            
-            elif changed_field in ["dn", "da"]:
-                # Update the other dimension based on the selected one
-                if changed_field == "dn" and selected_dn:
-                    matching_da = sorted(set(da for dn, da, _ in available_options if dn == float(selected_dn) and da != 0 and da is not None))
-                    item["da"].value = f"{matching_da[0]:.1f}" if matching_da else None
-                elif changed_field == "da" and selected_da:
-                    matching_dn = sorted(set(dn for dn, da, _ in available_options if da == float(selected_da) and dn != 0 and dn is not None))
-                    item["dn"].value = f"{matching_dn[0]:.0f}" if matching_dn and float(matching_dn[0]).is_integer() else f"{matching_dn[0]}" if matching_dn else None
-
-            # Update size options based on current DN and DA selection
-            selected_dn = item["dn"].value
-            selected_da = item["da"].value
-
-            if selected_dn and selected_da:
-                matching_size = sorted(set(size for dn, da, size in available_options 
-                                           if dn == float(selected_dn) and da == float(selected_da)),
-                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-            else:
-                # If DN or DA is not selected, show all available sizes for the Bauteil
-                matching_size = sorted(set(size for _, _, size in available_options),
-                                       key=lambda x: float(x.split('-')[0].strip().rstrip('mm')))
-
-            print(f"Matching sizes: {matching_size}")
-
-            item["size"].options = [ft.dropdown.Option(value) for value in matching_size]
-            if selected_size in matching_size:
-                item["size"].value = selected_size
-            elif matching_size:
-                item["size"].value = matching_size[0]
-            item["size"].visible = True
-
-        # Update the dropdowns
-        item["dn"].update()
-        item["da"].update()
-        item["size"].update()
-        
-        # Update the price
-        self.update_price(item)
-
-        print(f"Final values - DN: {item['dn'].value}, DA: {item['da'].value}, Size: {item['size'].value}")
-
-        # Ensure the page is updated
-        self.page.update()
-
-    def get_available_options(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT dn, da, size FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0', (bauteil,))
-        options = cursor.fetchall()
-        conn.close()
-        return options
-
-    def update_price(self, item):
-        bauteil = item["description"].value
-        dn = item["dn"].value
-        da = item["da"].value
-        size = item["size"].value
-        
-        if bauteil and size:
-            dn_value = float(dn) if dn else None
-            da_value = float(da) if da else None
-            price = self.get_price(bauteil, dn_value, da_value, size)
-            if price is not None:
-                item["price"].value = f"{price:.2f}"
-            else:
-                item["price"].value = ""
-        else:
-            item["price"].value = ""
-        item["price"].update()
-        self.update_item_subtotal(item)  # Update subtotal when price changes
-        self.page.update()
-
-    def update_item_subtotal(self, item):
-        price = float(item["price"].value) if item["price"].value else 0
-        quantity = int(item["quantity"].value) if item["quantity"].value else 0
-        subtotal = price * quantity
-        item["subtotal"].value = f"{subtotal:.2f}"
-        self.update_gesamtpreis()
-        self.page.update()
-
-    def add_item(self):
-        bauteil_values = get_unique_bauteil_values()
-        
-        new_item = {
             "description": ft.Dropdown(
                 label="Artikelbeschreibung",
                 width=300,
-                options=[ft.dropdown.Option(b) for b in bauteil_values]
+                options=[ft.dropdown.Option(b, disabled=(b == "Formteile")) for b in bauteil_values],
+                on_change=lambda _: self.update_item_options(new_item, "description")
             ),
             "dn": ft.Dropdown(
                 label="",
@@ -1083,11 +932,11 @@ class InvoicingApp:
                 width=150,
                 read_only=True,
                 filled=True,
-                bgcolor=ft.colors.GREY_200
-            )
+                bgcolor=200            )
         }
 
         # Set up event handlers for the dropdowns and quantity
+        new_item["taetigkeit"].on_change = lambda e: self.update_item_options(new_item, "taetigkeit")
         new_item["description"].on_change = lambda e: self.update_item_options(new_item, "description")
         new_item["dn"].on_change = lambda e: self.update_item_options(new_item, "dn")
         new_item["da"].on_change = lambda e: self.update_item_options(new_item, "da")
@@ -1096,6 +945,7 @@ class InvoicingApp:
 
         # Create a row for the new item
         item_row = ft.Row([
+            new_item["taetigkeit"],
             new_item["description"],
             new_item["dn"],
             new_item["da"],
@@ -1120,54 +970,35 @@ class InvoicingApp:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            if dn is not None and da is not None:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
-                ''', (bauteil, dn, da, size))
+            # First, check if it's a Formteil
+            cursor.execute('SELECT 1 FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+            is_formteil = cursor.fetchone() is not None
+            
+            if is_formteil:
+                # For Formteile, we need to find the corresponding Rohrleitung price
+                if dn is not None and da is not None:
+                    cursor.execute('''
+                        SELECT value FROM price_list
+                        WHERE bauteil = 'Rohrleitung' AND dn = ? AND da = ? AND size = ?
+                    ''', (dn, da, size))
+                else:
+                    cursor.execute('''
+                        SELECT value FROM price_list
+                        WHERE bauteil = 'Rohrleitung' AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
+                    ''', (size,))
             else:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
-                ''', (bauteil, size))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            conn.close()
-
-    def get_price(self, bauteil, dn, da, size):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            if dn is not None and da is not None:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
-                ''', (bauteil, dn, da, size))
-            else:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
-                ''', (bauteil, size))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            conn.close()
-
-    def get_price(self, bauteil, dn, da, size):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            if dn is not None and da is not None:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
-                ''', (bauteil, dn, da, size))
-            else:
-                cursor.execute('''
-                    SELECT value FROM price_list
-                    WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
-                ''', (bauteil, size))
+                # For regular Bauteil, use the existing logic
+                if dn is not None and da is not None:
+                    cursor.execute('''
+                        SELECT value FROM price_list
+                        WHERE bauteil = ? AND dn = ? AND da = ? AND size = ?
+                    ''', (bauteil, dn, da, size))
+                else:
+                    cursor.execute('''
+                        SELECT value FROM price_list
+                        WHERE bauteil = ? AND size = ? AND (dn IS NULL OR dn = 0) AND (da IS NULL OR da = 0)
+                    ''', (bauteil, size))
+            
             result = cursor.fetchone()
             return result[0] if result else None
         finally:
@@ -1203,7 +1034,8 @@ class InvoicingApp:
                 "da": item["da"].value,
                 "size": item["size"].value,
                 "price": float(item["price"].value) if item["price"].value else 0,
-                "quantity": int(item["quantity"].value)
+                "quantity": int(item["quantity"].value),
+                "taetigkeit": item["taetigkeit"].value
             }
             for item in self.items
             if item["price"].value and float(item["price"].value) > 0
@@ -1431,12 +1263,29 @@ class InvoicingApp:
 
         return pdf_path
 
+    def handle_duplicate_check(self):
+        # Check if there are any duplicate items in the invoice
+        seen_items = set()
+        for item in self.items:
+            item_key = (
+                item["description"].value,
+                item["dn"].value,
+                item["da"].value,
+                item["size"].value,
+                item["price"].value,
+                item["taetigkeit"].value
+            )
+            if item_key in seen_items:
+                self.show_snackbar("Duplikate gefunden. Bitte überprüfen Sie die Einträge.")
+                return True
+            seen_items.add(item_key)
+        return False
+
     def rechnung_loeschen(self, rechnung_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (rechnung_id,))
-            cursor.execute('DELETE FROM invoices WHERE id = ?', (rechnung_id,))
+            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (rechnung_id,))          
             conn.commit()
             return True
         except sqlite3.Error as e:
@@ -1455,16 +1304,62 @@ class InvoicingApp:
                 item["price"].value == new_item["price"].value):
                 return item
         return None
+        return None
+        return None
+        return None
+        return None
+        return None
+        return None
+        return None
+
+    def update_item_subtotal(self, item):
+        price = float(item["price"].value) if item["price"].value else 0
+        quantity = int(item["quantity"].value) if item["quantity"].value else 0
+        taetigkeit = item["taetigkeit"].value
+
+        # Get the factor for the selected Ausführung
+        factor = self.get_ausfuehrung_factor(taetigkeit)
+
+        subtotal = price * quantity * factor
+        item["subtotal"].value = f"{subtotal:.2f}"
+        self.update_gesamtpreis()
+        self.page.update()
+
+    def get_ausfuehrung_factor(self, taetigkeit):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT Faktor FROM Ausfuehrung WHERE Taetigkeit = ?', (taetigkeit,))
+            result = cursor.fetchone()
+            return float(result[0]) if result else 1.0
+        finally:
+            conn.close()
+
+    def update_gesamtpreis(self):
+        gesamtpreis = sum(float(item["subtotal"].value) for item in self.items if item["subtotal"].value)
+        self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
+        self.page.update()
+
+    # ... rest of the class methods ...
 
 def get_unique_bauteil_values():
     db_path = get_db_path()
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
+        
+        # Get regular Bauteil values
         cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
         bauteil_values = [row[0] for row in cursor.fetchall()]
+        
+        # Get Formteil values
+        cursor.execute('SELECT Formteilbezeichnung FROM Formteile ORDER BY Position')
+        formteil_values = [row[0] for row in cursor.fetchall()]
+        
         conn.close()
-        return bauteil_values
+        
+        # Combine regular Bauteil values and Formteile with a heading
+        return bauteil_values + ["Formteile"] + formteil_values
     except sqlite3.Error as e:
         print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
         return []
