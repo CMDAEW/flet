@@ -324,33 +324,116 @@ class InvoicingApp:
         finally:
             conn.close()
 
+    def update_item_options(self, item, changed_field):
+        if changed_field == "description":
+            bauteil = item["description"].value
+            options = self.get_available_options(bauteil)
+            
+            dn_values = sorted(set(option[0] for option in options if option[0] is not None))
+            da_values = sorted(set(option[1] for option in options if option[1] is not None))
+            size_values = sorted(set(option[2] for option in options if option[2] is not None))
+            
+            item["dn"].options = [ft.dropdown.Option(str(dn)) for dn in dn_values]
+            item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
+            item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
+            
+            item["dn"].visible = bool(dn_values)
+            item["da"].visible = bool(da_values)
+            item["size"].visible = bool(size_values)
+            
+            # Only update if the control is already on the page
+            if item["dn"].page:
+                item["dn"].update()
+            if item["da"].page:
+                item["da"].update()
+            if item["size"].page:
+                item["size"].update()
+        
+        self.update_price(item)
+
+    def update_item_options(self, item, changed_field):
+        if changed_field == "description":
+            bauteil = item["description"].value
+            options = self.get_available_options(bauteil)
+            
+            dn_values = sorted(set(option[0] for option in options if option[0] is not None))
+            da_values = sorted(set(option[1] for option in options if option[1] is not None))
+            size_values = sorted(set(option[2] for option in options if option[2] is not None))
+            
+            item["dn"].options = [ft.dropdown.Option(str(dn)) for dn in dn_values]
+            item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
+            item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
+            
+            item["dn"].visible = bool(dn_values)
+            item["da"].visible = bool(da_values)
+            item["size"].visible = bool(size_values)
+            
+            # Only update if the control is already on the page
+            if item["dn"].page:
+                item["dn"].update()
+            if item["da"].page:
+                item["da"].update()
+            if item["size"].page:
+                item["size"].update()
+        
+        self.update_price(item)
+
+    def update_item_options(self, item, changed_field):
+        if changed_field == "description":
+            bauteil = item["description"].value
+            options = self.get_available_options(bauteil)
+            
+            dn_values = sorted(set(option[0] for option in options if option[0] is not None))
+            da_values = sorted(set(option[1] for option in options if option[1] is not None))
+            size_values = sorted(set(option[2] for option in options if option[2] is not None))
+            
+            item["dn"].options = [ft.dropdown.Option(str(dn)) for dn in dn_values]
+            item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
+            item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
+            
+            item["dn"].visible = bool(dn_values)
+            item["da"].visible = bool(da_values)
+            item["size"].visible = bool(size_values)
+            
+            # Only update if the control is already on the page
+            if item["dn"].page:
+                item["dn"].update()
+            if item["da"].page:
+                item["da"].update()
+            if item["size"].page:
+                item["size"].update()
+        
+        self.update_price(item)
+
     def update_price(self, item):
         bauteil = item["description"].value
         dn = item["dn"].value
         da = item["da"].value
         size = item["size"].value
         
-        if bauteil and size:
-            dn_value = float(dn) if dn else None
-            da_value = float(da) if da else None
-            base_price = self.get_price(bauteil, dn_value, da_value, size)
-            
-            if base_price is not None:
-                # Check if it's a Formteil and apply the factor
-                formteil_factor = self.get_formteil_factor(bauteil)
-                if formteil_factor is not None:
-                    price = base_price * formteil_factor
-                else:
-                    price = base_price
-                
-                item["price"].value = f"{price:.2f}"
-            else:
-                item["price"].value = ""
-        else:
-            item["price"].value = ""
+        price = self.get_price(bauteil, dn, da, size)
         
-        item["price"].update()
-        self.update_item_subtotal(item)  # Update subtotal when price changes
+        if price is not None:
+            item["price"].value = f"{price:.2f}"
+            # Only update if the control is already on the page
+            if item["price"].page:
+                item["price"].update()
+        
+        self.update_item_subtotal(item)
+
+    def update_item_subtotal(self, item):
+        price = float(item["price"].value) if item["price"].value else 0
+        quantity = int(item["quantity"].value) if item["quantity"].value else 0
+        taetigkeit = item["taetigkeit"].value
+
+        factor = self.get_ausfuehrung_factor(taetigkeit)
+
+        subtotal = price * quantity * factor
+        item["zwischensumme"].value = f"{subtotal:.2f}"
+        
+        print(f"Updating zwischensumme: Price: {price}, Quantity: {quantity}, Factor: {factor}, Zwischensumme: {subtotal}")
+        
+        self.update_gesamtpreis()
         self.page.update()
 
     def get_formteil_factor(self, formteil):
@@ -570,7 +653,7 @@ class InvoicingApp:
             actions_alignment=ft.MainAxisAlignment.END
         )
         
-        self.page.dialog = rechnungs_dialog
+        self.page.overlay.append(rechnungs_dialog)
         rechnungs_dialog.open = True
         self.page.update()
 
@@ -593,55 +676,269 @@ class InvoicingApp:
     def rechnung_bearbeiten(self, rechnung_id):
         conn = get_db_connection()
         cursor = conn.cursor()
+        try:
+            # Fetch invoice details
+            cursor.execute('''
+                SELECT i.*, ii.id as item_id, ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity
+                FROM invoices i
+                LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
+                WHERE i.id = ?
+            ''', (rechnung_id,))
+            
+            results = cursor.fetchall()
+            
+            if not results:
+                self.show_snackbar("Rechnung nicht gefunden")
+                return
+            
+            # Process the results
+            invoice_data = {
+                "id": results[0][0],
+                "client_name": results[0][1],
+                "client_email": results[0][2],
+                "invoice_date": results[0][3],
+                "total": results[0][4],
+                "items": []
+            }
+            
+            for row in results:
+                if row[5]:  # Check if there's an item (item_id is not None)
+                    invoice_data["items"].append({
+                        "id": row[5],
+                        "description": row[6],
+                        "dn": row[7],
+                        "da": row[8],
+                        "size": row[9],
+                        "price": row[10],
+                        "quantity": row[11]
+                    })
+            
+            # Populate the form with the fetched data
+            self.populate_form(invoice_data)
+            
+        except sqlite3.Error as e:
+            print(f"An error occurred: {e}")
+            self.show_snackbar("Fehler beim Laden der Rechnung")
+        finally:
+            conn.close()
+
+    def rechnung_bearbeiten(self, rechnung_id):
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute('''
-            SELECT i.id, i.client_name, i.client_email, i.invoice_date, i.total,
-                   ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity, ii.taetigkeit
-            FROM            JOIN invoice_items ii ON i.id = ii.invoice_id
+            SELECT i.*, ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity, ii.subtotal, ii.taetigkeit
+            FROM invoices i
+            LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
             WHERE i.id = ?
         ''', (rechnung_id,))
-        invoice_items = cursor.fetchall()
+        rows = cursor.fetchall()
         conn.close()
 
-        if not invoice_items:
-            print(f"No invoice found with id {rechnung_id}")
+        if not rows:
+            self.show_snackbar(f"Rechnung mit ID {rechnung_id} nicht gefunden.")
             return
 
         # Clear existing items
         self.items.clear()
         self.items_container.controls.clear()
 
+        # Populate form with invoice details
+        invoice_data = {
+            "id": rows[0][0],
+            "client_name": rows[0][1],
+            "client_email": rows[0][2],
+            "invoice_date": rows[0][3],
+            "total": rows[0][4],
+            "items": []
+        }
+
+        for row in rows:
+            item = {
+                "taetigkeit": row[9],
+                "description": row[5],
+                "dn": row[6],
+                "da": row[7],
+                "size": row[8],
+                "price": row[9],
+                "quantity": row[10],
+                "zwischensumme": row[11]
+            }
+            invoice_data["items"].append(item)
+
+        self.populate_form(invoice_data)
+
+    def populate_form(self, invoice_data):
         # Set client name and email
-        self.client_name_dropdown.value = invoice_items[0][1]
-        self.client_email_dropdown.value = invoice_items[0][2]
+        self.client_name_dropdown.value = invoice_data["client_name"]
+        self.client_email_dropdown.value = invoice_data["client_email"]
 
-        # Add items from the invoice
-        for item in invoice_items:
-            self.add_item()
-            new_item = self.items[-1]
-            new_item["taetigkeit"].value = item[11]  # Set the Tätigkeit value
-            new_item["description"].value = item[5]
-            new_item["dn"].value = str(item[6]) if item[6] is not None else None
-            new_item["da"].value = str(item[7]) if item[7] is not None else None
-            new_item["size"].value = item[8]
-            new_item["price"].value = str(item[9])
-            new_item["quantity"].value = str(item[10])
+        # Add items
+        for item in invoice_data["items"]:
+            self.add_item_to_form(item)
 
-            # Update options for the item
-            self.update_item_options(new_item, "description")
-            
-            # Update subtotal
-            self.update_item_subtotal(new_item)
-
-        # Update total price
+        # Update total
         self.update_gesamtpreis()
 
-        # Change the "Rechnung absenden" button to "Rechnung aktualisieren"
-        update_button = next((control for control in self.page.controls if isinstance(control, ft.FilledButton) and control.text == "Rechnung absenden"), None)
-        if update_button:
-            update_button.text = "Rechnung aktualisieren"
-            update_button.on_click = lambda _: self.rechnung_aktualisieren(rechnung_id)
-
+        # Update the page
         self.page.update()
+
+    def populate_form(self, invoice_data):
+        # Populate client information
+        self.client_name_dropdown.value = invoice_data["client_name"]
+        self.client_email_dropdown.value = invoice_data["client_email"]
+        
+        # Clear existing items
+        self.items.clear()
+        self.items_container.controls.clear()
+        
+        # Populate items
+        for item in invoice_data["items"]:
+            self.add_item_to_form(item)
+        
+        # Update the total price
+        self.update_gesamtpreis()
+        
+        # Update the page
+        self.page.update()
+
+    def rechnung_bearbeiten(self, rechnung_id):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT i.*, ii.item_description, ii.dn, ii.da, ii.size, ii.item_price, ii.quantity, ii.taetigkeit
+            FROM invoices i
+            LEFT JOIN invoice_items ii ON i.id = ii.invoice_id
+            WHERE i.id = ?
+        ''', (rechnung_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            self.show_snackbar(f"Rechnung mit ID {rechnung_id} nicht gefunden.")
+            return
+
+        # Clear existing items
+        self.items.clear()
+        self.items_container.controls.clear()
+
+        # Populate form with invoice details
+        invoice_data = {
+            "id": rows[0][0],
+            "client_name": rows[0][1],
+            "client_email": rows[0][2],
+            "invoice_date": rows[0][3],
+            "total": rows[0][4],
+            "items": []
+        }
+
+        for row in rows:
+            item = {
+                "description": row[5],
+                "dn": row[6],
+                "da": row[7],
+                "size": row[8],
+                "price": row[9],
+                "quantity": row[10],
+                "zwischensumme": float(row[9]) * float(row[10])  # Calculate zwischensumme
+            }
+            invoice_data["items"].append(item)
+
+        self.populate_form(invoice_data)
+        self.page.update()
+
+    def add_item_to_form(self, item):
+        # Create a new item dictionary similar to the one in add_item method
+        new_item = {
+            "description": ft.Dropdown(
+                width=200,
+                value=item["description"],
+                on_change=lambda e: self.update_item_options(new_item, "description")
+            ),
+            "dn": ft.Dropdown(width=100, value=str(item["dn"])),
+            "da": ft.Dropdown(width=100, value=str(item["da"])),
+            "size": ft.Dropdown(width=100, value=item["size"]),
+            "price": ft.TextField(width=100, value=str(item["price"])),
+            "quantity": ft.TextField(width=50, value=str(item["quantity"])),
+            "subtotal": ft.Text("0.00", width=100),
+            "remove_button": ft.IconButton(
+                icon=ft.icons.DELETE_OUTLINE,
+                tooltip="Entfernen",
+                on_click=self.create_remove_handler(len(self.items))
+            ),
+        }
+        self.items.append(new_item)
+        self.update_item_subtotal(new_item)
+
+    def add_item_to_form(self, item):
+        taetigkeit_options = get_taetigkeit_options()
+        bauteil_values = get_unique_bauteil_values()
+
+        new_item = {
+            "taetigkeit": ft.Dropdown(
+                label="Tätigkeit",
+                width=300,
+                options=[ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeit_options],
+                value=item.get("taetigkeit", ""),
+            ),
+            "description": ft.Dropdown(
+                label="Artikelbeschreibung",
+                width=300,
+                options=[ft.dropdown.Option(b, disabled=(b == "Formteile")) for b in bauteil_values],
+                value=item.get("description", ""),
+            ),
+            "dn": ft.Dropdown(
+                label="DN",
+                width=150,
+                visible=item.get("dn") is not None,
+                value=str(item.get("dn", "")),
+            ),
+            "da": ft.Dropdown(
+                label="DA",
+                width=150,
+                visible=item.get("da") is not None,
+                value=str(item.get("da", "")),
+            ),
+            "size": ft.Dropdown(
+                label="Dämmdicke",
+                width=150,
+                value=str(item.get("size", "")),
+            ),
+            "price": ft.TextField(
+                label="Einheitspreis",
+                value=str(item.get("price", "0.00")),
+                width=100,
+                read_only=True
+            ),
+            "quantity": ft.TextField(
+                label="Menge",
+                width=50,
+                value=str(item.get("quantity", "1")),
+            ),
+            "zwischensumme": ft.TextField(
+                label="Zwischensumme",
+                value=str(item.get("zwischensumme", "0.00")),
+                width=100,
+                read_only=True
+            ),
+            "remove_button": ft.IconButton(
+                icon=ft.icons.DELETE_OUTLINE,
+                tooltip="Entfernen",
+                on_click=lambda: self.remove_item(self.items.index(new_item))
+            ),
+        }
+
+        self.items.append(new_item)
+        self.rebuild_items_container()
+
+        # Set up event handlers
+        new_item["taetigkeit"].on_change = lambda _: self.update_item_options(new_item, "taetigkeit")
+        new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
+        new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
+        new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
+        new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
+        new_item["quantity"].on_change = lambda _: self.update_item_subtotal(new_item)
+
+        self.update_item_subtotal(new_item)
 
     def rechnung_aktualisieren(self, rechnung_id):
         # Similar to rechnung_absenden, but update existing invoice
@@ -785,12 +1082,17 @@ class InvoicingApp:
             item["size"].visible = True
 
         # Update the dropdowns
-        item["dn"].update()
-        item["da"].update()
-        item["size"].update()
+        if item["dn"].page:
+            item["dn"].update()
+        if item["da"].page:
+            item["da"].update()
+        if item["size"].page:
+            item["size"].update()
         
         # Update the price
         self.update_price(item)
+        self.update_gesamtpreis()
+        self.page.update()
 
         print(f"Final values - DN: {item['dn'].value}, DA: {item['da'].value}, Size: {item['size'].value}")
 
@@ -853,21 +1155,32 @@ class InvoicingApp:
     def rechnung_loeschen_bestaetigen(self, rechnung_id):
         def delete_confirmed(e):
             if self.rechnung_loeschen(rechnung_id):
-                self.page.snack_bar = ft.SnackBar(content=ft.Text("Rechnung erfolgreich gelöscht"))
-                self.page.overlay.append(self.page.snack_bar)
-                self.page.snack_bar.open = True
+                self.show_snackbar("Rechnung erfolgreich gelöscht")
                 self.page.dialog.open = False
                 self.rechnungen_anzeigen(None)  # Refresh the invoice list
             else:
-                self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Löschen der Rechnung"))
-                self.page.overlay.append(self.page.snack_bar)
-                self.page.snack_bar.open = True
+                self.show_snackbar("Fehler beim Löschen der Rechnung")
             self.page.update()
 
         confirm_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Rechnung löschen"),
-            content=ft.Text("Sind Sie sicher, dass Sie diese Rechnung löschen möchten?"),
+            content=ft.Text(f"Sind Sie sicher, dass Sie die Rechnung {rechnung_id} löschen möchten?"),
+            actions=[
+                ft.TextButton("Abbrechen", on_click=lambda _: self.close_dialog(confirm_dialog)),
+                ft.TextButton("Löschen", on_click=delete_confirmed),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.dialog = confirm_dialog
+        confirm_dialog.open = True
+        self.page.update()
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Rechnung löschen"),
+            content=ft.Text(f"Sind Sie sicher, dass Sie die Rechnung {rechnung_id} löschen möchten?"),
             actions=[
                 ft.TextButton("Abbrechen", on_click=lambda _: self.close_dialog(confirm_dialog)),
                 ft.TextButton("Löschen", on_click=delete_confirmed),
@@ -906,7 +1219,7 @@ class InvoicingApp:
                 on_change=lambda _: self.update_item_options(new_item, "description")
             ),
             "dn": ft.Dropdown(
-                label="",
+                label="DN",
                 width=150,
                 visible=False
             ),
@@ -920,51 +1233,94 @@ class InvoicingApp:
                 width=150
             ),
             "price": ft.TextField(
-                label="Preis",
-                width=150,
-                read_only=True,
-                filled=True,
-                bgcolor=ft.colors.GREY_200
+                label="Einheitspreis",
+                value="0.00",
+                width=100,
+                read_only=True
             ),
-            "quantity": ft.TextField(label="Menge", width=150, value="1"),
-            "subtotal": ft.TextField(
+            "quantity": ft.TextField(
+                label="Menge",
+                width=50,
+                value="1",
+                on_change=lambda _: self.update_item_subtotal(new_item)
+            ),
+            "zwischensumme": ft.TextField(
                 label="Zwischensumme",
-                width=150,
-                read_only=True,
-                filled=True,
-                bgcolor=200            )
+                value="0.00",
+                width=100,
+                read_only=True
+            ),
+            "remove_button": ft.IconButton(
+                icon=ft.icons.DELETE_OUTLINE,
+                tooltip="Entfernen",
+                on_click=lambda _: self.remove_item(len(self.items))
+            ),
         }
 
-        # Set up event handlers for the dropdowns and quantity
+        self.items.append(new_item)
+        self.rebuild_items_container()
+
+        # Set up event handlers after the item has been added to the page
         new_item["taetigkeit"].on_change = lambda e: self.update_item_options(new_item, "taetigkeit")
         new_item["description"].on_change = lambda e: self.update_item_options(new_item, "description")
         new_item["dn"].on_change = lambda e: self.update_item_options(new_item, "dn")
         new_item["da"].on_change = lambda e: self.update_item_options(new_item, "da")
         new_item["size"].on_change = lambda e: self.update_item_options(new_item, "size")
-        new_item["quantity"].on_change = lambda e: self.update_item_subtotal(new_item)
-
-        # Create a row for the new item
-        item_row = ft.Row([
-            new_item["taetigkeit"],
-            new_item["description"],
-            new_item["dn"],
-            new_item["da"],
-            new_item["size"],
-            new_item["price"],
-            new_item["quantity"],
-            new_item["subtotal"],
-            ft.IconButton(
-                icon=ft.icons.DELETE,
-                on_click=lambda _: self.remove_item(new_item)
-            )
-        ])
-
-        # Add the new item to the list and update the UI
-        self.items.append(new_item)
-        self.items_container.controls.append(item_row)
 
         self.update_gesamtpreis()
         self.page.update()
+
+    def update_item_subtotal(self, item):
+        price = float(item["price"].value) if item["price"].value else 0
+        quantity = int(item["quantity"].value) if item["quantity"].value else 0
+        taetigkeit = item["taetigkeit"].value
+
+        factor = self.get_ausfuehrung_factor(taetigkeit)
+
+        subtotal = price * quantity * factor
+        item["zwischensumme"].value = f"{subtotal:.2f}"
+        
+        print(f"Updating zwischensumme: Price: {price}, Quantity: {quantity}, Factor: {factor}, Zwischensumme: {subtotal}")
+        
+        self.update_gesamtpreis()
+        self.page.update()
+
+    def update_gesamtpreis(self):
+        gesamtpreis = sum(float(item["zwischensumme"].value) for item in self.items if item["zwischensumme"].value)
+        self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
+        self.page.update()
+
+    def remove_item(self, item):
+        if item in self.items:
+            self.items.remove(item)
+            self.update_gesamtpreis()
+            self.page.update()
+        else:
+            print(f"Item not found in the list: {item}")
+
+    def remove_item(self, item):
+        if item in self.items:
+            self.items.remove(item)
+            self.update_gesamtpreis()
+            self.page.update()
+        else:
+            print(f"Item not found in the list: {item}")
+
+    # Remove the create_remove_handler and remove_item_by_index methods
+
+    def create_remove_handler(self, index):
+        return lambda _: self.remove_item_by_index(index)
+
+    def remove_item_by_index(self, index):
+        if 0 <= index < len(self.items):
+            del self.items[index]
+            # Update the remove_button for all remaining items
+            for i, item in enumerate(self.items):
+                item["remove_button"].on_click = self.create_remove_handler(i)
+            self.update_gesamtpreis()
+            self.page.update()
+        else:
+            print(f"Invalid index: {index}")
 
     def get_price(self, bauteil, dn, da, size):
         conn = get_db_connection()
@@ -1004,14 +1360,40 @@ class InvoicingApp:
         finally:
             conn.close()
 
-    def remove_item(self, item):
-        self.items.remove(item)
-        self.items_container.controls = [
-            control for control in self.items_container.controls
-            if control.controls[0] != item["description"]
-        ]
-        self.update_gesamtpreis()
-        self.page.update()
+    def remove_item(self, index):
+        if 0 <= index < len(self.items):
+            del self.items[index]
+            self.rebuild_items_container()
+            self.update_gesamtpreis()
+            self.page.update()
+        else:
+            print(f"Invalid index: {index}")
+
+    def rebuild_items_container(self):
+        self.items_container.controls.clear()
+        for i, item in enumerate(self.items):
+            item["remove_button"].on_click = lambda _, idx=i: self.remove_item(idx)
+            item_row = ft.Row([
+                item["taetigkeit"],
+                item["description"],
+                item["dn"],
+                item["da"],
+                item["size"],
+                item["price"],
+                item["quantity"],
+                item["zwischensumme"],
+                item["remove_button"]
+            ])
+            self.items_container.controls.append(item_row)
+
+    def remove_item(self, index):
+        if 0 <= index < len(self.items):
+            del self.items[index]
+            self.rebuild_items_container()
+            self.update_gesamtpreis()
+            self.page.update()
+        else:
+            print(f"Invalid index: {index}")
 
     def rechnung_absenden(self, e):
         if self.handle_duplicate_check():
@@ -1102,11 +1484,22 @@ class InvoicingApp:
         # ... (rest of the rechnung_absenden implementation)
 
     def update_rechnung(self, rechnung_id):
+        print("Validating fields:")
+        print(f"Client name: {self.client_name_dropdown.value}")
+        print(f"Client email: {self.client_email_dropdown.value}")
+        print(f"Number of items: {len(self.items)}")
+        
         if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Bitte füllen Sie alle Felder aus"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
-            self.page.update()
+            missing_fields = []
+            if not self.client_name_dropdown.value:
+                missing_fields.append("Kundenname")
+            if not self.client_email_dropdown.value:
+                missing_fields.append("Kunden-E-Mail")
+            if not self.items:
+                missing_fields.append("Artikel")
+            
+            error_message = f"Bitte füllen Sie folgende Felder aus: {', '.join(missing_fields)}"
+            self.show_snackbar(error_message)
             return
         
         client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
@@ -1263,6 +1656,15 @@ class InvoicingApp:
 
         return pdf_path
 
+    def show_snackbar(self, message):
+        if self.page:
+            self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
+            self.page.snack_bar.open = True
+            self.page.update()
+        else:
+            print(f"Snackbar message (page not available): {message}")
+
+
     def handle_duplicate_check(self):
         # Check if there are any duplicate items in the invoice
         seen_items = set()
@@ -1285,11 +1687,14 @@ class InvoicingApp:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (rechnung_id,))          
+            print(f"Attempting to delete invoice with ID: {rechnung_id}")
+            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (rechnung_id,))
+            cursor.execute('DELETE FROM invoices WHERE id = ?', (rechnung_id,))
             conn.commit()
+            print(f"Invoice {rechnung_id} deleted successfully")
             return True
         except sqlite3.Error as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred while deleting invoice {rechnung_id}: {e}")
             conn.rollback()
             return False
         finally:
@@ -1315,13 +1720,15 @@ class InvoicingApp:
     def update_item_subtotal(self, item):
         price = float(item["price"].value) if item["price"].value else 0
         quantity = int(item["quantity"].value) if item["quantity"].value else 0
-        taetigkeit = item["taetigkeit"].value
+        taetigkeit = item["taetigkeit"].value if "taetigkeit" in item else ""
 
-        # Get the factor for the selected Ausführung
         factor = self.get_ausfuehrung_factor(taetigkeit)
 
         subtotal = price * quantity * factor
-        item["subtotal"].value = f"{subtotal:.2f}"
+        item["zwischensumme"].value = f"{subtotal:.2f}"
+        
+        print(f"Updating zwischensumme: Price: {price}, Quantity: {quantity}, Factor: {factor}, Zwischensumme: {subtotal}")
+        
         self.update_gesamtpreis()
         self.page.update()
 
@@ -1336,7 +1743,7 @@ class InvoicingApp:
             conn.close()
 
     def update_gesamtpreis(self):
-        gesamtpreis = sum(float(item["subtotal"].value) for item in self.items if item["subtotal"].value)
+        gesamtpreis = sum(float(item["zwischensumme"].value) for item in self.items if item["zwischensumme"].value)
         self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
         self.page.update()
 
