@@ -165,7 +165,7 @@ def initialize_database():
         # Fill Materialpreise table if empty
         cursor.execute("SELECT COUNT(*) FROM Materialpreise")
         if cursor.fetchone()[0] == 0:
-            csv_path = resource_path('Mappe2.CSV')
+            csv_path = resource_path('Materialpreise.CSV')
             with open(csv_path, 'r', encoding='utf-8') as csvfile:
                 csvreader = csv.reader(csvfile, delimiter=';')
                 next(csvreader)  # Skip header
