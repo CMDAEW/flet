@@ -294,14 +294,13 @@ class InvoicingApp:
 
         # Add corporate identity logo
         logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi.jpg")
-        if os.path.exists(logo_path):
-            logo = ft.Image(src=logo_path, width=150, height=50)
-            header = ft.Row([ft.Text("Rechnungs-App", size=30), logo], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        else:
-            header = ft.Text("Rechnungs-App", size=30)
+        logo = ft.Image(src=logo_path, width=600, height=200)  # Increased logo size
 
-        # Add the header to your layout
-        self.page.add(header)
+        header = ft.Row(
+            [ft.Text("Rechnungs-App", size=30), logo],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            expand=True  # Allow the header to expand
+        )
 
         self.client_name_dropdown = ft.Dropdown(
             label="Kundenname",
@@ -319,29 +318,28 @@ class InvoicingApp:
         )
         self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False, adaptive=True)
 
-        self.submit_invoice_button = ft.ElevatedButton("Abrechnung absenden", on_click=self.rechnung_absenden)
+        self.submit_invoice_button = ft.ElevatedButton("Aufmass erstellen", on_click=self.Aufmass_erstellen)
         self.generate_invoice_without_prices_button = ft.ElevatedButton("Rechnung ohne Preise generieren", on_click=self.rechnung_ohne_preise_generieren)
         self.show_existing_invoices_button = ft.ElevatedButton("Vorhandene Rechnungen anzeigen", on_click=self.rechnungen_anzeigen)
         add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item(), adaptive=True)
         
-        main_column = ft.Column([
-            self.client_name_dropdown,
-            self.client_name_entry,
-            self.client_email_dropdown,
-            self.client_email_entry,
-            add_item_button,
-            self.items_container,
-            self.gesamtpreis_text,
-            ft.Row([self.submit_invoice_button, self.generate_invoice_without_prices_button, self.show_existing_invoices_button])
-        ], scroll=ft.ScrollMode.ALWAYS)
-
-        scrollable_view = ft.Row(
-            [main_column],
+        main_column = ft.Column(
+            [
+                header,
+                self.client_name_dropdown,
+                self.client_name_entry,
+                self.client_email_dropdown,
+                self.client_email_entry,
+                add_item_button,
+                self.items_container,
+                self.gesamtpreis_text,
+                ft.Row([self.submit_invoice_button, self.generate_invoice_without_prices_button, self.show_existing_invoices_button])
+            ],
             scroll=ft.ScrollMode.ALWAYS,
-            expand=True,
+            expand=True  # Allow the main column to expand
         )
 
-        return scrollable_view
+        return main_column
     
     def get_available_options(self, bauteil):
         conn = get_db_connection()
@@ -580,8 +578,8 @@ class InvoicingApp:
     def main(self, page: ft.Page):
         self.page = page
         self.page.title = "Rechnungserstellung"
-        self.page.window_width = 1200  # Increased width
-        self.page.window_height = 800  # Adjusted height
+        self.page.window_width = 1600  # Increased width
+        self.page.window_height = 800
         self.page.window_resizable = True
         self.page.padding = 20
         self.page.theme_mode = ft.ThemeMode.LIGHT
@@ -590,9 +588,6 @@ class InvoicingApp:
         }
         self.page.theme = ft.Theme(font_family="Roboto")
         self.page.adaptive = True
-
-        self.submit_invoice_button = ft.ElevatedButton("Abrechnung absenden", on_click=self.rechnung_absenden)
-        self.update_invoice_button = ft.ElevatedButton("Rechnung aktualisieren", visible=False)
 
         # Build the UI and add it to the page
         main_view = self.build_ui()
@@ -603,6 +598,62 @@ class InvoicingApp:
 
         self.add_item()  # Add an empty item line on initial load
         self.page.update()
+
+    def build_ui(self):
+        # Add corporate identity logo
+        logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi.jpg")
+        logo = ft.Image(src=logo_path, width=1200, height=400)  # Increased logo size factor four
+
+        header = ft.Row(
+            [ft.Text("Rechnungs-App", size=30), logo],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            expand=True  # Allow the header to expand
+        )
+
+        self.client_name_dropdown = ft.Dropdown(
+            label="Kundenname",
+            width=300,
+            options=[ft.dropdown.Option("Neuer Kunde")],
+            on_change=lambda _: self.toggle_name_entry()
+        )
+        
+        self.client_name_entry = ft.TextField(label="Neuer Kundenname", width=300, visible=False, adaptive=True)
+
+        self.client_email_dropdown = ft.Dropdown(
+            label="Kunden-E-Mail",
+            width=300,
+            options=[ft.dropdown.Option("Neue E-Mail")],
+            on_change=lambda _: self.toggle_email_entry()
+        )
+        
+        self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False, adaptive=True)
+
+        self.submit_invoice_button = ft.ElevatedButton("Aufmass erstellen", on_click=self.Aufmass_erstellen)
+
+        # Additional buttons
+        self.add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_item)
+        self.create_pdf_button = ft.ElevatedButton("Ohne Preise PDF erstellen", on_click=self.create_pdf)
+        self.view_invoices_button = ft.ElevatedButton("Vorhandene Rechnungen", on_click=self.rechnungen_anzeigen)
+
+        # Main layout
+        main_column = ft.Column(
+            controls=[
+                header,
+                self.client_name_dropdown,
+                self.client_name_entry,
+                self.client_email_dropdown,
+                self.client_email_entry,
+                self.submit_invoice_button,
+                self.add_item_button,
+                self.create_pdf_button,
+                self.view_invoices_button,
+                # Add other controls here...
+            ],
+            scroll=ft.ScrollMode.ALWAYS,
+            expand=True  # Allow the main column to expand
+        )
+
+        return main_column
 
     def route_change(self, route):
         # This method will be called when the route changes
@@ -627,18 +678,22 @@ class InvoicingApp:
         if self.handle_duplicate_check():
             return
         rechnungen = self.rechnungen_abrufen()
+        if not rechnungen:
+            self.show_snackbar("Keine Rechnungen gefunden.")
+            return
+        
         rechnungsliste = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Kunde"), numeric=False),
-                ft.DataColumn(ft.Text("Datum"), numeric=False),
-                ft.DataColumn(ft.Text("Gesamt"), numeric=True),
-                ft.DataColumn(ft.Text("Aktionen"), numeric=False),
+                ft.DataColumn(ft.Text("Kunde")),
+                ft.DataColumn(ft.Text("Datum")),
+                ft.DataColumn(ft.Text("Gesamt")),
+                ft.DataColumn(ft.Text("Aktionen")),
             ],
             rows=[],
             column_spacing=50,
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
         )
-        
+
         for rechnung in rechnungen:
             rechnungsliste.rows.append(
                 ft.DataRow(
@@ -668,10 +723,6 @@ class InvoicingApp:
                     ]
                 )
             )
-        
-        def close_dialog(dialog):
-            dialog.open = False
-            self.page.update()
 
         rechnungs_dialog = ft.AlertDialog(
             title=ft.Text("Vorhandene Rechnungen"),
@@ -681,11 +732,11 @@ class InvoicingApp:
                 height=500,
             ),
             actions=[
-                ft.TextButton("Schließen", on_click=lambda _: close_dialog(rechnungs_dialog))
+                ft.TextButton("Schließen", on_click=lambda _: self.close_dialog(rechnungs_dialog))
             ],
             actions_alignment=ft.MainAxisAlignment.END
         )
-        
+
         self.page.overlay.append(rechnungs_dialog)
         rechnungs_dialog.open = True
         self.page.update()
@@ -817,7 +868,7 @@ class InvoicingApp:
      
         self.page.update()
 
-    def pdf_generieren(self, rechnungsdaten):
+    def pdf_generieren(self, rechnungsdaten, include_prices=True):
         pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         pdf_path = os.path.join(os.path.expanduser("~"), "Downloads", pdf_dateiname)
         
@@ -834,8 +885,8 @@ class InvoicingApp:
         logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi2.png")
         if os.path.exists(logo_path):
             logo = Image(logo_path)
-            logo.drawHeight = 1*inch
-            logo.drawWidth = 1*inch
+            logo.drawHeight = 4*inch
+            logo.drawWidth = 4*inch
             elements.append(logo)
         
         # Rechnungsdetails
@@ -848,19 +899,20 @@ class InvoicingApp:
         data = [['Tätigkeit', 'Beschreibung', 'DN', 'DA', 'Größe', 'Preis', 'Menge', 'Zwischensumme']]
         for item in rechnungsdaten['items']:
             row = [
-                item.get('taetigkeit', ''),  # Make sure 'taetigkeit' is included here
+                item.get('taetigkeit', ''),
                 item['description'],
                 item.get('dn', ''),
                 item.get('da', ''),
                 item['size'],
-                f"€{item['price']:.2f}",
+                f"€{item['price']:.2f}" if include_prices else '',
                 str(item['quantity']),
-                f"€{float(item['price']) * float(item['quantity']):.2f}"
+                f"€{float(item['price']) * float(item['quantity']):.2f}" if include_prices else ''
             ]
             data.append(row)
         
         # Gesamtbetrag
-        data.append(['', '', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
+        if include_prices:
+            data.append(['', '', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
         
         # Erstellen Sie die Tabelle mit angepassten Spaltenbreiten
         col_widths = [6*cm, 4*cm, 1.5*cm, 1.5*cm, 2*cm, 2*cm, 1.5*cm, 3.5*cm]  # Tätigkeitsfeld und Zwischensumme breiter gemacht
@@ -896,6 +948,44 @@ class InvoicingApp:
         
         return pdf_dateiname
 
+    def create_pdf(self, e):
+        if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
+            self.show_snackbar("Bitte füllen Sie alle Felder aus")
+            return
+        
+        client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
+        client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
+        
+        invoice_date = datetime.now().strftime("%Y-%m-%d")
+        
+        invoice_items = [
+            {
+                "taetigkeit": item["taetigkeit"].value,
+                "description": item["description"].value,
+                "dn": item["dn"].value,
+                "da": item["da"].value,
+                "size": item["size"].value,
+                "quantity": int(item["quantity"].value),
+                "price": float(item["price"].value)
+            }
+            for item in self.items
+        ]
+        
+        total = sum(item["price"] * item["quantity"] for item in invoice_items)
+        
+        invoice_data = {
+            "client_name": client_name,
+            "client_email": client_email,
+            "invoice_date": invoice_date,
+            "items": invoice_items,
+            "total": total
+        }
+        
+        # Generate PDF without prices
+        pdf_path = self.pdf_generieren(invoice_data, include_prices=False)
+        self.show_snackbar(f"PDF ohne Preise erfolgreich erstellt: {pdf_path}")
+        self.page.update()
+
     def populate_form(self, invoice_data):
         # Kundendaten setzen
         self.client_name_dropdown.value = invoice_data["client_name"]
@@ -925,6 +1015,10 @@ class InvoicingApp:
         self.page.update()
 
     def rechnung_bearbeiten(self, rechnung_id):
+        # Close the invoice list when editing an invoice
+        self.page.dialog.open = False  # Close the dialog
+        # ... existing code ...
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -1289,7 +1383,8 @@ class InvoicingApp:
                         'da': item[4],
                         'size': item[5],
                         'price': item[6],
-                        'quantity': item[7]
+                        'quantity': item[7],
+                        'taetigkeit': item[8]  # Added taetigkeit to the new PDF
                     } for item in items
                 ]
             }
@@ -1542,7 +1637,7 @@ class InvoicingApp:
         else:
             print(f"Invalid index: {index}")
 
-    def rechnung_absenden(self, e):
+    def Aufmass_erstellen(self, e):
         if self.handle_duplicate_check():
             return
         
