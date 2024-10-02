@@ -935,8 +935,8 @@ class InvoicingApp:
         logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi2.png")
         if os.path.exists(logo_path):
             logo = Image(logo_path)
-            logo.drawHeight = 1*inch
-            logo.drawWidth = 1*inch
+            logo.drawHeight = 4*inch
+            logo.drawWidth = 4*inch
             elements.append(logo)
         
         # Rechnungsdetails
@@ -949,7 +949,7 @@ class InvoicingApp:
         data = [['Tätigkeit', 'Beschreibung', 'DN', 'DA', 'Größe', 'Preis', 'Menge', 'Zwischensumme']]
         for item in rechnungsdaten['items']:
             row = [
-                item.get('taetigkeit', ''),  # Make sure 'taetigkeit' is included here
+                item.get('taetigkeit', ''),  # Include taetigkeit here
                 item['description'],
                 item.get('dn', ''),
                 item.get('da', ''),
@@ -1389,6 +1389,7 @@ class InvoicingApp:
                 'total': invoice[4],
                 'items': [
                     {
+                        'taetigkeit': item[8],  # Assuming taetigkeit is the 9th column in invoice_items
                         'description': item[2],
                         'dn': item[3],
                         'da': item[4],
@@ -1664,13 +1665,13 @@ class InvoicingApp:
         # Filter out items with empty prices
         invoice_items = [
             {
+                "taetigkeit": item["taetigkeit"].value,  # Ensure taetigkeit is included
                 "description": item["description"].value,
                 "dn": item["dn"].value,
                 "da": item["da"].value,
                 "size": item["size"].value,
                 "price": float(item["price"].value) if item["price"].value else 0,
-                "quantity": int(item["quantity"].value),
-                "taetigkeit": item["taetigkeit"].value
+                "quantity": int(item["quantity"].value)
             }
             for item in self.items
             if item["price"].value and float(item["price"].value) > 0
