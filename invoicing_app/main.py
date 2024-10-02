@@ -239,6 +239,71 @@ def insert_materialpreise_data(csv_file_path):
     finally:
         conn.close()
 
+def Aufmass_erstellen(self, e):
+        # Validate input fields
+        if not self.client_name_dropdown.value or not self.client_email_dropdown.value:
+            self.show_snackbar("Bitte füllen Sie alle erforderlichen Felder aus.")
+            return
+        
+        # Gather invoice data
+        invoice_data = {
+            "client_name": self.client_name_dropdown.value,
+            "client_email": self.client_email_dropdown.value,
+            "invoice_date": datetime.now().strftime("%Y-%m-%d"),
+            "items": []
+        }
+
+        for item in self.items:
+            invoice_data["items"].append({
+                "description": item["description"].value,
+                "dn": item["dn"].value,
+                "da": item["da"].value,
+                "size": item["size"].value,
+                "price": item["price"].value,
+                "quantity": item["quantity"].value,
+                "taetigkeit": item["taetigkeit"].value  # Ensure 'taetigkeit' is included
+            })
+
+        # Save the invoice to the database
+        if self.save_invoice(invoice_data):
+            self.show_snackbar("Rechnung erfolgreich erstellt.")
+            self.clear_form()  # Clear the form after submission
+        else:
+            self.show_snackbar("Fehler beim Erstellen der Rechnung.")
+
+def save_invoice(self, invoice_data):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO invoices (client_name, client_email, invoice_date, total)
+                VALUES (?, ?, ?, ?)
+            ''', (invoice_data['client_name'], invoice_data['client_email'], invoice_data['invoice_date'], 0))  # Set total to 0 for now
+
+            invoice_id = cursor.lastrowid  # Get the last inserted invoice ID
+
+            for item in invoice_data['items']:
+                cursor.execute('''
+                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity, taetigkeit)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (invoice_id, item['description'], item['dn'], item['da'], item['size'], item['price'], item['quantity'], item['taetigkeit']))
+
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"An error occurred: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+def clear_form(self):
+        # Logic to clear the form fields
+        self.client_name_dropdown.value = None
+        self.client_email_dropdown.value = None
+        self.items.clear()  # Clear the items list
+        self.page.update()
+
 def get_taetigkeit_options():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -292,10 +357,10 @@ class InvoicingApp:
         customer_names = self.get_unique_client_names()
         customer_emails = self.get_unique_customer_emails()
 
-        # Add corporate identity logo
+        # Add corporate identity logo with increased size
         logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi.jpg")
         if os.path.exists(logo_path):
-            logo = ft.Image(src=logo_path, width=150, height=50)
+            logo = ft.Image(src=logo_path, width=600, height=200)  # Increased logo size
             header = ft.Row([ft.Text("Rechnungs-App", size=30), logo], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         else:
             header = ft.Text("Rechnungs-App", size=30)
@@ -319,9 +384,9 @@ class InvoicingApp:
         )
         self.client_email_entry = ft.TextField(label="Neue Kunden-E-Mail", width=300, visible=False, adaptive=True)
 
-        self.submit_invoice_button = ft.ElevatedButton("Abrechnung absenden", on_click=self.rechnung_absenden)
+        self.submit_invoice_button = ft.ElevatedButton("Aufmass erstellen", on_click=self.Aufmass_erstellen)
         self.generate_invoice_without_prices_button = ft.ElevatedButton("Rechnung ohne Preise generieren", on_click=self.rechnung_ohne_preise_generieren)
-        self.show_existing_invoices_button = ft.ElevatedButton("Vorhandene Rechnungen anzeigen", on_click=self.rechnungen_anzeigen)
+        self.show_existing_invoices_button = ft.ElevatedButton("Vorhandene Rechnungen", on_click=self.rechnungen_anzeigen)
         add_item_button = ft.ElevatedButton("Artikel hinzufügen", on_click=lambda _: self.add_item(), adaptive=True)
         
         main_column = ft.Column([
@@ -343,6 +408,38 @@ class InvoicingApp:
 
         return scrollable_view
     
+    def Aufmass_erstellen(self, e):
+        # Validate input fields
+        if not self.client_name_dropdown.value or not self.client_email_dropdown.value:
+            self.show_snackbar("Bitte füllen Sie alle erforderlichen Felder aus.")
+            return
+        
+        # Gather invoice data
+        invoice_data = {
+            "client_name": self.client_name_dropdown.value,
+            "client_email": self.client_email_dropdown.value,
+            "invoice_date": datetime.now().strftime("%Y-%m-%d"),
+            "items": []
+        }
+
+        for item in self.items:
+            invoice_data["items"].append({
+                "description": item["description"].value,
+                "dn": item["dn"].value,
+                "da": item["da"].value,
+                "size": item["size"].value,
+                "price": item["price"].value,
+                "quantity": item["quantity"].value,
+                "taetigkeit": item["taetigkeit"].value  # Ensure 'taetigkeit' is included
+            })
+
+        # Save the invoice to the database
+        if self.save_invoice(invoice_data):
+            self.show_snackbar("Rechnung erfolgreich erstellt.")
+            self.clear_form()  # Clear the form after submission
+        else:
+            self.show_snackbar("Fehler beim Erstellen der Rechnung.")
+
     def get_available_options(self, bauteil):
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -580,8 +677,8 @@ class InvoicingApp:
     def main(self, page: ft.Page):
         self.page = page
         self.page.title = "Rechnungserstellung"
-        self.page.window_width = 1200  # Increased width
-        self.page.window_height = 800  # Adjusted height
+        self.page.window_width = 1600  # Increased width further
+        self.page.window_height = 800
         self.page.window_resizable = True
         self.page.padding = 20
         self.page.theme_mode = ft.ThemeMode.LIGHT
@@ -591,7 +688,7 @@ class InvoicingApp:
         self.page.theme = ft.Theme(font_family="Roboto")
         self.page.adaptive = True
 
-        self.submit_invoice_button = ft.ElevatedButton("Abrechnung absenden", on_click=self.rechnung_absenden)
+        self.submit_invoice_button = ft.ElevatedButton("Aufmass erstellen", on_click=self.Aufmass_erstellen)
         self.update_invoice_button = ft.ElevatedButton("Rechnung aktualisieren", visible=False)
 
         # Build the UI and add it to the page
@@ -707,6 +804,10 @@ class InvoicingApp:
         return emails
 
     def rechnung_bearbeiten(self, rechnung_id):
+        # Close the invoice list dialog if open
+        if self.page.dialog:
+            self.page.dialog.open = False
+
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
@@ -925,6 +1026,10 @@ class InvoicingApp:
         self.page.update()
 
     def rechnung_bearbeiten(self, rechnung_id):
+        # Close the invoice list dialog if open
+        if self.page.dialog:
+            self.page.dialog.open = False
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -1289,7 +1394,8 @@ class InvoicingApp:
                         'da': item[4],
                         'size': item[5],
                         'price': item[6],
-                        'quantity': item[7]
+                        'quantity': item[7],
+                        'taetigkeit': item[8]  # Ensure 'taetigkeit' is included
                     } for item in items
                 ]
             }
@@ -1400,7 +1506,7 @@ class InvoicingApp:
             "remove_button": ft.IconButton(
                 icon=ft.icons.DELETE_OUTLINE,
                 tooltip="Entfernen",
-                on_click=lambda _: self.remove_item(len(self.items))
+                on_click=lambda _, idx=len(self.items): self.remove_item(idx)
             ),
         }
 
