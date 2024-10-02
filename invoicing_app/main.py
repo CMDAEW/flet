@@ -885,10 +885,22 @@ class InvoicingApp:
         self.client_name_dropdown.value = invoice_data["client_name"]
         self.client_email_dropdown.value = invoice_data["client_email"]
         
+        # Bestehende Elemente löschen
+        self.items.clear()
+        self.items_container.controls.clear()
+        
         # Elemente hinzufügen
         for item in invoice_data["items"]:
             new_item = self.add_item_to_form(item)
             new_item["taetigkeit"].value = item["taetigkeit"]
+            new_item["description"].value = item["description"]
+            new_item["dn"].value = item["dn"]
+            new_item["da"].value = item["da"]
+            new_item["size"].value = item["size"]
+            new_item["price"].value = str(item["price"])
+            new_item["quantity"].value = str(item["quantity"])
+            new_item["zwischensumme"].value = str(item["zwischensumme"])
+            self.update_item_subtotal(new_item)
         
         # Gesamtpreis aktualisieren
         self.update_gesamtpreis()
@@ -966,85 +978,89 @@ class InvoicingApp:
         self.update_item_subtotal(new_item)
 
     def add_item_to_form(self, item=None):
-        print(f"Adding item to form: {item}")  # Debugging-Ausgabe
-        taetigkeit_options = self.get_taetigkeit_options()
-        bauteil_values = get_unique_bauteil_values()
-
         taetigkeit_value = item.get("taetigkeit", "") if item else ""
-        if taetigkeit_value not in taetigkeit_options:
-            print(f"Warning: Tätigkeit '{taetigkeit_value}' not in options. Available options: {taetigkeit_options}")
-            taetigkeit_value = ""  # Setze auf leer, wenn nicht in den Optionen
+        description_value = item.get("description", "") if item else ""
+        dn_value = item.get("dn", "") if item else ""
+        da_value = item.get("da", "") if item else ""
+        size_value = item.get("size", "") if item else ""
+        price_value = str(item.get("price", "")) if item else ""
+        quantity_value = str(item.get("quantity", "1")) if item else "1"
 
         new_item = {
             "taetigkeit": ft.Dropdown(
                 label="Tätigkeit",
                 width=300,
-                options=[ft.dropdown.Option(t) for t in taetigkeit_options],
+                options=[ft.dropdown.Option(t) for t in self.taetigkeit_options],
                 value=taetigkeit_value,
                 on_change=lambda _: self.update_item_options(new_item, "taetigkeit")
             ),
             "description": ft.Dropdown(
                 label="Artikelbeschreibung",
                 width=300,
-                options=[ft.dropdown.Option(b, disabled=(b == "Formteile")) for b in bauteil_values],
-                value=item.get("description", "") if item else "",
+                options=[ft.dropdown.Option(b) for b in self.get_unique_bauteil_values()],
+                value=description_value,
+                on_change=lambda _: self.update_item_options(new_item, "description")
             ),
             "dn": ft.Dropdown(
                 label="DN",
                 width=150,
-                visible=item.get("dn") is not None if item else False,
-                value=str(item.get("dn", "")) if item else "",
+                visible=False,
+                value=dn_value,
+                on_change=lambda _: self.update_item_options(new_item, "dn")
             ),
             "da": ft.Dropdown(
                 label="DA",
                 width=150,
-                visible=item.get("da") is not None if item else False,
-                value=str(item.get("da", "")) if item else "",
+                visible=False,
+                value=da_value,
+                on_change=lambda _: self.update_item_options(new_item, "da")
             ),
             "size": ft.Dropdown(
                 label="Dämmdicke",
                 width=150,
-                value=str(item.get("size", "")) if item else "",
+                value=size_value,
+                on_change=lambda _: self.update_item_options(new_item, "size")
             ),
             "price": ft.TextField(
                 label="Einheitspreis",
-                value=str(item.get("price", "0.00")) if item else "0.00",
                 width=100,
+                value=price_value,
                 read_only=True
             ),
             "quantity": ft.TextField(
                 label="Menge",
                 width=50,
-                value=str(item.get("quantity", "1")) if item else "1",
+                value=quantity_value,
+                on_change=lambda _: self.update_item_subtotal(new_item)
             ),
             "zwischensumme": ft.TextField(
                 label="Zwischensumme",
-                value=str(item.get("zwischensumme", "0.00")) if item else "0.00",
                 width=100,
                 read_only=True
             ),
             "remove_button": ft.IconButton(
                 icon=ft.icons.DELETE_OUTLINE,
-                tooltip="Entfernen",
-                on_click=lambda: self.remove_item(self.items.index(new_item))
-            ),
+                on_click=lambda _: self.remove_item(new_item)
+            )
         }
 
-        print(f"Neues Item hinzugefügt: {new_item}")  # Debugging-Ausgabe
+        self.items.append(new_item)
+        self.items_container.controls.append(ft.Row(controls=[
+            new_item["taetigkeit"],
+            new_item["description"],
+            new_item["dn"],
+            new_item["da"],
+            new_item["size"],
+            new_item["price"],
+            new_item["quantity"],
+            new_item["zwischensumme"],
+            new_item["remove_button"]
+        ]))
 
-       
-        self.rebuild_items_container()
-
-        # Set up event handlers
-        new_item["taetigkeit"].on_change = lambda _: self.update_item_options(new_item, "taetigkeit")
-        new_item["description"].on_change = lambda _: self.update_item_options(new_item, "description")
-        new_item["dn"].on_change = lambda _: self.update_item_options(new_item, "dn")
-        new_item["da"].on_change = lambda _: self.update_item_options(new_item, "da")
-        new_item["size"].on_change = lambda _: self.update_item_options(new_item, "size")
-        new_item["quantity"].on_change = lambda _: self.update_item_subtotal(new_item)
-
+        self.update_item_options(new_item, "description")
         self.update_item_subtotal(new_item)
-        
+        self.page.update()
+
         return new_item
 
     def get_taetigkeit_options(self):
