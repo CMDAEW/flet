@@ -70,13 +70,13 @@ def initialize_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY,
+               invoice_id INTEGER,
                 client_name TEXT NOT NULL,
                 bestell_nr TEXT,
                 bestelldatum TEXT,
                 baustelle TEXT,
                 anlagenteil TEXT,
                 aufmass_nr TEXT,
-                aufmassart TEXT,
                 auftrags_nr TEXT,
                 ausfuehrungsbeginn TEXT,
                 ausfuehrungsende TEXT,
@@ -109,7 +109,7 @@ def initialize_database():
         
         # Create Ausführung table
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Ausfuehrung (
+            CREATE TABLE IF NOT EXISTS Taetigkeiten (
                 Position INTEGER PRIMARY KEY,
                 Taetigkeit TEXT NOT NULL,
                 Faktor REAL NOT NULL
@@ -118,7 +118,7 @@ def initialize_database():
         
         # Create Sonstige Zuschläge table
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Sonstige_Zuschlaege (
+            CREATE TABLE IF NOT EXISTS Zuschlaege (
                 Position INTEGER PRIMARY KEY,
                 Zuschlag TEXT NOT NULL,
                 Faktor REAL NOT NULL
@@ -140,7 +140,7 @@ def initialize_database():
         # Fill price_list table if empty
         cursor.execute("SELECT COUNT(*) FROM price_list")
         if cursor.fetchone()[0] == 0:
-            csv_path = resource_path('EP_SWF.csv')
+            csv_path = resource_path('EP.csv')
             with open(csv_path, 'r', encoding='utf-8') as csvfile:
                 csvreader = csv.reader(csvfile, delimiter=';')
                 next(csvreader)  # Skip header
