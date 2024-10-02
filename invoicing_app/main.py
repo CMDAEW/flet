@@ -847,7 +847,7 @@ class InvoicingApp:
         data.append(['', '', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
         
         # Erstellen Sie die Tabelle mit angepassten Spaltenbreiten
-        col_widths = [3*cm, 5*cm, 2*cm, 2*cm, 2.5*cm, 2.5*cm, 2*cm, 3*cm]
+        col_widths = [5*cm, 4*cm, 1.5*cm, 1.5*cm, 2*cm, 2*cm, 1.5*cm, 2.5*cm]  # Tätigkeitsfeld breiter gemacht
         table = Table(data, colWidths=col_widths)
         
         # Tabellenstil
@@ -1802,6 +1802,9 @@ class InvoicingApp:
         
         if item["zwischensumme"].page:
             item["zwischensumme"].update()
+        
+        # Aktualisiere den Gesamtpreis
+        self.update_gesamtpreis()
 
     def get_ausfuehrung_factor(self, taetigkeit):
         conn = get_db_connection()
@@ -1818,7 +1821,8 @@ class InvoicingApp:
     def update_gesamtpreis(self):
         gesamtpreis = sum(float(item["zwischensumme"].value) for item in self.items if item["zwischensumme"].value)
         self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
-        self.page.update()
+        if self.page:
+            self.page.update()
 
 def get_unique_bauteil_values():
     db_path = get_db_path()
