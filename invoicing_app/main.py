@@ -1580,15 +1580,15 @@ class InvoicingApp:
         try:
             cursor.execute('''
                 INSERT INTO invoices (client_name, client_email, invoice_date, total)
-                VALUES (?, ?, ?, ?)
-            ''', (invoice_data["client_name"], invoice_data["client_email"], invoice_data["invoice_date"], invoice_data["total"]))
+            VALUES (?, ?, ?, ?)
+        ''', (invoice_data["client_name"], invoice_data["client_email"], invoice_data["invoice_date"], invoice_data["total"]))
             invoice_id = cursor.lastrowid
-            
+        
             for item in invoice_data["items"]:
-                cursor.execute('''
-                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (invoice_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"]))
+             cursor.execute('''
+                INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity, taetigkeit)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (invoice_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"], item["taetigkeit"]))
             
             conn.commit()
             return True
@@ -1598,7 +1598,6 @@ class InvoicingApp:
             return False
         finally:
             conn.close()
-
     
 
     def reset_form(self):
@@ -1616,76 +1615,34 @@ class InvoicingApp:
         
         # ... (rest of the rechnung_absenden implementation)
 
-    def update_rechnung(self, rechnung_id):
-        print("Validating fields:")
-        print(f"Client name: {self.client_name_dropdown.value}")
-        print(f"Client email: {self.client_email_dropdown.value}")
-        print(f"Number of items: {len(self.items)}")
-        
-        if not self.client_name_dropdown.value or not self.client_email_dropdown.value or not self.items:
-            missing_fields = []
-            if not self.client_name_dropdown.value:
-                missing_fields.append("Kundenname")
-            if not self.client_email_dropdown.value:
-                missing_fields.append("Kunden-E-Mail")
-            if not self.items:
-                missing_fields.append("Artikel")
-            
-            error_message = f"Bitte füllen Sie folgende Felder aus: {', '.join(missing_fields)}"
-            self.show_snackbar(error_message)
-            return
-        
-        client_name = self.client_name_dropdown.value if self.client_name_dropdown.value != "Neuer Kunde" else self.client_name_entry.value
-        client_email = self.client_email_dropdown.value if self.client_email_dropdown.value != "Neue E-Mail" else self.client_email_entry.value
-        
-        invoice_date = datetime.now().strftime("%Y-%m-%d")
-        total = sum(float(item["price"].value) * int(item["quantity"].value) for item in self.items)
-        
-        invoice_items = [
-            {
-                "description": item["description"].value,
-                "dn": item["dn"].value,
-                "da": item["da"].value,
-                "size": item["size"].value,
-                "price": float(item["price"].value),
-                "quantity": int(item["quantity"].value),
-                "taetigkeit": item["taetigkeit"].value
-            }
-            for item in self.items
-        ]
-        
+    def update_rechnung(self, invoice_data):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                UPDATE invoices 
-                SET client_name=?, client_email=?, invoice_date=?, total=?
-                WHERE id=?
-            ''', (client_name, client_email, invoice_date, total, rechnung_id))
-            
-            cursor.execute('DELETE FROM invoice_items WHERE invoice_id=?', (rechnung_id,))
-            
-            for item in invoice_items:
+                UPDATE invoices
+                SET client_name = ?, client_email = ?, invoice_date = ?, total = ?
+                WHERE id = ?
+            ''', (invoice_data['client_name'], invoice_data['client_email'], invoice_data['invoice_date'], invoice_data['total'], invoice_data['id']))
+
+            cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_data['id'],))
+
+            for item in invoice_data['items']:
                 cursor.execute('''
                     INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity, taetigkeit)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (rechnung_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"], item["taetigkeit"]))
-            
+                ''', (invoice_data['id'], item['description'], item['dn'], item['da'], item['size'], item['price'], item['quantity'], item['taetigkeit']))
+
             conn.commit()
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Rechnung erfolgreich aktualisiert"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
-            self.reset_form()
-            self.rechnungen_anzeigen(None)  # Refresh the invoice list
+            self.show_snackbar("Rechnung erfolgreich aktualisiert")
+            return True
         except sqlite3.Error as e:
-            print(f"An error occurred: {e}")
+            print(f"Ein Fehler ist aufgetreten: {e}")
             conn.rollback()
-            self.page.snack_bar = ft.SnackBar(content=ft.Text("Fehler beim Aktualisieren der Rechnung"))
-            self.page.overlay.append(self.page.snack_bar)
-            self.page.snack_bar.open = True
+            self.show_snackbar("Fehler beim Aktualisieren der Rechnung")
+            return False
         finally:
             conn.close()
-            self.page.update()
         
         # ... (rest of the update_rechnung implementation)
 
