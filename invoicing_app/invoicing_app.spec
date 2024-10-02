@@ -35,4 +35,6 @@ exe = EXE(pyz,
           
           target_arch=None,
           codesign_identity=None,
-          entitlements_file=None )
+          entitlements_file=None,
+          icon='Assets/favicon.ico'  # Specify the path to the icon in the Assets folder
+)

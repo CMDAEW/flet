@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from cmath import e
 import logging
 import flet as ft
 import sqlite3
@@ -287,9 +288,20 @@ class InvoicingApp:
         # Keine Artikelzeilen hier hinzufügen
 
     def build_ui(self):
-        bauteil_values = get_unique_bauteil_values()
+        bauteil_values = self.get_unique_bauteil_values()
         customer_names = self.get_unique_client_names()
         customer_emails = self.get_unique_customer_emails()
+
+        # Add corporate identity logo
+        logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi.jpg")
+        if os.path.exists(logo_path):
+            logo = ft.Image(src=logo_path, width=150, height=50)
+            header = ft.Row([ft.Text("Rechnungs-App", size=30), logo], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        else:
+            header = ft.Text("Rechnungs-App", size=30)
+
+        # Add the header to your layout
+        self.page.add(header)
 
         self.client_name_dropdown = ft.Dropdown(
             label="Kundenname",
@@ -568,6 +580,10 @@ class InvoicingApp:
     def main(self, page: ft.Page):
         self.page = page
         self.page.title = "Rechnungserstellung"
+        self.page.window_width = 1200  # Increased width
+        self.page.window_height = 800  # Adjusted height
+        self.page.window_resizable = True
+        self.page.padding = 20
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.fonts = {
             "Roboto": "https://github.com/google/fonts/raw/main/apache/roboto/static/Roboto-Regular.ttf"
@@ -815,7 +831,7 @@ class InvoicingApp:
         styles.add(ParagraphStyle(name='Right', alignment=2))
         
         # Firmenlogo (wenn vorhanden)
-        logo_path = resource_path("logo.png")  # Aktualisieren Sie diesen Pfad
+        logo_path = resource_path("Assets/KAE_Logo_RGB_300dpi2.png")
         if os.path.exists(logo_path):
             logo = Image(logo_path)
             logo.drawHeight = 1*inch
@@ -832,7 +848,7 @@ class InvoicingApp:
         data = [['Tätigkeit', 'Beschreibung', 'DN', 'DA', 'Größe', 'Preis', 'Menge', 'Zwischensumme']]
         for item in rechnungsdaten['items']:
             row = [
-                item.get('taetigkeit', ''),
+                item.get('taetigkeit', ''),  # Make sure 'taetigkeit' is included here
                 item['description'],
                 item.get('dn', ''),
                 item.get('da', ''),
@@ -847,7 +863,7 @@ class InvoicingApp:
         data.append(['', '', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
         
         # Erstellen Sie die Tabelle mit angepassten Spaltenbreiten
-        col_widths = [5*cm, 4*cm, 1.5*cm, 1.5*cm, 2*cm, 2*cm, 1.5*cm, 2.5*cm]  # Tätigkeitsfeld breiter gemacht
+        col_widths = [6*cm, 4*cm, 1.5*cm, 1.5*cm, 2*cm, 2*cm, 1.5*cm, 3.5*cm]  # Tätigkeitsfeld und Zwischensumme breiter gemacht
         table = Table(data, colWidths=col_widths)
         
         # Tabellenstil
@@ -1333,8 +1349,8 @@ class InvoicingApp:
         self.page.update()
 
     def add_item(self):
-        bauteil_values = get_unique_bauteil_values()
-        taetigkeit_options = get_taetigkeit_options()
+        bauteil_values = self.get_unique_bauteil_values()
+        taetigkeit_options = self.get_taetigkeit_options()
         
         new_item = {
             "taetigkeit": ft.Dropdown(
@@ -1781,27 +1797,32 @@ class InvoicingApp:
         if self.page:
             self.page.update()
 
-def get_unique_bauteil_values():
-    db_path = get_db_path()
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+    def get_unique_bauteil_values(self):
+        db_path = get_db_path()
+        conn = None
+        cursor = None
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
         
-        # Get regular Bauteil values
-        cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
-        bauteil_values = [row[0] for row in cursor.fetchall()]
+            # Get regular Bauteil values
+            cursor.execute('SELECT DISTINCT bauteil FROM price_list ORDER BY bauteil')
+            bauteil_values = [row[0] for row in cursor.fetchall()]
         
-        # Get Formteil values
-        cursor.execute('SELECT Formteilbezeichnung FROM Formteile ORDER BY Position')
-        formteil_values = [row[0] for row in cursor.fetchall()]
+            # Get Formteil values
+            cursor.execute('SELECT Formteilbezeichnung FROM Formteile ORDER BY Position')
+            formteil_values = [row[0] for row in cursor.fetchall()]
         
-        conn.close()
-        
-        # Combine regular Bauteil values and Formteile with a heading
-        return bauteil_values + ["Formteile"] + formteil_values
-    except sqlite3.Error as e:
-        print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
-        return []
+            # Combine regular Bauteil values and Formteile with a heading
+            return bauteil_values + ["Formteile"] + formteil_values
+        except sqlite3.Error as e:
+            print(f"Fehler beim Abrufen der Bauteil-Werte: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
         
         # ... (rest of the update_rechnung implementation)
 
