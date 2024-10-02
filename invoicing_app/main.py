@@ -11,9 +11,18 @@ import tempfile
 from datetime import datetime
 from httpx import options
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch, cm
+from reportlab.platypus import Image, Spacer
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.lib import colors
+from reportlab.lib.units import inch, cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 _temp_db_file = None
 
@@ -83,6 +92,7 @@ def initialize_database():
                 size TEXT,
                 item_price REAL,
                 quantity INTEGER,
+                taetigkeit TEXT,
                 FOREIGN KEY (invoice_id) REFERENCES invoices (id)
             )
         ''')
@@ -229,12 +239,25 @@ def insert_materialpreise_data(csv_file_path):
         conn.close()
 
 def get_taetigkeit_options():
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT Taetigkeit FROM Ausfuehrung ORDER BY Position")
-        options = [row[0] for row in cursor.fetchall()]
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT Taetigkeit FROM Ausfuehrung ORDER BY Taetigkeit')
+        return [row[0] for row in cursor.fetchall()]
+    finally:
         conn.close()
-        return options
+
+class InvoicingApp:
+    def __init__(self):
+        self.page = None
+        self.items = []
+        self.items_container = ft.Column()
+        self.gesamtpreis_text = ft.Text("Gesamtpreis: €0.00", size=20)
+        self.client_name_dropdown = None
+        self.client_email_dropdown = None
+        self.client_name_entry = None
+        self.client_email_entry = None
+        self.taetigkeit_options = get_taetigkeit_options()
 
 def check_database_structure():
     conn = get_db_connection()
@@ -261,6 +284,7 @@ class InvoicingApp:
         self.client_name_entry = None
         self.client_email_entry = None
         self.taetigkeit_options = get_taetigkeit_options()
+        # Keine Artikelzeilen hier hinzufügen
 
     def build_ui(self):
         bauteil_values = get_unique_bauteil_values()
@@ -305,9 +329,6 @@ class InvoicingApp:
             expand=True,
         )
 
-        # Add an initial empty item
-        self.add_item()
-
         return scrollable_view
     
     def get_available_options(self, bauteil):
@@ -351,60 +372,6 @@ class InvoicingApp:
         
         self.update_price(item)
 
-    def update_item_options(self, item, changed_field):
-        if changed_field == "description":
-            bauteil = item["description"].value
-            options = self.get_available_options(bauteil)
-            
-            dn_values = sorted(set(option[0] for option in options if option[0] is not None))
-            da_values = sorted(set(option[1] for option in options if option[1] is not None))
-            size_values = sorted(set(option[2] for option in options if option[2] is not None))
-            
-            item["dn"].options = [ft.dropdown.Option(str(dn)) for dn in dn_values]
-            item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
-            item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
-            
-            item["dn"].visible = bool(dn_values)
-            item["da"].visible = bool(da_values)
-            item["size"].visible = bool(size_values)
-            
-            # Only update if the control is already on the page
-            if item["dn"].page:
-                item["dn"].update()
-            if item["da"].page:
-                item["da"].update()
-            if item["size"].page:
-                item["size"].update()
-        
-        self.update_price(item)
-
-    def update_item_options(self, item, changed_field):
-        if changed_field == "description":
-            bauteil = item["description"].value
-            options = self.get_available_options(bauteil)
-            
-            dn_values = sorted(set(option[0] for option in options if option[0] is not None))
-            da_values = sorted(set(option[1] for option in options if option[1] is not None))
-            size_values = sorted(set(option[2] for option in options if option[2] is not None))
-            
-            item["dn"].options = [ft.dropdown.Option(str(dn)) for dn in dn_values]
-            item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
-            item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
-            
-            item["dn"].visible = bool(dn_values)
-            item["da"].visible = bool(da_values)
-            item["size"].visible = bool(size_values)
-            
-            # Only update if the control is already on the page
-            if item["dn"].page:
-                item["dn"].update()
-            if item["da"].page:
-                item["da"].update()
-            if item["size"].page:
-                item["size"].update()
-        
-        self.update_price(item)
-
     def update_price(self, item):
         bauteil = item["description"].value
         dn = item["dn"].value
@@ -415,9 +382,11 @@ class InvoicingApp:
         
         if price is not None:
             item["price"].value = f"{price:.2f}"
-            # Only update if the control is already on the page
+            print(f"Updating price: {price:.2f}")  # Debugging-Ausgabe
             if item["price"].page:
                 item["price"].update()
+        else:
+            print(f"Price not found for: {bauteil}, DN: {dn}, DA: {da}, Size: {size}")
         
         self.update_item_subtotal(item)
 
@@ -489,6 +458,54 @@ class InvoicingApp:
         pdf_path = self.pdf_generieren_ohne_preise(invoice_data)
         self.show_snackbar(f"Rechnung ohne Preise erstellt und gespeichert als: {pdf_path}")
 
+    def rechnung_speichern(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Fügen Sie die Rechnung in die invoices Tabelle ein
+            cursor.execute('''
+                INSERT INTO invoices (client_name, client_email, invoice_date, total)
+                VALUES (?, ?, ?, ?)
+            ''', (self.client_name_dropdown.value, self.client_email_dropdown.value, 
+                  datetime.now().strftime("%Y-%m-%d"), self.calculate_total()))
+            
+            invoice_id = cursor.lastrowid
+            
+            # Fügen Sie die Rechnungspositionen in die invoice_items Tabelle ein
+            for item in self.items:
+                taetigkeit_value = item["taetigkeit"].value
+                print(f"Speichere Tätigkeit: {taetigkeit_value}")  # Debugging-Ausgabe
+                cursor.execute('''
+                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity, taetigkeit)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    invoice_id,
+                    item["description"].value,
+                    item["dn"].value,
+                    item["da"].value,
+                    item["size"].value,
+                    item["price"].value,
+                    item["quantity"].value,
+                    taetigkeit_value
+                ))
+                print(f"Gespeichertes Item: {cursor.lastrowid}")  # Debugging-Ausgabe
+            
+            conn.commit()
+            self.show_snackbar("Rechnung erfolgreich gespeichert")
+            return True
+        except sqlite3.Error as e:
+            print(f"Ein Fehler ist aufgetreten: {e}")
+            conn.rollback()
+            self.show_snackbar("Fehler beim Speichern der Rechnung")
+            return False
+        finally:
+            conn.close()
+
+    def calculate_total(self):
+        return sum(float(item["zwischensumme"].value) for item in self.items if item["zwischensumme"].value)
+        # ... (restlicher Code)
+
     def pdf_generieren_ohne_preise(self, rechnungsdaten):
         # Get the root directory (where the script or exe is located)
         if getattr(sys, 'frozen', False):
@@ -503,7 +520,7 @@ class InvoicingApp:
         pdf_path = os.path.join(root_dir, pdf_dateiname)
 
         # Create the PDF document
-        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        doc = SimpleDocTemplate(pdf_path, pagesize=landscape)
         elements = []
 
         # Add invoice details
@@ -780,25 +797,103 @@ class InvoicingApp:
         self.update_gesamtpreis()
 
         # Update the page
+     
+     
         self.page.update()
 
+    def pdf_generieren(self, rechnungsdaten):
+        pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        pdf_path = os.path.join(os.path.expanduser("~"), "Downloads", pdf_dateiname)
+        
+        # Verwenden Sie A4 im Querformat
+        doc = SimpleDocTemplate(pdf_path, pagesize=landscape(A4))
+        elements = []
+        
+        # Verbesserte Stile
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='Center', alignment=1))
+        styles.add(ParagraphStyle(name='Right', alignment=2))
+        
+        # Firmenlogo (wenn vorhanden)
+        logo_path = resource_path("logo.png")  # Aktualisieren Sie diesen Pfad
+        if os.path.exists(logo_path):
+            logo = Image(logo_path)
+            logo.drawHeight = 1*inch
+            logo.drawWidth = 1*inch
+            elements.append(logo)
+        
+        # Rechnungsdetails
+        elements.append(Paragraph(f"Rechnung für: {rechnungsdaten['client_name']}", styles['Heading1']))
+        elements.append(Paragraph(f"E-Mail: {rechnungsdaten['client_email']}", styles['Normal']))
+        elements.append(Paragraph(f"Datum: {rechnungsdaten['invoice_date']}", styles['Normal']))
+        elements.append(Spacer(1, 0.25*inch))
+        
+        # Tabelle für Rechnungspositionen
+        data = [['Tätigkeit', 'Beschreibung', 'DN', 'DA', 'Größe', 'Preis', 'Menge', 'Zwischensumme']]
+        for item in rechnungsdaten['items']:
+            row = [
+                item.get('taetigkeit', ''),
+                item['description'],
+                item.get('dn', ''),
+                item.get('da', ''),
+                item['size'],
+                f"€{item['price']:.2f}",
+                str(item['quantity']),
+                f"€{float(item['price']) * float(item['quantity']):.2f}"
+            ]
+            data.append(row)
+        
+        # Gesamtbetrag
+        data.append(['', '', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
+        
+        # Erstellen Sie die Tabelle mit angepassten Spaltenbreiten
+        col_widths = [3*cm, 5*cm, 2*cm, 2*cm, 2.5*cm, 2.5*cm, 2*cm, 3*cm]
+        table = Table(data, colWidths=col_widths)
+        
+        # Tabellenstil
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, -1), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 10),
+            ('TOPPADDING', (0, -1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BOX', (0, 0), (-1, -1), 2, colors.black),
+        ])
+        table.setStyle(table_style)
+        
+        elements.append(table)
+        
+        # Fügen Sie Fußzeile hinzu
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph("Vielen Dank für Ihr Geschäft!", styles['Center']))
+        
+        # Generieren Sie das PDF
+        doc.build(elements)
+        
+        return pdf_dateiname
+
     def populate_form(self, invoice_data):
-        # Populate client information
+        # Kundendaten setzen
         self.client_name_dropdown.value = invoice_data["client_name"]
         self.client_email_dropdown.value = invoice_data["client_email"]
         
-        # Clear existing items
-        self.items.clear()
-        self.items_container.controls.clear()
-        
-        # Populate items
+        # Elemente hinzufügen
         for item in invoice_data["items"]:
-            self.add_item_to_form(item)
+            new_item = self.add_item_to_form(item)
+            new_item["taetigkeit"].value = item["taetigkeit"]
         
-        # Update the total price
+        # Gesamtpreis aktualisieren
         self.update_gesamtpreis()
         
-        # Update the page
+        # Seite aktualisieren
         self.page.update()
 
     def rechnung_bearbeiten(self, rechnung_id):
@@ -817,11 +912,11 @@ class InvoicingApp:
             self.show_snackbar(f"Rechnung mit ID {rechnung_id} nicht gefunden.")
             return
 
-        # Clear existing items
+        # Bestehende Elemente löschen
         self.items.clear()
         self.items_container.controls.clear()
 
-        # Populate form with invoice details
+        # Formular mit Rechnungsdetails befüllen
         invoice_data = {
             "id": rows[0][0],
             "client_name": rows[0][1],
@@ -833,13 +928,14 @@ class InvoicingApp:
 
         for row in rows:
             item = {
+                "taetigkeit": row[11],  # Stellen Sie sicher, dass dies der korrekte Index für taetigkeit ist
                 "description": row[5],
                 "dn": row[6],
                 "da": row[7],
                 "size": row[8],
                 "price": row[9],
                 "quantity": row[10],
-                "zwischensumme": float(row[9]) * float(row[10])  # Calculate zwischensumme
+                "zwischensumme": float(row[9]) * float(row[10])
             }
             invoice_data["items"].append(item)
 
@@ -869,54 +965,61 @@ class InvoicingApp:
         self.items.append(new_item)
         self.update_item_subtotal(new_item)
 
-    def add_item_to_form(self, item):
-        taetigkeit_options = get_taetigkeit_options()
+    def add_item_to_form(self, item=None):
+        print(f"Adding item to form: {item}")  # Debugging-Ausgabe
+        taetigkeit_options = self.get_taetigkeit_options()
         bauteil_values = get_unique_bauteil_values()
+
+        taetigkeit_value = item.get("taetigkeit", "") if item else ""
+        if taetigkeit_value not in taetigkeit_options:
+            print(f"Warning: Tätigkeit '{taetigkeit_value}' not in options. Available options: {taetigkeit_options}")
+            taetigkeit_value = ""  # Setze auf leer, wenn nicht in den Optionen
 
         new_item = {
             "taetigkeit": ft.Dropdown(
                 label="Tätigkeit",
                 width=300,
-                options=[ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeit_options],
-                value=item.get("taetigkeit", ""),
+                options=[ft.dropdown.Option(t) for t in taetigkeit_options],
+                value=taetigkeit_value,
+                on_change=lambda _: self.update_item_options(new_item, "taetigkeit")
             ),
             "description": ft.Dropdown(
                 label="Artikelbeschreibung",
                 width=300,
                 options=[ft.dropdown.Option(b, disabled=(b == "Formteile")) for b in bauteil_values],
-                value=item.get("description", ""),
+                value=item.get("description", "") if item else "",
             ),
             "dn": ft.Dropdown(
                 label="DN",
                 width=150,
-                visible=item.get("dn") is not None,
-                value=str(item.get("dn", "")),
+                visible=item.get("dn") is not None if item else False,
+                value=str(item.get("dn", "")) if item else "",
             ),
             "da": ft.Dropdown(
                 label="DA",
                 width=150,
-                visible=item.get("da") is not None,
-                value=str(item.get("da", "")),
+                visible=item.get("da") is not None if item else False,
+                value=str(item.get("da", "")) if item else "",
             ),
             "size": ft.Dropdown(
                 label="Dämmdicke",
                 width=150,
-                value=str(item.get("size", "")),
+                value=str(item.get("size", "")) if item else "",
             ),
             "price": ft.TextField(
                 label="Einheitspreis",
-                value=str(item.get("price", "0.00")),
+                value=str(item.get("price", "0.00")) if item else "0.00",
                 width=100,
                 read_only=True
             ),
             "quantity": ft.TextField(
                 label="Menge",
                 width=50,
-                value=str(item.get("quantity", "1")),
+                value=str(item.get("quantity", "1")) if item else "1",
             ),
             "zwischensumme": ft.TextField(
                 label="Zwischensumme",
-                value=str(item.get("zwischensumme", "0.00")),
+                value=str(item.get("zwischensumme", "0.00")) if item else "0.00",
                 width=100,
                 read_only=True
             ),
@@ -927,7 +1030,9 @@ class InvoicingApp:
             ),
         }
 
-        self.items.append(new_item)
+        print(f"Neues Item hinzugefügt: {new_item}")  # Debugging-Ausgabe
+
+       
         self.rebuild_items_container()
 
         # Set up event handlers
@@ -939,6 +1044,17 @@ class InvoicingApp:
         new_item["quantity"].on_change = lambda _: self.update_item_subtotal(new_item)
 
         self.update_item_subtotal(new_item)
+        
+        return new_item
+
+    def get_taetigkeit_options(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT Taetigkeit FROM Ausfuehrung ORDER BY Position')
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            conn.close()
 
     def rechnung_aktualisieren(self, rechnung_id):
         # Similar to rechnung_absenden, but update existing invoice
@@ -1016,17 +1132,18 @@ class InvoicingApp:
             conn.close()
 
     def update_item_options(self, item, changed_field):
-        print(f"Updating options for {changed_field}")
-        bauteil = item["description"].value
+        selected_taetigkeit = item["taetigkeit"].value
+        print(f"Ausgewählte Tätigkeit: {selected_taetigkeit}")  # Debugging-Ausgabe
+        selected_description = item["description"].value
         selected_dn = item["dn"].value
         selected_da = item["da"].value
         selected_size = item["size"].value
 
         # Check if the selected item is a Formteil
-        is_formteil = self.is_formteil(bauteil)
+        is_formteil = self.is_formteil(selected_description)
 
-        if bauteil:
-            available_options = self.get_available_options(bauteil)
+        if selected_description:
+            available_options = self.get_available_options(selected_description)
             print(f"Available options: {available_options}")
 
             # Update DN and DA options with available values
@@ -1089,15 +1206,13 @@ class InvoicingApp:
         if item["size"].page:
             item["size"].update()
         
-        # Update the price
+        # Update the price and subtotal
         self.update_price(item)
+        self.update_item_subtotal(item)
         self.update_gesamtpreis()
         self.page.update()
 
         print(f"Final values - DN: {item['dn'].value}, DA: {item['da'].value}, Size: {item['size'].value}")
-
-        # Ensure the page is updated
-        self.page.update()
 
     def is_formteil(self, bauteil):
         conn = get_db_connection()
@@ -1468,6 +1583,8 @@ class InvoicingApp:
         finally:
             conn.close()
 
+    
+
     def reset_form(self):
         self.client_name_dropdown.value = None
         self.client_email_dropdown.value = None
@@ -1477,7 +1594,7 @@ class InvoicingApp:
         self.client_email_entry.visible = False
         self.items.clear()
         self.items_container.controls.clear()
-        self.add_item()  # Add an empty item line
+        self.add_item()  # Fügt nur eine leere Artikelzeile hinzu
         self.update_gesamtpreis()
         self.page.update()
         
@@ -1515,7 +1632,8 @@ class InvoicingApp:
                 "da": item["da"].value,
                 "size": item["size"].value,
                 "price": float(item["price"].value),
-                "quantity": int(item["quantity"].value)
+                "quantity": int(item["quantity"].value),
+                "taetigkeit": item["taetigkeit"].value
             }
             for item in self.items
         ]
@@ -1533,9 +1651,9 @@ class InvoicingApp:
             
             for item in invoice_items:
                 cursor.execute('''
-                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (rechnung_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"]))
+                    INSERT INTO invoice_items (invoice_id, item_description, dn, da, size, item_price, quantity, taetigkeit)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (rechnung_id, item["description"], item["dn"], item["da"], item["size"], item["price"], item["quantity"], item["taetigkeit"]))
             
             conn.commit()
             self.page.snack_bar = ft.SnackBar(content=ft.Text("Rechnung erfolgreich aktualisiert"))
@@ -1591,71 +1709,8 @@ class InvoicingApp:
 
         # Update the UI
         self.page.update()
-
-    def pdf_generieren(self, rechnungsdaten):
-        # Get the root directory (where the script or exe is located)
-        if getattr(sys, 'frozen', False):
-            # If running as compiled executable
-            root_dir = os.path.dirname(sys.executable)
-        else:
-            # If running as script
-            root_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Generate a unique filename
-        pdf_dateiname = f"Rechnung_{rechnungsdaten['client_name']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        pdf_path = os.path.join(root_dir, pdf_dateiname)
-
-        # Create the PDF document
-        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-        elements = []
-
-        # Add invoice details
-        styles = getSampleStyleSheet()
-        elements.append(Paragraph(f"Rechnung für: {rechnungsdaten['client_name']}", styles['Heading1']))
-        elements.append(Paragraph(f"E-Mail: {rechnungsdaten['client_email']}", styles['Normal']))
-        elements.append(Paragraph(f"Datum: {rechnungsdaten['invoice_date']}", styles['Normal']))
-        elements.append(Paragraph(" ", styles['Normal']))  # Add some space
-
-        # Create the table for invoice items
-        data = [['Beschreibung', 'DN', 'DA', 'Größe', 'Preis', 'Menge', 'Gesamt']]
-        for item in rechnungsdaten['items']:
-            row = [
-                item['description'],
-                item['dn'],
-                item['da'],
-                item['size'],
-                f"€{item['price']:.2f}",
-                str(item['quantity']),
-                f"€{item['price'] * item['quantity']:.2f}"
-            ]
-            data.append(row)
-
-        # Add total row
-        data.append(['', '', '', '', '', 'Gesamtbetrag:', f"€{rechnungsdaten['total']:.2f}"])
-
-        # Create the table
-        table = Table(data)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('ALIGN', (0, -1), (-1, -1), 'RIGHT'),
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ]))
-
-        elements.append(table)
-
-        # Build the PDF
-        doc.build(elements)
-
-        return pdf_path
-
+   
+   
     def show_snackbar(self, message):
         if self.page:
             self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
@@ -1727,10 +1782,10 @@ class InvoicingApp:
         subtotal = price * quantity * factor
         item["zwischensumme"].value = f"{subtotal:.2f}"
         
-        print(f"Updating zwischensumme: Price: {price}, Quantity: {quantity}, Factor: {factor}, Zwischensumme: {subtotal}")
+        print(f"Updating zwischensumme: Price: {price}, Quantity: {quantity}, Tätigkeit: {taetigkeit}, Factor: {factor}, Zwischensumme: {subtotal}")
         
-        self.update_gesamtpreis()
-        self.page.update()
+        if item["zwischensumme"].page:
+            item["zwischensumme"].update()
 
     def get_ausfuehrung_factor(self, taetigkeit):
         conn = get_db_connection()
@@ -1738,7 +1793,9 @@ class InvoicingApp:
         try:
             cursor.execute('SELECT Faktor FROM Ausfuehrung WHERE Taetigkeit = ?', (taetigkeit,))
             result = cursor.fetchone()
-            return float(result[0]) if result else 1.0
+            factor = float(result[0]) if result else 1.0
+            print(f"Ausfuehrung factor for {taetigkeit}: {factor}")  # Debugging-Ausgabe
+            return factor
         finally:
             conn.close()
 
@@ -1746,8 +1803,6 @@ class InvoicingApp:
         gesamtpreis = sum(float(item["zwischensumme"].value) for item in self.items if item["zwischensumme"].value)
         self.gesamtpreis_text.value = f"Gesamtpreis: €{gesamtpreis:.2f}"
         self.page.update()
-
-    # ... rest of the class methods ...
 
 def get_unique_bauteil_values():
     db_path = get_db_path()
