@@ -7,6 +7,8 @@ class InvoiceForm(ft.UserControl):
     def __init__(self):
         super().__init__()
         self.conn = get_db_connection()
+        self.article_summaries = []  # Liste zur Speicherung der Zwischensummen
+        self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)  # Gesamtpreisfeld
 
         # Initialize UI elements
         self.category_dropdown = ft.Dropdown(
@@ -27,7 +29,7 @@ class InvoiceForm(ft.UserControl):
         self.zuschlaege_dropdown = ft.Dropdown(label="Zuschläge", visible=False)
         self.position_field = ft.TextField(label="Position", read_only=True)
         self.price_field = ft.TextField(label="Preis", read_only=True)
-        self.quantity_input = ft.TextField(label="Menge", value="1")
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)  # on_change hinzugefügt
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True)
         self.add_button = ft.ElevatedButton("Position hinzufügen", on_click=self.add_item_to_invoice)
 
@@ -107,6 +109,10 @@ class InvoiceForm(ft.UserControl):
                 ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
                 ft.Column([self.add_button], col={"sm": 12, "md": 6}),
             ]),
+            ft.Container(height=50),  # Spacer
+            ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_article_row),  # Button zum Hinzufügen von Artikeln
+            # Gesamtpreiszeile
+            self.total_price_field,  # Gesamtpreisfeld
         ])
 
     def update_price(self, e=None):
@@ -121,6 +127,7 @@ class InvoiceForm(ft.UserControl):
             # Reset price if required values are missing
             self.position_field.value = ""
             self.price_field.value = ""
+            self.zwischensumme_field.value = ""  # Reset Zwischensumme
             self.update()
             return
 
@@ -170,6 +177,16 @@ class InvoiceForm(ft.UserControl):
 
             self.position_field.value = position
             self.price_field.value = f"{base_price:.2f}"  # Format to 2 decimal places
+            # Berechnung der Zwischensumme
+            quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
+            zwischensumme = base_price * quantity
+            self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren Sie die Zwischensumme
+
+            # Fügen Sie die Zwischensumme zur Liste hinzu
+            self.article_summaries.append(zwischensumme)
+
+            # Gesamtpreis aktualisieren
+            self.update_total_price()
         else:
             self.position_field.value = ""
             self.price_field.value = ""
@@ -225,14 +242,20 @@ class InvoiceForm(ft.UserControl):
                 self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
                 self.dn_dropdown.visible = True
                 self.da_dropdown.visible = True
+                # Add these lines to update the dropdowns
+                self.dn_dropdown.update()
+                self.da_dropdown.update()
             else:
                 self.dn_dropdown.visible = False
                 self.da_dropdown.visible = False
+                self.dn_dropdown.update()
+                self.da_dropdown.update()
 
             # Always load and show Dämmdicke options
             dammdicke_options = self.get_dammdicke_options(bauteil)
             self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
             self.dammdicke_dropdown.visible = True
+            self.dammdicke_dropdown.update()
 
         self.update_price()
         self.update()
@@ -454,3 +477,18 @@ class InvoiceForm(ft.UserControl):
         except ValueError:
             # If not a number, return original string
             return size
+
+    # Fügen Sie eine neue Methode hinzu, um eine Artikelzeile hinzuzufügen
+    def add_article_row(self, e):
+        # Logik zum Hinzufügen einer neuen Artikelzeile
+        # Hier können Sie die Eingabefelder für die neue Zeile erstellen und zur UI hinzufügen
+        pass
+
+    # Fügen Sie eine Methode zum Entfernen der Zeile hinzu
+    def remove_article_row(self, e):
+        # Logik zum Entfernen der Artikelzeile
+        pass
+
+    def update_total_price(self):
+        total_price = sum(self.article_summaries)
+        self.total_price_field.value = f"{total_price:.2f}"  # Gesamtpreis aktualisieren
