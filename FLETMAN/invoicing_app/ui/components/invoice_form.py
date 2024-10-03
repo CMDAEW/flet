@@ -20,26 +20,26 @@ class InvoiceForm(ft.UserControl):
             ],
             on_change=self.load_items
         )
-        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_fields)
-        self.dn_dropdown = ft.Dropdown(label="DN", visible=False, on_change=lambda e: self.update_item_options({"description": self.artikelbeschreibung_dropdown, "dn": self.dn_dropdown, "da": self.da_dropdown, "size": self.dammdicke_dropdown}, "dn"))
-        self.da_dropdown = ft.Dropdown(label="DA", visible=False, on_change=lambda e: self.update_item_options({"description": self.artikelbeschreibung_dropdown, "dn": self.dn_dropdown, "da": self.da_dropdown, "size": self.dammdicke_dropdown}, "da"))
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", visible=False, on_change=self.update_fields)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", visible=False, on_change=self.update_fields)
+        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_da_fields, visible=False)
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dammdicke_fields, visible=False)
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price_on_change, visible=False)
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price_on_change)
         self.zuschlaege_dropdown = ft.Dropdown(label="Zuschläge", visible=False)
         self.position_field = ft.TextField(label="Position", read_only=True)
         self.price_field = ft.TextField(label="Preis", read_only=True)
         self.quantity_input = ft.TextField(label="Menge", value="1")
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True)
         self.add_button = ft.ElevatedButton("Position hinzufügen", on_click=self.add_item_to_invoice)
-        self.client_name_dropdown = ft.Dropdown(label="Kunde", on_change=self.update_fields)
-        self.bestell_nr_dropdown = ft.Dropdown(label="Bestell-Nr.", on_change=self.update_fields)
-        self.bestelldatum_dropdown = ft.Dropdown(label="Bestelldatum", on_change=self.update_fields)
-        self.baustelle_dropdown = ft.Dropdown(label="Baustelle", on_change=self.update_fields)
-        self.anlagenteil_dropdown = ft.Dropdown(label="Anlagenteil", on_change=self.update_fields)
-        self.aufmass_nr_dropdown = ft.Dropdown(label="Aufmaß-Nr.", on_change=self.update_fields)
-        self.auftrags_nr_dropdown = ft.Dropdown(label="Auftrags-Nr.", on_change=self.update_fields)
-        self.ausfuehrungsbeginn_dropdown = ft.Dropdown(label="Ausführungsbeginn", on_change=self.update_fields)
-        self.ausfuehrungsende_dropdown = ft.Dropdown(label="Ausführungsende", on_change=self.update_fields)
+        self.client_name_dropdown = ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name"))
+        self.bestell_nr_dropdown = ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr"))
+        self.bestelldatum_dropdown = ft.Dropdown(label="Bestelldatum", on_change=lambda e: self.toggle_new_entry(e, "bestelldatum"))
+        self.baustelle_dropdown = ft.Dropdown(label="Baustelle", on_change=lambda e: self.toggle_new_entry(e, "baustelle"))
+        self.anlagenteil_dropdown = ft.Dropdown(label="Anlagenteil", on_change=lambda e: self.toggle_new_entry(e, "anlagenteil"))
+        self.aufmass_nr_dropdown = ft.Dropdown(label="Aufmaß-Nr.", on_change=lambda e: self.toggle_new_entry(e, "aufmass_nr"))
+        self.auftrags_nr_dropdown = ft.Dropdown(label="Auftrags-Nr.", on_change=lambda e: self.toggle_new_entry(e, "auftrags_nr"))
+        self.ausfuehrungsbeginn_dropdown = ft.Dropdown(label="Ausführungsbeginn", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsbeginn"))
+        self.ausfuehrungsende_dropdown = ft.Dropdown(label="Ausführungsende", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsende"))
         self.client_name_new_entry = ft.TextField(label="Neuer Kunde", visible=False)
         self.bestell_nr_new_entry = ft.TextField(label="Neue Bestell-Nr.", visible=False)
         self.bestelldatum_new_entry = ft.TextField(label="Neues Bestelldatum", visible=False)
@@ -51,6 +51,9 @@ class InvoiceForm(ft.UserControl):
         self.ausfuehrungsende_new_entry = ft.TextField(label="Neues Ausführungsende", visible=False)
 
     def build(self):
+        # Laden Sie die Optionen für die Dropdowns
+        self.load_invoice_options()
+
         return ft.Column([
             ft.Container(
                 content=self.category_dropdown,
@@ -179,9 +182,10 @@ class InvoiceForm(ft.UserControl):
             item["da"].options = [ft.dropdown.Option(str(da)) for da in da_values]
             item["size"].options = [ft.dropdown.Option(str(size)) for size in size_values]
             
-            item["dn"].visible = bool(dn_values)
-            item["da"].visible = bool(da_values)
-            item["size"].visible = bool(size_values)
+            # Entfernen Sie diese Zeilen:
+            # item["dn"].visible = bool(dn_values)
+            # item["da"].visible = bool(da_values)
+            # item["size"].visible = bool(size_values)
         elif changed_field == "dn":
             da_options = self.get_da_options(bauteil, dn)
             item["da"].options = [ft.dropdown.Option(str(da)) for da in da_options]
@@ -225,24 +229,57 @@ class InvoiceForm(ft.UserControl):
         self.update_price(item)
         self.update()
 
-    def update_dn_da_fields(self, bauteil):
-        dn_options = self.get_dn_options(bauteil)
-        self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
-        self.dn_dropdown.value = None
-        self.da_dropdown.options = []
-        self.da_dropdown.value = None
-        self.dammdicke_dropdown.options = []
-        self.dammdicke_dropdown.value = None
+    def update_dn_da_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        if bauteil:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                dn_options = self.get_dn_options(bauteil)
+                self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
+                self.dn_dropdown.value = None
+                self.dn_dropdown.visible = True
+                self.da_dropdown.visible = True
+                self.da_dropdown.options = []
+                self.da_dropdown.value = None
+                self.dammdicke_dropdown.options = []
+                self.dammdicke_dropdown.value = None
+                self.dammdicke_dropdown.visible = False
+            else:
+                self.dn_dropdown.visible = False
+                self.da_dropdown.visible = False
+                self.dammdicke_dropdown.visible = False
         
-        if dn_options and dn_options != [0]:
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
-        else:
-            self.dn_dropdown.visible = False
-            self.da_dropdown.visible = False
-        
-        self.dammdicke_dropdown.visible = False
+        self.update_price_on_change(None)
         self.update()
+
+    def update_da_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value
+        if bauteil and dn:
+            da_options = self.get_da_options(bauteil, dn)
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+            self.da_dropdown.value = None
+            self.dammdicke_dropdown.options = []
+            self.dammdicke_dropdown.value = None
+            self.dammdicke_dropdown.visible = False
+        
+        self.update_price_on_change(None)
+        self.update()
+
+    def update_dammdicke_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value
+        da = self.da_dropdown.value
+        if bauteil and dn and da:
+            size_options = self.get_size_options(bauteil, dn, da)
+            self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in size_options]
+            self.dammdicke_dropdown.value = None
+            self.dammdicke_dropdown.visible = bool(size_options)
+        
+        self.update_price_on_change(None)
+        self.update()
+
+    def is_rohrleitung_or_formteil(self, bauteil):
+        return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
 
     def is_formteil(self, bauteil):
         cursor = self.conn.cursor()
@@ -252,6 +289,15 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
+    def update_price_on_change(self, e):
+        item = {
+            "description": self.artikelbeschreibung_dropdown,
+            "dn": self.dn_dropdown,
+            "da": self.da_dropdown,
+            "size": self.dammdicke_dropdown
+        }
+        self.update_price(item)
+
     def update_price(self, item):
         cursor = self.conn.cursor()
         bauteil = item["description"].value
@@ -260,6 +306,13 @@ class InvoiceForm(ft.UserControl):
         size = item["size"].value
         taetigkeit = self.taetigkeit_dropdown.value
         
+        if not all([bauteil, dn, da, size, taetigkeit]):
+            # Wenn nicht alle erforderlichen Werte vorhanden sind, setzen Sie den Preis zurück
+            self.position_field.value = ""
+            self.price_field.value = ""
+            self.update()
+            return
+
         # Check if it's a Formteil
         cursor.execute('SELECT Positionsnummer, Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
         formteil_result = cursor.fetchone()
@@ -369,19 +422,16 @@ class InvoiceForm(ft.UserControl):
                 options = cursor.fetchall()
                 dropdown = getattr(self, f"{field}_dropdown")
                 dropdown.options = [ft.dropdown.Option(str(option[0])) for option in options]
-                dropdown.options.append(ft.dropdown.Option("Neu..."))
-                
-                # Set on_change event for each dropdown
-                dropdown.on_change = lambda e, f=field: self.toggle_new_entry(e, f)
+                dropdown.options.append(ft.dropdown.Option("Neuer Eintrag"))
             except sqlite3.OperationalError as e:
-                print(f"Error loading options for {field}: {e}")
+                print(f"Fehler beim Laden der Optionen für {field}: {e}")
                 dropdown = getattr(self, f"{field}_dropdown")
-                dropdown.options = [ft.dropdown.Option("Neu...")]
+                dropdown.options = [ft.dropdown.Option("Neuer Eintrag")]
 
     def toggle_new_entry(self, e, field):
         dropdown = getattr(self, f"{field}_dropdown")
         text_field = getattr(self, f"{field}_new_entry")
-        text_field.visible = dropdown.value == "Neu..."
+        text_field.visible = dropdown.value == "Neuer Eintrag"
         self.update()
 
     def get_dn_options(self, bauteil):
