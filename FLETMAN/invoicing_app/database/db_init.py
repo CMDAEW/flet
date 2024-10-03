@@ -5,14 +5,7 @@ import os
 from .db_operations import get_db_connection, resource_path, get_db_path
 
 def initialize_database():
-    logging.info("Starte Datenbankinitialisierung...")
-    logging.info(f"Current working directory: {os.getcwd()}")
-    logging.info(f"Database path: {get_db_path}")
-    logging.info(f"Resource path for EP.csv: {resource_path('EP.csv')}")
-    logging.info(f"Resource path for Materialpreise.CSV: {resource_path('Materialpreise.CSV')}")
-    logging.info(f"Resource path for Formteile.csv: {resource_path('Formteile.csv')}")
-    logging.info(f"Resource path for Taetigkeiten.csv: {resource_path('Taetigkeiten.csv')}")
-
+    logging.info("Starting database initialization...")
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -20,7 +13,7 @@ def initialize_database():
         # Create tables
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS price_list (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_number TEXT NOT NULL,
                 dn REAL,
                 da REAL,
@@ -31,81 +24,57 @@ def initialize_database():
             )
         ''')
         
-        # Add other table creation statements here
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS invoices (
-                id INTEGER PRIMARY KEY,
-                client_name TEXT NOT NULL,
-                bestell_nr TEXT,
-                bestelldatum TEXT,
-                baustelle TEXT,
-                anlagenteil TEXT,
-                aufmass_nr TEXT,
-                aufmassart TEXT,
-                auftrags_nr TEXT,
-                ausfuehrungsbeginn TEXT,
-                ausfuehrungsende TEXT,
-                total REAL
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS invoice_items (
-                id INTEGER PRIMARY KEY,
-                invoice_id INTEGER,
-                item_description TEXT,
-                dn REAL,
-                da REAL,
-                size TEXT,
-                item_price REAL,
-                quantity INTEGER,
-                taetigkeit TEXT,
-                FOREIGN KEY (invoice_id) REFERENCES invoices (id)
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Formteile (
-                Position INTEGER PRIMARY KEY,
-                Formteilbezeichnung TEXT NOT NULL,
-                Faktor REAL NOT NULL
-            )
-        ''')
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Taetigkeiten (
-                Position INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Positionsnummer TEXT NOT NULL,
                 Taetigkeit TEXT NOT NULL,
                 Faktor REAL NOT NULL
             )
         ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Zuschlaege (
-                Position INTEGER PRIMARY KEY,
-                Zuschlag TEXT NOT NULL,
-                Faktor REAL NOT NULL
-            )
-        ''')
+        
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Materialpreise (
-                RV_Pos INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Positionsnummer TEXT NOT NULL,
                 Benennung TEXT NOT NULL,
                 Material TEXT,
-                Abmessung_ME TEXT,
+                Abmessung TEXT,
+                ME TEXT,
                 EP REAL,
                 per TEXT
             )
         ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Zuschlaege (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Positionsnummer TEXT NOT NULL,
+                Zuschlag TEXT NOT NULL,
+                Faktor REAL NOT NULL
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Formteile (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Positionsnummer TEXT NOT NULL,
+                Formteilbezeichnung TEXT NOT NULL,
+                Preis REAL NOT NULL
+            )
+        ''')
 
-        # Add other table creation statements and data import logic here
-        
-        # Fill tables with initial data
-        fill_table_from_csv(cursor, 'price_list', 'EP.csv', force_refill=True)
-        fill_table_from_csv(cursor, 'Materialpreise', 'Materialpreise.CSV', force_refill=True)
-        fill_table_from_csv(cursor, 'Formteile', 'Formteile.csv', force_refill=True)
-        fill_table_from_csv(cursor, 'Taetigkeiten', 'Taetigkeiten.csv', force_refill=True)
-        
+        # Import data from CSV files
+        import_csv_to_table(cursor, 'EP.csv', 'price_list')
+        import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
+        import_csv_to_table(cursor, 'Materialpreise.csv', 'Materialpreise')
+        import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
+        import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
+
         conn.commit()
-        logging.info("Datenbankinitialisierung erfolgreich abgeschlossen.")
+        logging.info("Database initialization completed successfully")
     except Exception as e:
-        logging.error(f"Fehler bei der Datenbankinitialisierung: {e}")
+        logging.error(f"Error during database initialization: {e}")
         conn.rollback()
     finally:
         conn.close()
@@ -136,17 +105,16 @@ def insert_row_into_table(cursor, table_name, row):
     if table_name == 'price_list':
         try:
             cursor.execute('''
-                INSERT INTO price_list (id, item_number, dn, da, size, value, unit, bauteil)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO price_list (item_number, dn, da, size, value, unit, bauteil)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                int(row[0]),
-                row[1],
+                row[0],
+                float(row[1]) if row[1] else None,
                 float(row[2]) if row[2] else None,
-                float(row[3]) if row[3] else None,
-                row[4],
-                float(row[5].replace(',', '.')) if row[5] else None,
-                row[6],
-                row[7]
+                row[3],
+                float(row[4].replace(',', '.')) if row[4] else None,
+                row[5],
+                row[6]
             ))
         except ValueError as e:
             logging.error(f"Error inserting row into price_list: {e}")
@@ -154,13 +122,14 @@ def insert_row_into_table(cursor, table_name, row):
     elif table_name == 'Materialpreise':
         try:
             cursor.execute('''
-                INSERT INTO Materialpreise (RV_Pos, Benennung, Material, Abmessung_ME, EP, per)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO Materialpreise (Positionsnummer, Benennung, Material, Abmessung, ME, EP, per)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                int(row[0]),
+                row[0],
                 row[1],
                 row[2] if row[2] != '' else None,
-                f"{row[3]} {row[4]}".strip(),
+                row[3],
+                row[4],
                 float(row[5].replace(',', '.')),
                 row[6]
             ))
@@ -170,10 +139,10 @@ def insert_row_into_table(cursor, table_name, row):
     elif table_name == 'Formteile':
         try:
             cursor.execute('''
-                INSERT INTO Formteile (Position, Formteilbezeichnung, Faktor)
+                INSERT INTO Formteile (Positionsnummer, Formteilbezeichnung, Preis)
                 VALUES (?, ?, ?)
             ''', (
-                int(row[0]),
+                row[0],
                 row[1],
                 float(row[2].replace(',', '.'))
             ))
@@ -183,10 +152,10 @@ def insert_row_into_table(cursor, table_name, row):
     elif table_name == 'Taetigkeiten':
         try:
             cursor.execute('''
-                INSERT INTO Taetigkeiten (Position, Taetigkeit, Faktor)
+                INSERT INTO Taetigkeiten (Positionsnummer, Taetigkeit, Faktor)
                 VALUES (?, ?, ?)
             ''', (
-                int(row[0]),
+                row[0],
                 row[1],
                 float(row[2].replace(',', '.'))
             ))
