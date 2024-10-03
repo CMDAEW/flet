@@ -3,81 +3,94 @@ import sqlite3
 import csv
 import os
 from .db_operations import get_db_connection, resource_path, get_db_path
+from .csv_import import import_csv_to_table
 
 def initialize_database():
     logging.info("Starting database initialization...")
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    try:
-        # Create tables
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS price_list (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                item_number TEXT NOT NULL,
-                dn REAL,
-                da REAL,
-                size TEXT,
-                value REAL,
-                unit TEXT,
-                bauteil TEXT
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Taetigkeiten (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Positionsnummer TEXT NOT NULL,
-                Taetigkeit TEXT NOT NULL,
-                Faktor REAL NOT NULL
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Materialpreise (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Positionsnummer TEXT NOT NULL,
-                Benennung TEXT NOT NULL,
-                Material TEXT,
-                Abmessung TEXT,
-                ME TEXT,
-                EP REAL,
-                per TEXT
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Zuschlaege (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Positionsnummer TEXT NOT NULL,
-                Zuschlag TEXT NOT NULL,
-                Faktor REAL NOT NULL
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Formteile (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Positionsnummer TEXT NOT NULL,
-                Formteilbezeichnung TEXT NOT NULL,
-                Preis REAL NOT NULL
-            )
-        ''')
+    # Create invoice table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS invoice (
+        id INTEGER PRIMARY KEY,
+        customer_name TEXT,
+        invoice_date TEXT,
+        total_amount REAL
+    )
+    ''')
 
-        # Import data from CSV files
-        import_csv_to_table(cursor, 'EP.csv', 'price_list')
-        import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
-        import_csv_to_table(cursor, 'Materialpreise.csv', 'Materialpreise')
-        import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
-        import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
+    # Create invoice_items table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS invoice_items (
+        id INTEGER PRIMARY KEY,
+        invoice_id INTEGER,
+        description TEXT,
+        quantity INTEGER,
+        unit_price REAL,
+        FOREIGN KEY (invoice_id) REFERENCES invoice (id)
+    )
+    ''')
 
-        conn.commit()
-        logging.info("Database initialization completed successfully")
-    except Exception as e:
-        logging.error(f"Error during database initialization: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    # Create tables
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS price_list (
+            Positionsnummer TEXT PRIMARY KEY,
+            DN REAL,
+            DA REAL,
+            Size TEXT,
+            Value REAL,
+            Unit TEXT,
+            Bauteil TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Taetigkeiten (
+            Positionsnummer TEXT PRIMARY KEY,
+            Taetigkeit TEXT NOT NULL,
+            Preis REAL NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Materialpreise (
+            Positionsnummer TEXT PRIMARY KEY,
+            Benennung TEXT NOT NULL,
+            Material TEXT,
+            Abmessung TEXT,
+            ME TEXT,
+            EP REAL,
+            per TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Zuschlaege (
+            Positionsnummer TEXT PRIMARY KEY,
+            Zuschlag TEXT NOT NULL,
+            Faktor REAL NOT NULL
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Formteile (
+            Positionsnummer TEXT PRIMARY KEY,
+            Formteilbezeichnung TEXT NOT NULL,
+            Preis REAL NOT NULL
+        )
+    ''')
+
+    # Import data from CSV files
+    import_csv_to_table(cursor, 'EP.csv', 'price_list')
+    import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
+    import_csv_to_table(cursor, 'Materialpreise.csv', 'Materialpreise')
+    import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
+    import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
+
+    conn.commit()
+    logging.info("Database initialization completed successfully")
+    conn.close()
 
 def fill_table_from_csv(cursor, table_name, csv_filename, force_refill=False):
     csv_path = resource_path(csv_filename)
