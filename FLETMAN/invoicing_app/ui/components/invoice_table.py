@@ -5,12 +5,21 @@ class InvoiceTable(ft.UserControl):
     def __init__(self):
         super().__init__()
         self.conn = get_db_connection()
-        # Initialize table components here
+        self.data_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Tätigkeit")),
+                ft.DataColumn(ft.Text("Beschreibung")),
+                ft.DataColumn(ft.Text("DN")),
+                ft.DataColumn(ft.Text("DA")),
+                ft.DataColumn(ft.Text("Größe")),
+                ft.DataColumn(ft.Text("Preis")),
+                ft.DataColumn(ft.Text("Menge")),
+                ft.DataColumn(ft.Text("Zwischensumme")),
+            ],
+            rows=[]
+        )
 
     def build(self):
-        # Build and return the table layout
-        return ft.DataTable(
-            # Add table columns and rows here
-        )
+        return self.data_table
 
     # Add other methods as needed

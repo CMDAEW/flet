@@ -105,12 +105,17 @@ def initialize_database():
 
 def fill_table_from_csv(cursor, table_name, csv_filename):
     csv_path = resource_path(csv_filename)
-    with open(csv_path, 'r', encoding='utf-8') as csvfile:
-        csvreader = csv.reader(csvfile, delimiter=';')
-        next(csvreader)  # Skip header
-        for row in csvreader:
-            if row and not row[0].startswith('#'):
-                insert_row_into_table(cursor, table_name, row)
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as csvfile:
+            csvreader = csv.reader(csvfile, delimiter=';')
+            next(csvreader)  # Skip header
+            for row in csvreader:
+                if row and not row[0].startswith('#'):
+                    insert_row_into_table(cursor, table_name, row)
+    except FileNotFoundError:
+        logging.error(f"CSV file not found: {csv_path}")
+    except Exception as e:
+        logging.error(f"Error processing CSV file {csv_filename}: {e}")
 
 def insert_row_into_table(cursor, table_name, row):
     # Implement the logic to insert rows into specific tables
