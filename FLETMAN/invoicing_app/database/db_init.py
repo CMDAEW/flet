@@ -14,8 +14,16 @@ def initialize_database():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invoice (
         id INTEGER PRIMARY KEY,
-        customer_name TEXT,
-        invoice_date TEXT,
+        invoice_id INTEGER,
+        client_name TEXT NOT NULL,
+        bestell_nr TEXT,
+        bestelldatum TEXT,
+        baustelle TEXT,
+        anlagenteil TEXT,
+        aufmass_nr TEXT,
+        auftrags_nr TEXT,
+        ausfuehrungsbeginn TEXT,
+        ausfuehrungsende TEXT,
         total_amount REAL
     )
     ''')
@@ -25,10 +33,18 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS invoice_items (
         id INTEGER PRIMARY KEY,
         invoice_id INTEGER,
-        description TEXT,
+        Positionsnummer TEXT,
+        DN REAL,
+        DA REAL,
+        Size TEXT,
+        Value REAL,
+        Unit TEXT,
+        Bauteil TEXT,
         quantity INTEGER,
-        unit_price REAL,
-        FOREIGN KEY (invoice_id) REFERENCES invoice (id)
+        zwischensumme REAL,
+        taetigkeit TEXT,
+        FOREIGN KEY (invoice_id) REFERENCES invoice (id),
+        FOREIGN KEY (Positionsnummer) REFERENCES price_list (Positionsnummer)
     )
     ''')
 
