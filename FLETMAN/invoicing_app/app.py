@@ -21,4 +21,5 @@ def save_invoice(form, table):
     pass
 
 if __name__ == "__main__":
+    initialize_database()
     ft.app(target=main)
