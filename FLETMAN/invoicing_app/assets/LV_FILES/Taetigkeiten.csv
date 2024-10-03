@@ -1,5 +1,5 @@
-Positionsnummer;De.- Remontagen;Preis
-48;Demontage vorh. Isol./ Blech;0,30
-49;Remontage vorh. Isol./ Blech;0,38
-50;Remontage neue. Isol. vorh. Blech;0,56
-51;Demontage / Entsorgung;0,60
+Positionsnummer;De.- Remontagen;Faktor
+48;Demontage vorh. Isol./ Blech;0.30
+49;Remontage vorh. Isol./ Blech;0.38
+50;Remontage neue. Isol. vorh. Blech;0.56
+51;Demontage / Entsorgung;0.60

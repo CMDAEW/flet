@@ -65,7 +65,7 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS Taetigkeiten (
             Positionsnummer TEXT PRIMARY KEY,
             Taetigkeit TEXT NOT NULL,
-            Preis REAL NOT NULL
+            Faktor REAL NOT NULL
         )
     ''')
 
@@ -93,7 +93,7 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS Formteile (
             Positionsnummer TEXT PRIMARY KEY,
             Formteilbezeichnung TEXT NOT NULL,
-            Preis REAL NOT NULL
+            Faktor REAL NOT NULL
         )
     ''')
 
