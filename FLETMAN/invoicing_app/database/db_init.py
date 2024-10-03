@@ -88,6 +88,15 @@ def initialize_database():
             Faktor REAL NOT NULL
         )
     ''')
+
+   
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS sonderleistungen (
+            Positionsnummer TEXT PRIMARY KEY,
+            Sonderleistung TEXT NOT NULL,
+            Faktor REAL NOT NULL
+        )
+    ''')
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Formteile (
@@ -102,6 +111,7 @@ def initialize_database():
     import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
     import_csv_to_table(cursor, 'Materialpreise.csv', 'Materialpreise')
     import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
+    import_csv_to_table(cursor, 'Sonderleistungen.csv', 'Sonderleistungen')
     import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
 
     conn.commit()

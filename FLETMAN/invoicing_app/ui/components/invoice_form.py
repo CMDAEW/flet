@@ -10,6 +10,18 @@ class InvoiceForm(ft.UserControl):
         self.article_summaries = []  # Liste zur Speicherung der Zwischensummen
         self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)  # Gesamtpreisfeld
 
+        # Definieren Sie das Dropdown für Sonderleistungen
+        self.sonderleistungen_dropdown = ft.Dropdown(
+            label="Sonderleistungen",
+            options=[],  # Initial leer, wird später geladen
+            on_change=self.update_price
+        )
+
+        self.additional_sonderleistung_dropdown = ft.Dropdown(label="Weitere Sonderleistung", visible=False)
+
+        # Laden Sie die Sonderleistungen
+        self.load_sonderleistungen()
+
         # Initialize UI elements
         self.category_dropdown = ft.Dropdown(
             label="Kategorie",
@@ -57,6 +69,7 @@ class InvoiceForm(ft.UserControl):
 
         # Load initial data
         self.load_taetigkeiten()
+        self.load_sonderleistungen()
 
     def load_taetigkeiten(self):
         cursor = self.conn.cursor()
@@ -65,6 +78,13 @@ class InvoiceForm(ft.UserControl):
         self.taetigkeit_dropdown.options = [ft.dropdown.Option(taetigkeit[0]) for taetigkeit in taetigkeiten]
         self.taetigkeit_dropdown.value = None  # No preselection
         self.taetigkeit_dropdown.visible = True
+
+    def load_sonderleistungen(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT Sonderleistung FROM sonderleistungen")
+        sonderleistungen = cursor.fetchall()
+        self.sonderleistungen_dropdown.options = [ft.dropdown.Option(sonderleistung[0]) for sonderleistung in sonderleistungen]
+        self.sonderleistungen_dropdown.visible = True
 
     def build(self):
         # Load invoice options
@@ -122,6 +142,7 @@ class InvoiceForm(ft.UserControl):
         da = self.da_dropdown.value if self.da_dropdown.visible else None
         size = self.dammdicke_dropdown.value
         taetigkeit = self.taetigkeit_dropdown.value
+        sonderleistung = self.sonderleistungen_dropdown.value
 
         if not bauteil or not size or not taetigkeit:
             # Reset price if required values are missing
@@ -174,6 +195,14 @@ class InvoiceForm(ft.UserControl):
             if taetigkeit_result:
                 factor = float(taetigkeit_result[0])
                 base_price *= factor
+
+            # Faktor für die Sonderleistung abrufen
+            if sonderleistung:
+                cursor.execute("SELECT faktor FROM sonderleistungen WHERE zuschlag = ?", (sonderleistung,))
+                faktor_result = cursor.fetchone()
+                if faktor_result:
+                    faktor = float(faktor_result[0])
+                    base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor
 
             self.position_field.value = position
             self.price_field.value = f"{base_price:.2f}"  # Format to 2 decimal places
