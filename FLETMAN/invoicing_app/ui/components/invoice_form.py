@@ -121,6 +121,7 @@ class InvoiceForm(ft.UserControl):
                 ft.Column([self.dn_dropdown], col={"sm": 12, "md": 1}),
                 ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
                 ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
+                ft.Column([self.sonderleistungen_dropdown], col={"sm": 12, "md": 1}),  # Add this line
                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),
                 ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),
                 ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),
@@ -198,7 +199,7 @@ class InvoiceForm(ft.UserControl):
 
             # Faktor für die Sonderleistung abrufen
             if sonderleistung:
-                cursor.execute("SELECT faktor FROM sonderleistungen WHERE zuschlag = ?", (sonderleistung,))
+                cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
                 faktor_result = cursor.fetchone()
                 if faktor_result:
                     faktor = float(faktor_result[0])
