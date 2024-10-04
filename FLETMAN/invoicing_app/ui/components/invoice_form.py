@@ -1,9 +1,10 @@
 import logging
 import sqlite3
 import flet as ft
-from database.db_operations import get_db_connection
-import asyncio
 import re
+
+from database.db_operations import get_db_connection
+
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
@@ -18,45 +19,20 @@ class InvoiceForm(ft.UserControl):
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
         self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
         
-        # Initialisiere leere Container
-        self.sonderleistungen_container = ft.Column(visible=False)
-        self.zuschlaege_container = ft.Column(visible=False)
+        self.sonderleistungen_container = ft.Column(visible=False, spacing=10)
+        self.zuschlaege_container = ft.Column(visible=False, spacing=10)
         
-        # Lade Faktoren und erstelle Checkbox-Container
-        sonderleistungen = self.load_faktoren("Sonderleistung")
-        zuschlaege = self.load_faktoren("Zuschläge")
+        print("Initialisierung der InvoiceForm-Klasse abgeschlossen")
         
-        self.sonderleistungen_container = self.create_checkbox_container("Sonderleistungen", sonderleistungen)
-        self.zuschlaege_container = self.create_checkbox_container("Zuschläge", zuschlaege)
-        
-        self.sonderleistungen_container.visible = False
-        self.zuschlaege_container.visible = False
+        self.load_faktoren("Sonstige Zuschläge")
+        self.load_faktoren("Sonderleistung")
         
         self.create_ui_elements()
         
         self.load_invoice_options()
-        self.load_faktoren("Tätigkeit")
+        self.load_taetigkeiten()
         self.update_field_visibility()
         self.update()
-
-    def create_checkbox_container(self, title, items):
-        if not items:  # Überprüfen Sie, ob die Liste leer ist
-            return ft.Text(f"Keine {title} verfügbar")
-
-        checkboxes = [ft.Checkbox(label=item, value=False) for item in items]
-        return ft.Container(
-            content=ft.Column([
-                ft.Text(title, weight=ft.FontWeight.BOLD),
-                ft.Row(checkboxes)  # Hier war möglicherweise der Fehler
-            ])
-        )
-
-    def load_faktoren(self, art):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
-        faktoren = cursor.fetchall()
-        cursor.close()
-        return [bezeichnung for bezeichnung, _ in faktoren]
 
     def load_faktoren(self, art):
         cursor = self.conn.cursor()
@@ -67,7 +43,7 @@ class InvoiceForm(ft.UserControl):
         container.controls.clear()
         
         print(f"Loading {art}: {faktoren}")  # Debug-Ausgabe
-        
+    
         for bezeichnung, faktor in faktoren:
             checkbox = ft.Checkbox(label=f"{bezeichnung} (Faktor: {faktor})", value=False)
             if art == "Sonderleistung":
@@ -76,6 +52,81 @@ class InvoiceForm(ft.UserControl):
                 checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
             container.controls.append(checkbox)
         
+        print(f"Anzahl der geladenen {art}: {len(container.controls)}")
+        
+        self.update()
+
+    def toggle_sonderleistungen(self, e):
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+        print(f"Sonderleistungen Container Visibility: {self.sonderleistungen_container.visible}")  # Debug-Ausgabe
+        print(f"Sonderleistungen Container Controls: {self.sonderleistungen_container.controls}")  # Debug-Ausgabe
+        self.update()
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        print(f"Zuschläge Container Visibility: {self.zuschlaege_container.visible}")  # Debug-Ausgabe
+        print(f"Zuschläge Container Controls: {self.zuschlaege_container.controls}")  # Debug-Ausgabe
+        self.update()
+
+    def get_sonderleistungen(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT bezeichnung FROM faktoren WHERE art = 'sonderleistung'")
+        sonderleistungen = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return sonderleistungen
+
+    def create_checkbox_container(self, title, items):
+        if not items:
+            return ft.Text(f"Keine {title} verfügbar")
+
+        checkboxes = [ft.Checkbox(label=item, value=False) for item in items]
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(title, weight=ft.FontWeight.BOLD),
+                ft.Row(controls=checkboxes)
+            ])
+        )
+
+    def create_checkbox_container(self, title, items):
+        if not items:
+            return ft.Text(f"Keine {title} verfügbar")
+
+        checkboxes = [ft.Checkbox(label=item, value=False) for item in items]
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(title, weight=ft.FontWeight.BOLD),
+                ft.Row(controls=checkboxes)
+            ])
+        )
+
+    def load_faktoren(self, art):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+        faktoren = cursor.fetchall()
+        
+        container = self.sonderleistungen_container if art == "Sonderleistung" else self.zuschlaege_container
+        container.controls.clear()
+        
+        print(f"Loading {art}: {faktoren}")  # Debug-Ausgabe
+    
+        for bezeichnung, faktor in faktoren:
+            checkbox = ft.Checkbox(label=f"{bezeichnung} (Faktor: {faktor})", value=False)
+            if art == "Sonderleistung":
+                checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_sonderleistungen(e, b, f)
+            else:
+                checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
+            container.controls.append(checkbox)
+        
+        # Debug-Ausgabe hinzufügen
+        print(f"Anzahl der geladenen {art}: {len(container.controls)}")
+        
+        self.update()
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        print(f"Zuschläge Container Visibility: {self.zuschlaege_container.visible}")  # Debug-Ausgabe
+        print(f"Zuschläge Container Controls: {self.zuschlaege_container.controls}")  # Debug-Ausgabe
         self.update()
 
     def update_selected_sonderleistungen(self, e, bezeichnung, faktor):
@@ -555,6 +606,8 @@ class InvoiceForm(ft.UserControl):
 
     def toggle_zuschlaege(self, e):
         self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        print(f"Zuschläge Container Visibility: {self.zuschlaege_container.visible}")  # Debug-Ausgabe
+        print(f"Zuschläge Container Controls: {self.zuschlaege_container.controls}")  # Debug-Ausgabe
         self.update()
 
     def update_selected_sonderleistungen(self, e, bezeichnung, faktor):
@@ -572,6 +625,9 @@ class InvoiceForm(ft.UserControl):
         self.update_price()
 
     def build(self):
+        # Debug-Ausgabe hinzufügen
+        print("Build-Methode wird aufgerufen")
+        
         # Load invoice options
         self.load_invoice_options()
 
