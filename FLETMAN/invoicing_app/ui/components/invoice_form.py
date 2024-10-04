@@ -2,6 +2,7 @@ import sqlite3
 import flet as ft
 from database.db_operations import get_db_connection
 import asyncio
+import re
 
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
@@ -52,9 +53,9 @@ class InvoiceForm(ft.UserControl):
             on_change=self.load_items
         )
         self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=180)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_da_fields, width=60)
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dn_fields, width=60)
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=90)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=60)
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=60)
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.on_dammdicke_change, width=90)
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=180)
         
         # Textfelder
@@ -291,33 +292,6 @@ class InvoiceForm(ft.UserControl):
         self.total_price_field.value = f"{total_price:.2f}"  # Gesamtpreis aktualisieren
         self.total_price_field.update()  # Aktualisiere das Feld in der Benutzeroberfläche
 
-    def update_dn_fields(self, e):
-        bauteil = self.artikelbeschreibung_dropdown.value
-        da = self.da_dropdown.value
-        if bauteil and da:
-            corresponding_dn = self.get_corresponding_dn(bauteil, da)
-            if corresponding_dn:
-                self.dn_dropdown.value = str(corresponding_dn)
-                self.dn_dropdown.update()
-                self.dn_dropdown.visible = True
-            self.update_dammdicke_fields(None)
-
-        self.update_price()
-        self.update()
-
-    def update_da_fields(self, e):
-        bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value
-        if bauteil and dn:
-            corresponding_da = self.get_corresponding_da(bauteil, dn)
-            if corresponding_da:
-                self.da_dropdown.value = str(corresponding_da)
-                self.da_dropdown.update()
-            self.update_dammdicke_fields(None)
-
-        self.update_price()
-        self.update()
-
     def update_dammdicke_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value
@@ -333,30 +307,176 @@ class InvoiceForm(ft.UserControl):
     def update_dn_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         if bauteil:
-            if self.is_rohrleitung_or_formteil(bauteil):
+            is_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(bauteil)
+            
+            self.dn_dropdown.visible = is_rohrleitung_or_formteil
+            self.da_dropdown.visible = is_rohrleitung_or_formteil
+            
+            if is_rohrleitung_or_formteil:
                 dn_options = self.get_all_dn_options(bauteil)
-                da_options = self.get_all_da_options(bauteil)
-                self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-                self.dn_dropdown.visible = True
-                self.da_dropdown.visible = True
-                # Add these lines to update the dropdowns
-                self.dn_dropdown.update()
-                self.da_dropdown.update()
+                if dn_options:
+                    self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
+                    self.dn_dropdown.value = str(int(dn_options[0]))
+                    self.dn_dropdown.update()
+                    self.update_da_fields(None)
+                else:
+                    self.dn_dropdown.options = []
+                    self.dn_dropdown.value = None
+                    self.da_dropdown.options = []
+                    self.da_dropdown.value = None
             else:
-                self.dn_dropdown.visible = False
-                self.da_dropdown.visible = False
-                self.dn_dropdown.update()
-                self.da_dropdown.update()
-
-            # Always load and show Dämmdicke options
-            dammdicke_options = self.get_dammdicke_options(bauteil)
-            self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-            self.dammdicke_dropdown.visible = True
-            self.dammdicke_dropdown.update()
-
-        self.update_price()
+                self.dn_dropdown.options = []
+                self.dn_dropdown.value = None
+                self.da_dropdown.options = []
+                self.da_dropdown.value = None
+            
+            self.update_dammdicke_options()
+            self.update_price()
+        else:
+            self.dn_dropdown.visible = False
+            self.da_dropdown.visible = False
+        
+        self.dn_dropdown.update()
+        self.da_dropdown.update()
         self.update()
+
+    def update_dammdicke_options(self):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value
+        da = self.da_dropdown.value
+        if bauteil and (not self.is_rohrleitung_or_formteil(bauteil) or (dn and da)):
+            dammdicke_options = self.get_all_dammdicke_options(bauteil, dn, da)
+            if dammdicke_options:
+                self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
+                self.dammdicke_dropdown.value = str(dammdicke_options[0])
+                self.dammdicke_dropdown.visible = True
+            else:
+                self.dammdicke_dropdown.options = []
+                self.dammdicke_dropdown.value = None
+                self.dammdicke_dropdown.visible = False
+        else:
+            self.dammdicke_dropdown.options = []
+            self.dammdicke_dropdown.value = None
+            self.dammdicke_dropdown.visible = False
+        
+        self.dammdicke_dropdown.update()
+
+    def get_all_da_options(self, bauteil, dn):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
+            params = ('Rohrleitung', dn)
+        else:
+            return []
+        
+        options = self.get_from_cache_or_db(f"da_options_{bauteil}_{dn}", query, params)
+        return [float(da[0]) for da in options]
+
+    def update_da_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value
+        if bauteil and dn and self.is_rohrleitung_or_formteil(bauteil):
+            da_options = self.get_all_da_options(bauteil, dn)
+            if da_options:
+                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+                self.da_dropdown.value = str(da_options[0])
+            else:
+                self.da_dropdown.options = []
+                self.da_dropdown.value = None
+        else:
+            self.da_dropdown.options = []
+            self.da_dropdown.value = None
+        
+        self.da_dropdown.update()
+        self.update_dammdicke_options()
+        self.update_price()
+
+    def get_all_dammdicke_options(self, bauteil, dn=None, da=None):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size IS NOT NULL'
+            params = ('Rohrleitung', dn, da)
+        else:
+            query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND Size IS NOT NULL'
+            params = (bauteil,)
+        
+        options = self.get_from_cache_or_db(f"dammdicke_options_{bauteil}_{dn}_{da}", query, params)
+        
+        # Sortiere die Optionen
+        sorted_options = sorted(options, key=lambda x: self.parse_dammdicke(x[0]))
+        return [size[0] for size in sorted_options]
+
+    def parse_dammdicke(self, dammdicke_str):
+        # Extrahiere die erste Zahl aus dem String
+        match = re.search(r'\d+', dammdicke_str)
+        if match:
+            return int(match.group())
+        return 0  # Fallback, falls keine Zahl gefunden wird
+
+    def update_price(self, e=None):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        dammdicke = self.dammdicke_dropdown.value
+        taetigkeit = self.taetigkeit_dropdown.value
+
+        if not all([bauteil, dammdicke, taetigkeit]) or (self.is_rohrleitung_or_formteil(bauteil) and not all([dn, da])):
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
+            self.price_field.update()
+            self.zwischensumme_field.update()
+            return
+
+        cursor = self.conn.cursor()
+        if self.is_rohrleitung_or_formteil(bauteil):
+            cursor.execute('''
+                SELECT Value FROM price_list 
+                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
+            ''', ('Rohrleitung', dn, da, dammdicke))
+        else:
+            cursor.execute('''
+                SELECT Value FROM price_list 
+                WHERE Bauteil = ? AND Size = ?
+            ''', (bauteil, dammdicke))
+        
+        result = cursor.fetchone()
+        if result:
+            base_price = float(result[0])
+            # Hier weitere Preisberechnungen (z.B. Faktoren für Tätigkeit, Sonderleistungen, Zuschläge)
+            
+            self.price_field.value = f"{base_price:.2f}"
+            quantity = float(self.quantity_input.value) if self.quantity_input.value else 1
+            zwischensumme = base_price * quantity
+            self.zwischensumme_field.value = f"{zwischensumme:.2f}"
+        else:
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
+
+        self.price_field.update()
+        self.zwischensumme_field.update()
+
+    def update_dn_fields(self, e):
+        self.update_da_fields(None)
+        self.update_dammdicke_options()
+        self.update_price()
+
+    def on_dammdicke_change(self, e):
+        self.update_price()
+
+    def get_all_dn_options(self, bauteil):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
+            params = ('Rohrleitung',)
+        else:
+            return []
+        
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
+        return [float(dn[0]) for dn in options]
+
+    def is_rohrleitung_or_formteil(self, bauteil):
+        if bauteil == 'Rohrleitung':
+            return True
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT 1 FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+        return cursor.fetchone() is not None
 
     def load_items(self, e):
         selected_category = self.category_dropdown.value
@@ -528,17 +648,6 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
-    def get_all_da_options(self, bauteil):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', ('Rohrleitung',))
-            else:                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', (bauteil,))
-            return sorted(set(row[0] for row in cursor.fetchall() if row[0] is not None))
-        finally:
-            cursor.close()
-
     def get_dammdicke_options(self, bauteil, dn=None, da=None):
         conn = self.conn
         cursor = conn.cursor()
@@ -581,100 +690,6 @@ class InvoiceForm(ft.UserControl):
     def remove_article_row(self, e):
         # Logik zum Entfernen der Artikelzeile
         pass
-    def update_price(self, e=None):
-        cursor = self.conn.cursor()
-        bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
-        size = self.dammdicke_dropdown.value
-        taetigkeit = self.taetigkeit_dropdown.value
-        
-        if not bauteil or not size or not taetigkeit:
-            # Zurücksetzen des Preises, wenn erforderliche Werte fehlen
-            self.position_field.value = ""
-            self.price_field.value = ""
-            self.zwischensumme_field.value = ""
-            self.update()
-            return
-
-        # Initialize base_price
-        base_price = 0.0
-
-        # Prüfen, ob es sich um ein Formteil handelt
-        cursor.execute('SELECT Positionsnummer, Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
-        formteil_result = cursor.fetchone()
-
-        if formteil_result:
-            position, formteil_factor = formteil_result
-            # Basispreis für Rohrleitung abrufen
-            cursor.execute(''' 
-                SELECT Value 
-                FROM price_list 
-                WHERE Bauteil = 'Rohrleitung' AND DN = ? AND DA = ? AND Size = ? 
-            ''', (dn, da, size))
-        elif self.is_rohrleitung_or_formteil(bauteil):
-            cursor.execute(''' 
-                SELECT Positionsnummer, Value 
-                FROM price_list 
-                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ? 
-            ''', (bauteil, dn, da, size))
-        else:
-            # Für andere Bauteile ohne DN und DA
-            cursor.execute(''' 
-                SELECT Positionsnummer, Value 
-                FROM price_list 
-                WHERE Bauteil = ? AND Size = ? 
-            ''', (bauteil, size))
-
-        result = cursor.fetchone()
-
-        if result:
-            if formteil_result:
-                base_price = float(result[0])
-                base_price *= float(formteil_factor)
-                position = formteil_result[0]
-            else:
-                position, base_price = result
-                base_price = float(base_price)
-
-            # Tätigkeit-Faktor anwenden
-            cursor.execute('SELECT Faktor FROM Taetigkeiten WHERE Taetigkeit = ?', (taetigkeit,))
-            taetigkeit_result = cursor.fetchone()
-            if taetigkeit_result:
-                factor = float(taetigkeit_result[0])
-                base_price *= factor
-
-            # Faktor für die Sonderleistungen anwenden
-            for sonderleistung in self.selected_sonderleistungen:
-                cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
-                faktor_result = cursor.fetchone()
-                if faktor_result:
-                    faktor = float(faktor_result[0])
-                    base_price *= faktor
-
-            # Faktor für die Zuschläge anwenden
-            for zuschlag in self.selected_zuschlaege:
-                cursor.execute("SELECT Faktor FROM Zuschlaege WHERE Zuschlag = ?", (zuschlag,))
-                faktor_result = cursor.fetchone()
-                if faktor_result:
-                    faktor = float(faktor_result[0])
-                    base_price *= faktor
-
-            self.position_field.value = position
-            self.price_field.value = f"{base_price:.2f}"
-
-            # Berechnung der Zwischensumme
-            quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
-            zwischensumme = base_price * quantity
-            self.zwischensumme_field.value = f"{zwischensumme:.2f}"
-
-            # Gesamtpreis aktualisieren
-            self.update_total_price()
-        else:
-            self.position_field.value = ""
-            self.price_field.value = ""
-
-        self.update()
 
     def update_total_price(self):
         total_price = sum(self.article_summaries)  # Summe der aktuellen Zwischensummen
@@ -707,32 +722,27 @@ class InvoiceForm(ft.UserControl):
         self.total_price_field.value = f"{total_price:.2f}"  # Gesamtpreis aktualisieren
         self.total_price_field.update()  # Aktualisiere das Feld in der Benutzeroberfläche
 
-    def update_dn_fields(self, e):
-        bauteil = self.artikelbeschreibung_dropdown.value
-        da = self.da_dropdown.value
-        if bauteil and da:
-            corresponding_dn = self.get_corresponding_dn(bauteil, da)
-            if corresponding_dn:
-                self.dn_dropdown.value = str(corresponding_dn)
-                self.dn_dropdown.update()
-                self.dn_dropdown.visible = True
-            self.update_dammdicke_fields(None)
-
-        self.update_price()
-        self.update()
-
-    def update_da_fields(self, e):
+    def load_dammdicke_options(self):
         bauteil = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value
-        if bauteil and dn:
-            corresponding_da = self.get_corresponding_da(bauteil, dn)
-            if corresponding_da:
-                self.da_dropdown.value = str(corresponding_da)
-                self.da_dropdown.update()
-            self.update_dammdicke_fields(None)
-
-        self.update_price()
-        self.update()
+        da = self.da_dropdown.value
+        if bauteil and dn and da:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT DISTINCT Size 
+            FROM price_list 
+            WHERE Bauteil = ? AND DN = ? AND DA = ? 
+            ORDER BY Size
+        ''', (bauteil, dn, da))
+            dammdicke_options = cursor.fetchall()
+            self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size[0])) for size in dammdicke_options]
+            self.dammdicke_dropdown.value = None  # Setzen Sie den Wert zurück
+            self.dammdicke_dropdown.visible = True
+        else:
+            self.dammdicke_dropdown.options = []
+            self.dammdicke_dropdown.value = None
+            self.dammdicke_dropdown.visible = False
+            self.dammdicke_dropdown.update()
 
     def update_dammdicke_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
@@ -742,34 +752,6 @@ class InvoiceForm(ft.UserControl):
             dammdicke_options = self.get_dammdicke_options(bauteil, dn, da)
             self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
             self.dammdicke_dropdown.visible = True
-
-        self.update_price()
-        self.update()
-
-    def update_dn_da_fields(self, e):
-        bauteil = self.artikelbeschreibung_dropdown.value
-        if bauteil:
-            if self.is_rohrleitung_or_formteil(bauteil):
-                dn_options = self.get_all_dn_options(bauteil)
-                da_options = self.get_all_da_options(bauteil)
-                self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-                self.dn_dropdown.visible = True
-                self.da_dropdown.visible = True
-                # Add these lines to update the dropdowns
-                self.dn_dropdown.update()
-                self.da_dropdown.update()
-            else:
-                self.dn_dropdown.visible = False
-                self.da_dropdown.visible = False
-                self.dn_dropdown.update()
-                self.da_dropdown.update()
-
-            # Always load and show Dämmdicke options
-            dammdicke_options = self.get_dammdicke_options(bauteil)
-            self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-            self.dammdicke_dropdown.visible = True
-            self.dammdicke_dropdown.update()
 
         self.update_price()
         self.update()
@@ -946,7 +928,11 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
-        return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
+        if bauteil == 'Rohrleitung':
+            return True
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT 1 FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+        return cursor.fetchone() is not None
 
     def is_formteil(self, bauteil):
         cursor = self.conn.cursor()
@@ -982,29 +968,16 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
-    def get_all_dn_options(self, bauteil):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT dn FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY dn', ('Rohrleitung',))
-            else:
-                cursor.execute('SELECT DISTINCT dn FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY dn', (bauteil,))
-            return sorted(set(int(row[0]) for row in cursor.fetchall() if row[0] is not None and row[0] != 0))
-        finally:
-            cursor.close()
 
-    def get_all_da_options(self, bauteil):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', ('Rohrleitung',))
-            else:
-                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', (bauteil,))
-            return sorted(set(row[0] for row in cursor.fetchall() if row[0] is not None))
-        finally:
-            cursor.close()
+    def get_all_dn_options(self, bauteil):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
+            params = ('Rohrleitung',)
+        else:
+            return []
+        
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
+        return [float(dn[0]) for dn in options]
 
     def get_dammdicke_options(self, bauteil, dn=None, da=None):
         conn = self.conn
@@ -1070,102 +1043,6 @@ def add_article_row(self, e):
         index = self.article_list.controls.index(row)
         self.article_list.controls.remove(row)
         self.remove_zwischensumme(index)
-        self.update()
-    def update_price(self, e=None):
-        cursor = self.conn.cursor()
-        bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
-        size = self.dammdicke_dropdown.value
-        taetigkeit = self.taetigkeit_dropdown.value
-        
-        if not bauteil or not size or not taetigkeit:
-            # Zurücksetzen des Preises, wenn erforderliche Werte fehlen
-            self.position_field.value = ""
-            self.price_field.value = ""
-            self.zwischensumme_field.value = ""  # Zurücksetzen der Zwischensumme
-            self.update()
-            return
-
-        # Initialize base_price
-        base_price = 0.0
-
-        # Prüfen, ob es sich um ein Formteil handelt
-        cursor.execute('SELECT Positionsnummer, Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
-        formteil_result = cursor.fetchone()
-
-        if formteil_result:
-            position, formteil_factor = formteil_result
-            # Basispreis für Rohrleitung abrufen
-            cursor.execute(''' 
-                SELECT Value 
-                FROM price_list 
-                WHERE Bauteil = 'Rohrleitung' AND DN = ? AND DA = ? AND Size = ? 
-            ''', (dn, da, size))
-        elif self.is_rohrleitung_or_formteil(bauteil):
-            cursor.execute(''' 
-                SELECT Positionsnummer, Value 
-                FROM price_list 
-                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ? 
-            ''', (bauteil, dn, da, size))
-        else:
-            # Für andere Bauteile ohne DN und DA
-            cursor.execute(''' 
-                SELECT Positionsnummer, Value 
-                FROM price_list 
-                WHERE Bauteil = ? AND Size = ? 
-            ''', (bauteil, size))
-
-        result = cursor.fetchone()
-
-        if result:
-            if formteil_result:
-                base_price = float(result[0])
-                base_price *= float(formteil_factor)
-                position = formteil_result[0]
-            else:
-                position, base_price = result
-                base_price = float(base_price)
-
-            # Tätigkeit-Faktor anwenden
-            cursor.execute('SELECT Faktor FROM Taetigkeiten WHERE Taetigkeit = ?', (taetigkeit,))
-            taetigkeit_result = cursor.fetchone()
-            if taetigkeit_result:
-                factor = float(taetigkeit_result[0])
-                base_price *= factor
-
-            # Faktor für die Sonderleistung abrufen
-            if self.selected_sonderleistungen:
-                for sonderleistung in self.selected_sonderleistungen:
-                    cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
-                    faktor_result = cursor.fetchone()
-                    if faktor_result:
-                        faktor = float(faktor_result[0])
-                        base_price *= faktor
-
-            # Faktor für die Zuschläge abrufen
-            if self.selected_zuschlaege:
-                for zuschlag in self.selected_zuschlaege:
-                    cursor.execute("SELECT Faktor FROM Zuschlaege WHERE Zuschlag = ?", (zuschlag,))
-                    faktor_result = cursor.fetchone()
-                    if faktor_result:
-                        faktor = float(faktor_result[0])
-                        base_price *= faktor
-
-            self.position_field.value = position
-            self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
-
-            # Berechnung der Zwischensumme
-            quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
-            zwischensumme = base_price * quantity
-            self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren der Zwischensumme
-
-            # Gesamtpreis aktualisieren
-            self.update_total_price()  # Update total price based on current article summaries
-        else:
-            self.position_field.value = ""
-            self.price_field.value = ""
-
         self.update()
 
     def update_total_price(self):
