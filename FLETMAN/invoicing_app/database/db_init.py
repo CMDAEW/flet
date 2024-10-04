@@ -78,12 +78,12 @@ def initialize_database():
     
     # Create Faktoren table
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Faktoren (
-        Positionsnummer TEXT PRIMARY KEY,
-        Art TEXT NOT NULL,
-        Bezeichnung TEXT NOT NULL,
-        Faktor REAL NOT NULL
-    )
+        CREATE TABLE IF NOT EXISTS Faktoren (
+            Positionsnummer TEXT PRIMARY KEY,
+            Art TEXT NOT NULL,
+            Bezeichnung TEXT NOT NULL,
+            Faktor REAL NOT NULL
+        )
     ''')
 
     # Import data from CSV files
