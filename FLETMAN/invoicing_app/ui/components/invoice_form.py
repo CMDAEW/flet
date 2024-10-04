@@ -53,8 +53,8 @@ class InvoiceForm(ft.UserControl):
             on_change=self.load_items
         )
         self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=180)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=60)
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=60)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=60, options=[])
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=60, options=[])
         self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=90)
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=180)
         
@@ -114,26 +114,61 @@ class InvoiceForm(ft.UserControl):
     def update_dn_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value
-        if bauteil and dn and self.is_rohrleitung_or_formteil(bauteil):
-            da_options = self.get_corresponding_da(bauteil, dn)
-            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-            if not self.da_dropdown.value or self.da_dropdown.value not in [str(da) for da in da_options]:
-                self.da_dropdown.value = str(da_options[0]) if da_options else None
+        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
+            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
+            
+            # Behalte alle DN-Optionen bei
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+            
+            if dn:
+                compatible_da = self.get_corresponding_da(bauteil, dn)
+                # Es gibt immer einen kompatiblen Wert, also setzen wir den ersten
+                new_da_value = str(compatible_da[0])
+                self.da_dropdown.value = new_da_value
+                
+                # Aktualisiere alle DA-Optionen und setze den ausgewählten Wert
+                self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+                self.da_dropdown.value = new_da_value  # Setze den Wert erneut nach der Aktualisierung der Optionen
+            else:
+                # Wenn kein DN ausgewählt ist, setze DA auf None
+                self.da_dropdown.value = None
+                self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+            
             self.da_dropdown.update()
+        
         self.update_dammdicke_options()
         self.update_price()
 
     def update_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         da = self.da_dropdown.value
-        if bauteil and da and self.is_rohrleitung_or_formteil(bauteil):
-            dn_options = self.get_corresponding_dn(bauteil, da)
-            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
-            if not self.dn_dropdown.value or self.dn_dropdown.value not in [str(dn) for dn in dn_options]:
-                self.dn_dropdown.value = str(dn_options[0]) if dn_options else None
+        print(f"Updating DA fields. Bauteil: {bauteil}, DA: {da}")  # Debug-Ausgabe
+        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
+            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
+            print(f"All DN options: {all_dn_options}")  # Debug-Ausgabe
+            print(f"All DA options: {all_da_options}")  # Debug-Ausgabe
+            
+            self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+            
+            if da:
+                compatible_dn = self.get_corresponding_dn(bauteil, da)
+                print(f"Compatible DN for DA {da}: {compatible_dn}")  # Debug-Ausgabe
+                new_dn_value = str(compatible_dn[0])
+                print(f"Setting new DN value: {new_dn_value}")  # Debug-Ausgabe
+                self.dn_dropdown.value = new_dn_value
+                
+                self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+                self.dn_dropdown.value = new_dn_value
+            else:
+                self.dn_dropdown.value = None
+                self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+            
+            print(f"Final DN value: {self.dn_dropdown.value}")  # Debug-Ausgabe
             self.dn_dropdown.update()
+        
         self.update_dammdicke_options()
         self.update_price()
+        self.page.update()  # Aktualisiere die gesamte Seite
 
     def get_corresponding_da(self, bauteil, dn):
         query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
@@ -145,7 +180,9 @@ class InvoiceForm(ft.UserControl):
         query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DA = ? AND DN IS NOT NULL ORDER BY DN'
         params = ('Rohrleitung', da)
         options = self.get_from_cache_or_db(f"dn_options_{bauteil}_{da}", query, params)
-        return [float(dn[0]) for dn in options]
+        result = [int(float(dn[0])) for dn in options]
+        print(f"get_corresponding_dn result for DA {da}: {result}")  # Debug-Ausgabe
+        return result
 
     def get_all_da_options(self, bauteil):
         if self.is_rohrleitung_or_formteil(bauteil):
@@ -260,9 +297,9 @@ class InvoiceForm(ft.UserControl):
             params = ('Rohrleitung',)
         else:
             return []
-    
+
         options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
-        return [float(dn[0]) for dn in options]
+        return [int(float(dn[0])) for dn in options]  # Konvertiere zu Integer
 
     def show_snackbar(self, message):
         self.snackbar.content = ft.Text(message)
@@ -436,41 +473,33 @@ class InvoiceForm(ft.UserControl):
     
     def update_dn_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
-        if bauteil:
-            is_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(bauteil)
+        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
+            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
             
-            self.dn_dropdown.visible = is_rohrleitung_or_formteil
-            self.da_dropdown.visible = is_rohrleitung_or_formteil
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in all_dn_options]
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in all_da_options]
             
-        if is_rohrleitung_or_formteil:
-            dn_options = self.get_all_dn_options(bauteil)
-            da_options = self.get_all_da_options(bauteil)
-            
-            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
-            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-            
-            if not self.dn_dropdown.value or self.dn_dropdown.value not in [str(dn) for dn in dn_options]:
-                self.dn_dropdown.value = str(dn_options[0]) if dn_options else None
-            
-            if not self.da_dropdown.value or self.da_dropdown.value not in [str(da) for da in da_options]:
-                self.da_dropdown.value = str(da_options[0]) if da_options else None
-            
-            self.dn_dropdown.update()
-            self.da_dropdown.update()
+            self.dn_dropdown.visible = True
+            self.da_dropdown.visible = True
         else:
             self.dn_dropdown.options = []
-            self.dn_dropdown.value = None
             self.da_dropdown.options = []
-            self.da_dropdown.value = None
+            self.dn_dropdown.visible = False
+            self.da_dropdown.visible = False
         
-        self.update_dammdicke_options()
-        self.update_price()
+        self.dn_dropdown.value = None
+        self.da_dropdown.value = None
         
-    
-    
         self.dn_dropdown.update()
         self.da_dropdown.update()
+        self.update_dammdicke_options()
+        self.update_price()
         self.update()
+
+    def load_all_dn_da_options(self, bauteil):
+        all_dn_options = self.get_all_dn_options(bauteil)
+        all_da_options = self.get_all_da_options(bauteil)
+        return all_dn_options, all_da_options
 
     def get_all_dammdicke_options(self, bauteil, dn=None, da=None):
         if self.is_rohrleitung_or_formteil(bauteil):
