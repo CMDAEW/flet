@@ -4,7 +4,6 @@ import flet as ft
 from database.db_operations import get_db_connection
 import asyncio
 import re
-
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
@@ -19,17 +18,45 @@ class InvoiceForm(ft.UserControl):
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
         self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
         
+        # Initialisiere leere Container
         self.sonderleistungen_container = ft.Column(visible=False)
         self.zuschlaege_container = ft.Column(visible=False)
+        
+        # Lade Faktoren und erstelle Checkbox-Container
+        sonderleistungen = self.load_faktoren("Sonderleistung")
+        zuschlaege = self.load_faktoren("Zuschläge")
+        
+        self.sonderleistungen_container = self.create_checkbox_container("Sonderleistungen", sonderleistungen)
+        self.zuschlaege_container = self.create_checkbox_container("Zuschläge", zuschlaege)
+        
+        self.sonderleistungen_container.visible = False
+        self.zuschlaege_container.visible = False
         
         self.create_ui_elements()
         
         self.load_invoice_options()
-        self.load_faktoren("Sonderleistung")
-        self.load_faktoren("Zuschlag")
         self.load_faktoren("Tätigkeit")
         self.update_field_visibility()
         self.update()
+
+    def create_checkbox_container(self, title, items):
+        if not items:  # Überprüfen Sie, ob die Liste leer ist
+            return ft.Text(f"Keine {title} verfügbar")
+
+        checkboxes = [ft.Checkbox(label=item, value=False) for item in items]
+        return ft.Container(
+            content=ft.Column([
+                ft.Text(title, weight=ft.FontWeight.BOLD),
+                ft.Row(checkboxes)  # Hier war möglicherweise der Fehler
+            ])
+        )
+
+    def load_faktoren(self, art):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+        faktoren = cursor.fetchall()
+        cursor.close()
+        return [bezeichnung for bezeichnung, _ in faktoren]
 
     def load_faktoren(self, art):
         cursor = self.conn.cursor()
@@ -614,7 +641,6 @@ class InvoiceForm(ft.UserControl):
                 auto_scroll=True
             ),
             expand=True,
-            height=600,  # Set a fixed height or use page.height to make it full height
         )
 
     def update_total_price(self):
