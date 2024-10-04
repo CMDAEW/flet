@@ -52,7 +52,7 @@ class InvoiceForm(ft.UserControl):
         self.add_button = ft.ElevatedButton("Position hinzufügen", on_click=self.add_article_row)
 
         # Snackbar for notifications
-        self.snackbar = ft.SnackBar()
+        self.snackbar = ft.SnackBar(content=ft.Text("")) 
 
         # Invoice details fields
         self.client_name_dropdown = ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name"))
