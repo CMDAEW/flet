@@ -4,8 +4,9 @@ from database.db_operations import get_db_connection
 import asyncio
 
 class InvoiceForm(ft.UserControl):
-    def __init__(self):
+    def __init__(self, page):
         super().__init__()
+        self.page = page
         self.conn = get_db_connection()
         self.cache = {}  # Cache für Datenbankabfragen
         self.article_summaries = []  # Liste zur Speicherung der Zwischensummen
@@ -16,28 +17,30 @@ class InvoiceForm(ft.UserControl):
         self.zuschlaege = []
         self.selected_zuschlaege = []
         
+        # Initialisieren Sie die Buttons mit on_click Handlern
+        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
+        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
+        
+        # Initialisieren Sie die Container für die Checkboxen
+        self.sonderleistungen_container = ft.Column(visible=False)
+        self.zuschlaege_container = ft.Column(visible=False)
+        
         # Erstellen der UI-Elemente
         self.create_ui_elements()
         
         # Laden der Optionen
+        self.load_invoice_options()
         self.load_sonderleistungen()
         self.load_zuschlaege()
+        self.load_taetigkeiten()
 
     def create_ui_elements(self):
-        # Hier alle UI-Elemente erstellen, die vorher in __init__ waren
+        # UI-Elemente erstellen
         self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)
         self.article_list = ft.Column()
         self.article_rows = []
         
-        # Sonderleistungen Button und Container
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
-        self.sonderleistungen_container = ft.Column(visible=False)
-        
-        # Zuschläge Button und Container
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
-        self.zuschlaege_container = ft.Column(visible=False)
-        
-        # Initialize UI elements
+        # Dropdown-Menüs
         self.category_dropdown = ft.Dropdown(
             label="Kategorie",
             options=[
@@ -48,20 +51,22 @@ class InvoiceForm(ft.UserControl):
             ],
             on_change=self.load_items
         )
-        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_da_fields)
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dn_fields)
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price)
-        self.position_field = ft.TextField(label="Position", read_only=True)
-        self.price_field = ft.TextField(label="Preis", read_only=True)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)
-        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True)
+        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=180)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_da_fields, width=60)
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dn_fields, width=60)
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=90)
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=180)
+        
+        # Textfelder
+        self.position_field = ft.TextField(label="Position", read_only=True, width=80)
+        self.price_field = ft.TextField(label="Preis", read_only=True, width=80)
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price, width=70)
+        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=120)
 
-        # Snackbar for notifications
-        self.snackbar = ft.SnackBar(content=ft.Text("")) 
+        # Snackbar für Benachrichtigungen
+        self.snackbar = ft.SnackBar(content=ft.Text(""))
 
-        # Invoice details fields
+        # Rechnungsdetails Felder
         self.client_name_dropdown = ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name"))
         self.bestell_nr_dropdown = ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr"))
         self.bestelldatum_dropdown = ft.Dropdown(label="Bestelldatum", on_change=lambda e: self.toggle_new_entry(e, "bestelldatum"))
@@ -72,7 +77,7 @@ class InvoiceForm(ft.UserControl):
         self.ausfuehrungsbeginn_dropdown = ft.Dropdown(label="Ausführungsbeginn", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsbeginn"))
         self.ausfuehrungsende_dropdown = ft.Dropdown(label="Ausführungsende", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsende"))
 
-        # New entry fields for invoice details
+        # Neue Eintragsfelder für Rechnungsdetails
         self.client_name_new_entry = ft.TextField(label="Neuer Kunde", visible=False)
         self.bestell_nr_new_entry = ft.TextField(label="Neue Bestell-Nr.", visible=False)
         self.bestelldatum_new_entry = ft.TextField(label="Neues Bestelldatum", visible=False)
@@ -82,29 +87,6 @@ class InvoiceForm(ft.UserControl):
         self.auftrags_nr_new_entry = ft.TextField(label="Neue Auftrags-Nr.", visible=False)
         self.ausfuehrungsbeginn_new_entry = ft.TextField(label="Neuer Ausführungsbeginn", visible=False)
         self.ausfuehrungsende_new_entry = ft.TextField(label="Neues Ausführungsende", visible=False)
-
-        # Load initial data
-        self.load_taetigkeiten()
-
-    def load_zuschlaege(self):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
-        zuschlaege = cursor.fetchall()
-        self.zuschlaege = [z[0] for z in zuschlaege]
-        self.zuschlaege_container.controls.clear()
-        # Create checkboxes for each zuschlag
-        for option in self.zuschlaege:
-            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
-            self.zuschlaege_container.controls.append(checkbox)
-
-    def toggle_zuschlaege(self, e):
-        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
-        self.update()
-
-    def update_selected_zuschlaege(self, e):
-        self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
-        print("Selected Zuschläge:", self.selected_zuschlaege)  # For debugging
-        self.update_price()
 
     def get_from_cache_or_db(self, key, query, params=None):
         if key not in self.cache:
@@ -193,11 +175,10 @@ class InvoiceForm(ft.UserControl):
 
     def load_sonderleistungen(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT DISTINCT Sonderleistung FROM sonderleistungen")
+        cursor.execute("SELECT DISTINCT Sonderleistung FROM Sonderleistungen ORDER BY Sonderleistung")
         sonderleistungen = cursor.fetchall()
         self.sonderleistungen = [s[0] for s in sonderleistungen]
         self.sonderleistungen_container.controls.clear()
-        # Create checkboxes for each sonderleistung
         for option in self.sonderleistungen:
             checkbox = ft.Checkbox(label=option, on_change=self.update_selected_sonderleistungen)
             self.sonderleistungen_container.controls.append(checkbox)
@@ -208,47 +189,24 @@ class InvoiceForm(ft.UserControl):
         zuschlaege = cursor.fetchall()
         self.zuschlaege = [z[0] for z in zuschlaege]
         self.zuschlaege_container.controls.clear()
+        # Create checkboxes for each zuschlag
         for option in self.zuschlaege:
             checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
             self.zuschlaege_container.controls.append(checkbox)
-
-    def load_zuschlaege(self):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
-        zuschlaege = cursor.fetchall()
-        self.zuschlaege = [z[0] for z in zuschlaege]
-        self.zuschlaege_container.controls.clear()
-        for option in self.zuschlaege:
-            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
-            self.zuschlaege_container.controls.append(checkbox)
-
-    def toggle_sonderleistungen(self, e):
-        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
-        self.update()
 
     def update_selected_sonderleistungen(self, e):
         self.selected_sonderleistungen = [cb.label for cb in self.sonderleistungen_container.controls if cb.value]
         print("Selected Sonderleistungen:", self.selected_sonderleistungen)  # For debugging
         self.update_price() 
 
-    def load_zuschlaege(self):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
-        zuschlaege = cursor.fetchall()
-        self.zuschlaege = [z[0] for z in zuschlaege]
-        self.zuschlaege_container.controls.clear()
-        for option in self.zuschlaege:
-            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
-            self.zuschlaege_container.controls.append(checkbox)
-
-    def toggle_zuschlaege(self, e):
-        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+    def toggle_sonderleistungen(self, e):
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
         self.update()
 
-    def update_selected_zuschlaege(self, e):
-        self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
-        print("Selected Zuschläge:", self.selected_zuschlaege)  # For debugging
-        self.update_price()
+    def toggle_zuschlaege(self, e):
+        print("Zuschläge Button geklickt")
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.update()
 
     def update_selected_zuschlaege(self, e):
         self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
@@ -261,27 +219,20 @@ class InvoiceForm(ft.UserControl):
 
         artikel_eingabe = ft.Column([
             ft.Row([
-                ft.Text("Position", width=80),
-                ft.Text("Tätigkeit", width=180),
-                ft.Text("Artikelbeschreibung", width=180),
-                ft.Text("DN", width=60),
-                ft.Text("DA", width=60),
-                ft.Text("Dämmdicke", width=90),
-                ft.Text("Sonderleistungen", width=130),
-                ft.Text("Zuschläge", width=90),
-                ft.Text("Preis", width=80),
-                ft.Text("Menge", width=70),
-                ft.Text("Zwischensumme", width=120),
-            ]),
-            ft.Row([
                 self.position_field,
                 self.taetigkeit_dropdown,
                 self.artikelbeschreibung_dropdown,
                 self.dn_dropdown,
                 self.da_dropdown,
                 self.dammdicke_dropdown,
-                self.sonderleistungen_button,
-                self.zuschlaege_button,
+                ft.Column([
+                    self.sonderleistungen_button,
+                    self.sonderleistungen_container
+                ], width=130),
+                ft.Column([
+                    self.zuschlaege_button,
+                    self.zuschlaege_container
+                ], width=90),
                 self.price_field,
                 self.quantity_input,
                 self.zwischensumme_field,
@@ -453,42 +404,23 @@ class InvoiceForm(ft.UserControl):
     def reset_fields(self):
         for field in [self.position_field, self.price_field, self.zwischensumme_field]:
             field.value = ""
-        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown, self.zuschlaege_button]:
+        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown]:
             dropdown.options.clear()
             dropdown.visible = False
         self.quantity_input.visible = False
+        
+        # Zurücksetzen der Sonderleistungen und Zuschläge
+        for checkbox in self.sonderleistungen_container.controls:
+            checkbox.value = False
+        for checkbox in self.zuschlaege_container.controls:
+            checkbox.value = False
+        self.selected_sonderleistungen = []
+        self.selected_zuschlaege = []
+        
+        # Container ausblenden
+        self.sonderleistungen_container.visible = False
+        self.zuschlaege_container.visible = False
 
-    def load_aufmass_options(self, cursor):
-        # Load Tätigkeiten
-        cursor.execute("SELECT DISTINCT Taetigkeit FROM Taetigkeiten ORDER BY Taetigkeit")
-        taetigkeiten = cursor.fetchall()
-        self.taetigkeit_dropdown.options = [ft.dropdown.Option(taetigkeit[0]) for taetigkeit in taetigkeiten]
-        self.taetigkeit_dropdown.visible = True
-
-        # Load Zuschläge
-        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
-        zuschlaege = cursor.fetchall()
-        self.zuschlaege_button.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
-        self.zuschlaege_button.visible = True
-
-        # Load Bauteil (Artikelbeschreibung) and Formteile
-        cursor.execute("SELECT DISTINCT Bauteil FROM price_list ORDER BY Bauteil")
-        bauteile = cursor.fetchall()
-        cursor.execute("SELECT DISTINCT Formteilbezeichnung FROM Formteile ORDER BY Formteilbezeichnung")
-        self.formteile = cursor.fetchall()  # Store formteile data
-
-        self.artikelbeschreibung_dropdown.options = [
-            ft.dropdown.Option(b[0]) for b in bauteile
-        ] + [
-            ft.dropdown.Option("Formteile", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD))
-        ] + [
-            ft.dropdown.Option(f[0]) for f in self.formteile
-        ]
-        self.artikelbeschreibung_dropdown.visible = True
-
-        # Make other fields visible
-        for field in [self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown, self.position_field, self.price_field, self.quantity_input, self.zwischensumme_field]:
-            field.visible = True
 
     def load_other_options(self, cursor, category):
         if category == "Material":
@@ -540,23 +472,6 @@ class InvoiceForm(ft.UserControl):
         self.quantity_input.value = "1"
         self.zwischensumme_field.value = ""
 
-    def load_invoice_options(self):
-        cursor = self.conn.cursor()
-        fields = [
-            "client_name", "bestell_nr", "bestelldatum", "baustelle", "anlagenteil",
-            "aufmass_nr", "auftrags_nr", "ausfuehrungsbeginn", "ausfuehrungsende"
-        ]
-        for field in fields:
-            try:
-                cursor.execute(f"SELECT DISTINCT {field} FROM invoice WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}")
-                options = cursor.fetchall()
-                dropdown = getattr(self, f"{field}_dropdown")
-                dropdown.options = [ft.dropdown.Option(str(option[0])) for option in options]
-                dropdown.options.append(ft.dropdown.Option("Neuer Eintrag"))
-            except sqlite3.OperationalError as e:
-                print(f"Error loading options for {field}: {e}")
-                dropdown = getattr(self, f"{field}_dropdown")
-                dropdown.options = [ft.dropdown.Option("Neuer Eintrag")]
 
     def toggle_new_entry(self, e, field):
         dropdown = getattr(self, f"{field}_dropdown")
@@ -619,8 +534,7 @@ class InvoiceForm(ft.UserControl):
         try:
             if self.is_formteil(bauteil):
                 cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', ('Rohrleitung',))
-            else:
-                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', (bauteil,))
+            else:                cursor.execute('SELECT DISTINCT da FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY da', (bauteil,))
             return sorted(set(row[0] for row in cursor.fetchall() if row[0] is not None))
         finally:
             cursor.close()
@@ -679,7 +593,7 @@ class InvoiceForm(ft.UserControl):
             # Zurücksetzen des Preises, wenn erforderliche Werte fehlen
             self.position_field.value = ""
             self.price_field.value = ""
-            self.zwischensumme_field.value = ""  # Zurücksetzen der Zwischensumme
+            self.zwischensumme_field.value = ""
             self.update()
             return
 
@@ -730,25 +644,32 @@ class InvoiceForm(ft.UserControl):
                 factor = float(taetigkeit_result[0])
                 base_price *= factor
 
-            # Faktor für die Sonderleistung abrufen
-            if self.selected_sonderleistungen:  # Überprüfen, ob Sonderleistungen ausgewählt sind
-                for sonderleistung in self.selected_sonderleistungen:
-                    cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
-                    faktor_result = cursor.fetchone()
-                    if faktor_result:
-                        faktor = float(faktor_result[0])
-                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor für jede ausgewählte Sonderleistung
+            # Faktor für die Sonderleistungen anwenden
+            for sonderleistung in self.selected_sonderleistungen:
+                cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
+                faktor_result = cursor.fetchone()
+                if faktor_result:
+                    faktor = float(faktor_result[0])
+                    base_price *= faktor
+
+            # Faktor für die Zuschläge anwenden
+            for zuschlag in self.selected_zuschlaege:
+                cursor.execute("SELECT Faktor FROM Zuschlaege WHERE Zuschlag = ?", (zuschlag,))
+                faktor_result = cursor.fetchone()
+                if faktor_result:
+                    faktor = float(faktor_result[0])
+                    base_price *= faktor
 
             self.position_field.value = position
-            self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
+            self.price_field.value = f"{base_price:.2f}"
 
             # Berechnung der Zwischensumme
             quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
             zwischensumme = base_price * quantity
-            self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren der Zwischensumme
+            self.zwischensumme_field.value = f"{zwischensumme:.2f}"
 
             # Gesamtpreis aktualisieren
-            self.update_total_price()  # Update total price based on current article summaries
+            self.update_total_price()
         else:
             self.position_field.value = ""
             self.price_field.value = ""
@@ -873,11 +794,11 @@ class InvoiceForm(ft.UserControl):
     def update_field_visibility(self):
         # Hide or show DN and DA dropdowns based on the selected category
         if self.category_dropdown.value == "Aufmaß":
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
-        else:
             self.dn_dropdown.visible = False
             self.da_dropdown.visible = False
+        else:
+            self.dn_dropdown.visible = True
+            self.da_dropdown.visible = True
 
         # Update the layout to remove gaps
         self.dn_dropdown.update()
@@ -929,18 +850,20 @@ class InvoiceForm(ft.UserControl):
         self.zuschlaege_button.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
         self.zuschlaege_button.visible = True
 
-        # Load Bauteil (Artikelbeschreibung) and Formteile
+        # Lade Bauteil (Artikelbeschreibung) und Formteile
         cursor.execute("SELECT DISTINCT Bauteil FROM price_list ORDER BY Bauteil")
         bauteile = cursor.fetchall()
         cursor.execute("SELECT DISTINCT Formteilbezeichnung FROM Formteile ORDER BY Formteilbezeichnung")
-        self.formteile = cursor.fetchall()  # Store formteile data
+        formteile = cursor.fetchall()
 
         self.artikelbeschreibung_dropdown.options = [
+            ft.dropdown.Option("Bauteile", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        ] + [
             ft.dropdown.Option(b[0]) for b in bauteile
         ] + [
             ft.dropdown.Option("Formteile", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         ] + [
-            ft.dropdown.Option(f[0]) for f in self.formteile
+            ft.dropdown.Option(f[0]) for f in formteile
         ]
         self.artikelbeschreibung_dropdown.visible = True
 
