@@ -1,0 +1,3 @@
+set(CMAKE_BINARY_DIR "D:/Users/cmued/flet_invoice/FLETMAN")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)

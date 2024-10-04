@@ -4,7 +4,6 @@ from database.db_operations import get_db_connection
 import asyncio
 
 class InvoiceForm(ft.UserControl):
-class InvoiceForm(ft.UserControl):
     def __init__(self):
         super().__init__()
         self.conn = get_db_connection()
@@ -46,7 +45,6 @@ class InvoiceForm(ft.UserControl):
         self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dn_fields)
         self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price)
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price)
-        self.zuschlaege_dropdown = ft.Dropdown(label="Zuschläge", visible=False)
         self.position_field = ft.TextField(label="Position", read_only=True)
         self.price_field = ft.TextField(label="Preis", read_only=True)
         self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)  # on_change hinzugefügt
@@ -80,6 +78,27 @@ class InvoiceForm(ft.UserControl):
         # Load initial data
         self.load_taetigkeiten()
         self.load_sonderleistungen()
+        self.load_zuschlaege()
+
+    def load_zuschlaege(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
+        zuschlaege = cursor.fetchall()
+        self.zuschlaege = [z[0] for z in zuschlaege]
+        self.zuschlaege_container.controls.clear()
+        # Create checkboxes for each zuschlag
+        for option in self.zuschlaege:
+            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
+            self.zuschlaege_container.controls.append(checkbox)
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.update()
+
+    def update_selected_zuschlaege(self, e):
+        self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
+        print("Selected Zuschläge:", self.selected_zuschlaege)  # For debugging
+        self.update_price()
 
     def get_from_cache_or_db(self, key, query, params=None):
         if key not in self.cache:
@@ -191,7 +210,7 @@ class InvoiceForm(ft.UserControl):
         cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
         zuschlaege = cursor.fetchall()
         self.zuschlaege = [z[0] for z in zuschlaege]
-
+        self.zuschlaege_container.controls.clear()
         # Create checkboxes for each zuschlag
         for option in self.zuschlaege:
             checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
@@ -204,6 +223,12 @@ class InvoiceForm(ft.UserControl):
     def update_selected_zuschlaege(self, e):
         self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
         print("Selected Zuschläge:", self.selected_zuschlaege)  # For debugging
+        self.update_price()
+
+    def update_selected_zuschlaege(self, e):
+        self.selected_zuschlaege = [cb.label for cb in self.zuschlaege_container.controls if cb.value]
+        print("Selected Zuschläge:", self.selected_zuschlaege)  # For debugging
+        self.update_price()
 
     def build(self):
         # Load invoice options
@@ -246,6 +271,7 @@ class InvoiceForm(ft.UserControl):
                                 ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
                                 ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
                                 ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
+                                ft.Column([self.zuschlaege_button, self.zuschlaege_container], col={"sm": 12, "md": 1}),
                                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),
                                 ft.Column([
                                     ft.Row([
@@ -253,9 +279,6 @@ class InvoiceForm(ft.UserControl):
                                         self.zwischensumme_field
                                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                                 ], col={"sm": 12, "md": 2}),
-                            ]),
-                            ft.ResponsiveRow([
-                                ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 12}),
                             ]),
                             ft.Container(height=50),  # Spacer
                             self.article_list,  # Container for added articles
@@ -1135,13 +1158,22 @@ class InvoiceForm(ft.UserControl):
                 base_price *= factor
 
             # Faktor für die Sonderleistung abrufen
-            if self.selected_sonderleistungen:  # Überprüfen, ob Sonderleistungen ausgewählt sind
+            if self.selected_sonderleistungen:
                 for sonderleistung in self.selected_sonderleistungen:
                     cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
                     faktor_result = cursor.fetchone()
                     if faktor_result:
                         faktor = float(faktor_result[0])
-                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor für jede ausgewählte Sonderleistung
+                        base_price *= faktor
+
+            # Faktor für die Zuschläge abrufen
+            if self.selected_zuschlaege:
+                for zuschlag in self.selected_zuschlaege:
+                    cursor.execute("SELECT Faktor FROM Zuschlaege WHERE Zuschlag = ?", (zuschlag,))
+                    faktor_result = cursor.fetchone()
+                    if faktor_result:
+                        faktor = float(faktor_result[0])
+                        base_price *= faktor
 
             self.position_field.value = position
             self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
