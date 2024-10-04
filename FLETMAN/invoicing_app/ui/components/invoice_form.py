@@ -80,18 +80,6 @@ class InvoiceForm(ft.UserControl):
         self.load_taetigkeiten()
         self.load_sonderleistungen()
 
-    def build(self):
-        # Load invoice options
-        self.load_invoice_options()
-
-        return ft.Column([
-            # ... bestehende UI-Komponenten ...
-            self.article_list,  # Container for added articles
-            self.add_button,  # Button to add new articles
-            self.total_price_field,  # Gesamtpreisfeld
-            self.snackbar  # Add the Snackbar to the UI
-        ], scroll="always")
-
     def show_snackbar(self, message):
         self.snackbar.content = ft.Text(message)
         self.snackbar.open = True
@@ -106,21 +94,6 @@ class InvoiceForm(ft.UserControl):
 
         # Show Snackbar notification
         self.show_snackbar("Artikel erfolgreich hinzugefügt!")
-
-    def build(self):
-        # Load invoice options
-        self.load_invoice_options()
-
-        # Set default category and load items here
-        self.category_dropdown.value = "Aufmaß"  # Set default category to "Aufmaß"
-        self.load_items(None)  # Load items based on the default category
-
-        return ft.Column([
-            # ... existing UI components ...
-            self.article_list,  # Container for added articles
-            self.add_button,  # Button to add new articles
-            self.total_price_field,  # Gesamtpreisfeld
-        ])
 
     def add_article_row(self, e):
         # Create a new row for article input
@@ -249,15 +222,17 @@ class InvoiceForm(ft.UserControl):
                                 ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
                                 ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
                                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),
-                                ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),
-                                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),
+                                ft.Column([
+                                    ft.Row([
+                                        self.quantity_input,
+                                        self.zwischensumme_field
+                                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                                ], col={"sm": 12, "md": 2}),
                             ]),
                             ft.ResponsiveRow([
-                                ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
-                                ft.Column([self.add_button], col={"sm": 12, "md": 6}),
+                                ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 12}),
                             ]),
                             ft.Container(height=50),  # Spacer
-                            ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_article_row),
                             self.article_list,  # Container for added articles
                             self.total_price_field,  # Gesamtpreisfeld
                         ]),
