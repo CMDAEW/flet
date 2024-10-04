@@ -9,26 +9,34 @@ class InvoiceForm(ft.UserControl):
         self.conn = get_db_connection()
         self.cache = {}  # Cache für Datenbankabfragen
         self.article_summaries = []  # Liste zur Speicherung der Zwischensummen
-        self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)  # Gesamtpreisfeld
-        self.sonderleistungen = []  # Store the options for sonderleistungen
-        self.selected_sonderleistungen = []  # Store selected options
-        self.zuschlaege = []  # Store the options for zuschläge
-        self.selected_zuschlaege = []  # Store selected zuschläge
-        self.article_list = ft.Column()  # Column to display added articles
-        self.article_rows = []  # List to hold article rows
-
-        # Create a button to toggle the sonderleistungen dropdown
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
-        self.sonderleistungen_container = ft.Column(visible=False)  # Initially hidden
-
-        # Create a button to toggle the zuschläge dropdown
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
-        self.zuschlaege_container = ft.Column(visible=False)  # Initially hidden
-
-        # Load options
+        
+        # Initialisierung der Sonderleistungen und Zuschläge
+        self.sonderleistungen = []
+        self.selected_sonderleistungen = []
+        self.zuschlaege = []
+        self.selected_zuschlaege = []
+        
+        # Erstellen der UI-Elemente
+        self.create_ui_elements()
+        
+        # Laden der Optionen
         self.load_sonderleistungen()
         self.load_zuschlaege()
 
+    def create_ui_elements(self):
+        # Hier alle UI-Elemente erstellen, die vorher in __init__ waren
+        self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)
+        self.article_list = ft.Column()
+        self.article_rows = []
+        
+        # Sonderleistungen Button und Container
+        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
+        self.sonderleistungen_container = ft.Column(visible=False)
+        
+        # Zuschläge Button und Container
+        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
+        self.zuschlaege_container = ft.Column(visible=False)
+        
         # Initialize UI elements
         self.category_dropdown = ft.Dropdown(
             label="Kategorie",
@@ -47,7 +55,7 @@ class InvoiceForm(ft.UserControl):
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price)
         self.position_field = ft.TextField(label="Position", read_only=True)
         self.price_field = ft.TextField(label="Preis", read_only=True)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)  # on_change hinzugefügt
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True)
 
         # Snackbar for notifications
@@ -77,8 +85,6 @@ class InvoiceForm(ft.UserControl):
 
         # Load initial data
         self.load_taetigkeiten()
-        self.load_sonderleistungen()
-        self.load_zuschlaege()
 
     def load_zuschlaege(self):
         cursor = self.conn.cursor()
@@ -196,6 +202,26 @@ class InvoiceForm(ft.UserControl):
             checkbox = ft.Checkbox(label=option, on_change=self.update_selected_sonderleistungen)
             self.sonderleistungen_container.controls.append(checkbox)
 
+    def load_zuschlaege(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
+        zuschlaege = cursor.fetchall()
+        self.zuschlaege = [z[0] for z in zuschlaege]
+        self.zuschlaege_container.controls.clear()
+        for option in self.zuschlaege:
+            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
+            self.zuschlaege_container.controls.append(checkbox)
+
+    def load_zuschlaege(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
+        zuschlaege = cursor.fetchall()
+        self.zuschlaege = [z[0] for z in zuschlaege]
+        self.zuschlaege_container.controls.clear()
+        for option in self.zuschlaege:
+            checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
+            self.zuschlaege_container.controls.append(checkbox)
+
     def toggle_sonderleistungen(self, e):
         self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
         self.update()
@@ -211,7 +237,6 @@ class InvoiceForm(ft.UserControl):
         zuschlaege = cursor.fetchall()
         self.zuschlaege = [z[0] for z in zuschlaege]
         self.zuschlaege_container.controls.clear()
-        # Create checkboxes for each zuschlag
         for option in self.zuschlaege:
             checkbox = ft.Checkbox(label=option, on_change=self.update_selected_zuschlaege)
             self.zuschlaege_container.controls.append(checkbox)
@@ -858,10 +883,22 @@ class InvoiceForm(ft.UserControl):
     def reset_fields(self):
         for field in [self.position_field, self.price_field, self.zwischensumme_field]:
             field.value = ""
-        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown, self.zuschlaege_dropdown]:
+        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown]:
             dropdown.options.clear()
             dropdown.visible = False
         self.quantity_input.visible = False
+        
+        # Zurücksetzen der Sonderleistungen und Zuschläge
+        for checkbox in self.sonderleistungen_container.controls:
+            checkbox.value = False
+        for checkbox in self.zuschlaege_container.controls:
+            checkbox.value = False
+        self.selected_sonderleistungen = []
+        self.selected_zuschlaege = []
+        
+        # Container ausblenden
+        self.sonderleistungen_container.visible = False
+        self.zuschlaege_container.visible = False
 
     def load_aufmass_options(self, cursor):
         # Load Tätigkeiten
