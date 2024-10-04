@@ -118,9 +118,20 @@ class InvoiceForm(ft.UserControl):
                 checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
             container.controls.append(checkbox)
         
-        # Debug-Ausgabe hinzufügen
         print(f"Anzahl der geladenen {art}: {len(container.controls)}")
         
+        self.update()
+
+    def toggle_sonderleistungen(self, e):
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+        print(f"Sonderleistungen Container Visibility: {self.sonderleistungen_container.visible}")  # Debug-Ausgabe
+        print(f"Sonderleistungen Container Controls: {self.sonderleistungen_container.controls}")  # Debug-Ausgabe
+        self.update()
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        print(f"Zuschläge Container Visibility: {self.zuschlaege_container.visible}")  # Debug-Ausgabe
+        print(f"Zuschläge Container Controls: {self.zuschlaege_container.controls}")  # Debug-Ausgabe
         self.update()
 
     def toggle_zuschlaege(self, e):
@@ -602,6 +613,7 @@ class InvoiceForm(ft.UserControl):
     def toggle_sonderleistungen(self, e):
         self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
         print(f"Sonderleistungen Container Visibility: {self.sonderleistungen_container.visible}")  # Debug-Ausgabe
+        print(f"Sonderleistungen Container Controls: {self.sonderleistungen_container.controls}")  # Debug-Ausgabe
         self.update()
 
     def toggle_zuschlaege(self, e):
@@ -625,10 +637,8 @@ class InvoiceForm(ft.UserControl):
         self.update_price()
 
     def build(self):
-        # Debug-Ausgabe hinzufügen
         print("Build-Methode wird aufgerufen")
         
-        # Load invoice options
         self.load_invoice_options()
 
         artikel_eingabe = ft.Column([
@@ -639,18 +649,16 @@ class InvoiceForm(ft.UserControl):
                 self.dn_dropdown,
                 self.da_dropdown,
                 self.dammdicke_dropdown,
-                ft.Column([
-                    self.sonderleistungen_button,
-                    self.sonderleistungen_container
-                ], width=130),
-                ft.Column([
-                    self.zuschlaege_button,
-                    self.zuschlaege_container
-                ], width=90),
                 self.price_field,
                 self.quantity_input,
                 self.zwischensumme_field,
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([
+                self.sonderleistungen_button,
+                self.zuschlaege_button,
+            ]),
+            self.sonderleistungen_container,
+            self.zuschlaege_container,
             ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
         ])
 
