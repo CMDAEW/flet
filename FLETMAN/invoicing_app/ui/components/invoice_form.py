@@ -206,7 +206,7 @@ class InvoiceForm(ft.UserControl):
         dammdicke = self.dammdicke_dropdown.value
         taetigkeit = self.taetigkeit_dropdown.value
 
-        if not all([bauteil, dammdicke, taetigkeit]) or (self.is_rohrleitung_or_formteil(bauteil) and not all([dn, da])):
+        if not all([bauteil, taetigkeit]) or (self.is_rohrleitung_or_formteil(bauteil) and not all([dn, da, dammdicke])):
             self.price_field.value = ""
             self.zwischensumme_field.value = ""
             self.price_field.update()
@@ -214,21 +214,45 @@ class InvoiceForm(ft.UserControl):
             return
 
         cursor = self.conn.cursor()
+        base_price = 0
+
         if self.is_rohrleitung_or_formteil(bauteil):
-            cursor.execute('''
-                SELECT Value FROM price_list 
-                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
-            ''', ('Rohrleitung', dn, da, dammdicke))
+            if self.is_formteil(bauteil):
+                # Zuerst den Basispreis aus der price_list holen
+                cursor.execute('''
+                    SELECT Value FROM price_list 
+                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
+                ''', ('Rohrleitung', dn, da, dammdicke))
+                result = cursor.fetchone()
+                if result:
+                    base_price = float(result[0])
+                    
+                # Dann den Faktor aus der Formteile-Tabelle holen
+                cursor.execute('''
+                    SELECT Faktor FROM Formteile 
+                    WHERE Formteilbezeichnung = ?
+                ''', (bauteil,))
+                faktor_result = cursor.fetchone()
+                if faktor_result:
+                    base_price *= float(faktor_result[0])
+            else:
+                cursor.execute('''
+                    SELECT Value FROM price_list 
+                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
+                ''', ('Rohrleitung', dn, da, dammdicke))
+                result = cursor.fetchone()
+                if result:
+                    base_price = float(result[0])
         else:
             cursor.execute('''
                 SELECT Value FROM price_list 
                 WHERE Bauteil = ? AND Size = ?
             ''', (bauteil, dammdicke))
+            result = cursor.fetchone()
+            if result:
+                base_price = float(result[0])
         
-        result = cursor.fetchone()
-        if result:
-            base_price = float(result[0])
-            
+        if base_price > 0:
             # Tätigkeit-Faktor anwenden
             cursor.execute('SELECT Faktor FROM Taetigkeiten WHERE Taetigkeit = ?', (taetigkeit,))
             taetigkeit_result = cursor.fetchone()
@@ -478,43 +502,60 @@ class InvoiceForm(ft.UserControl):
     
     def update_dn_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
-        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
-            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
-            
+        previous_bauteil = getattr(self, 'previous_bauteil', None)
+        is_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(bauteil)
+        was_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(previous_bauteil)
+        
+        if bauteil:
             # Behalte die aktuellen Werte bei
             current_dn = self.dn_dropdown.value
             current_da = self.da_dropdown.value
             current_dammdicke = self.dammdicke_dropdown.value
+
+            if is_rohrleitung_or_formteil:
+                all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
+                
+                # Aktualisiere die Optionen
+                self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+                self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+                
+                # Setze die Werte zurück, wenn sie in den neuen Optionen vorhanden sind
+                if current_dn in [str(dn) for dn in all_dn_options]:
+                    self.dn_dropdown.value = current_dn
+                else:
+                    self.dn_dropdown.value = str(all_dn_options[0]) if all_dn_options else None
+                
+                if current_da in [str(da) for da in all_da_options]:
+                    self.da_dropdown.value = current_da
+                else:
+                    self.da_dropdown.value = str(all_da_options[0]) if all_da_options else None
+                
+                self.dn_dropdown.visible = True
+                self.da_dropdown.visible = True
+            else:
+                self.dn_dropdown.options = []
+                self.da_dropdown.options = []
+                self.dn_dropdown.value = None
+                self.da_dropdown.value = None
+                self.dn_dropdown.visible = False
+                self.da_dropdown.visible = False
+
+            self.dn_dropdown.update()
+            self.da_dropdown.update()
             
-            # Aktualisiere die Optionen, aber behalte die aktuellen Werte bei
-            self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
-            self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
-            
-            # Setze die Werte zurück, wenn sie in den neuen Optionen vorhanden sind
-            if current_dn in [str(dn) for dn in all_dn_options]:
-                self.dn_dropdown.value = current_dn
-            if current_da in [str(da) for da in all_da_options]:
-                self.da_dropdown.value = current_da
-            
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
-        else:
-            self.dn_dropdown.options = []
-            self.da_dropdown.options = []
-            self.dn_dropdown.visible = False
-            self.da_dropdown.visible = False
+            # Aktualisiere die Dämmdicke-Optionen
+            self.update_dammdicke_options()
+            if current_dammdicke in [opt.key for opt in self.dammdicke_dropdown.options]:
+                self.dammdicke_dropdown.value = current_dammdicke
+            self.dammdicke_dropdown.update()
         
-        self.dn_dropdown.update()
-        self.da_dropdown.update()
+        # Aktualisiere den Preis, wenn sich der Bauteiltyp ändert oder wenn ein neues Bauteil ausgewählt wurde
+        if bauteil != previous_bauteil or is_rohrleitung_or_formteil != was_rohrleitung_or_formteil:
+            self.update_price()
         
-        # Aktualisiere die Dämmdicke-Optionen, aber behalte den aktuellen Wert bei
-        self.update_dammdicke_options()
-        if current_dammdicke in [opt.key for opt in self.dammdicke_dropdown.options]:
-            self.dammdicke_dropdown.value = current_dammdicke
-        self.dammdicke_dropdown.update()
+        # Speichere das aktuelle Bauteil für den nächsten Vergleich
+        self.previous_bauteil = bauteil
         
-        # Aktualisiere nur den Preis
-        self.update_price()
         self.update()
 
     def load_all_dn_da_options(self, bauteil):
