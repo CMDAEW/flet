@@ -13,6 +13,7 @@ class InvoiceForm(ft.UserControl):
         self.selected_sonderleistungen = []  # Store selected options
         self.zuschlaege = []  # Store the options for zuschläge
         self.selected_zuschlaege = []  # Store selected zuschläge
+        self.article_list = ft.Column()  # Column to display added articles
 
         # Create a button to toggle the sonderleistungen dropdown
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
@@ -160,7 +161,7 @@ class InvoiceForm(ft.UserControl):
                 ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),  # Preisfeld hier
                 ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),  # Mengefeld hier
-                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),  # Zwischensumme rechts daneben  # Add this line
+                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 1}),  # Zwischensumme rechts daneben  # Add this line
             ]),
             ft.ResponsiveRow([
                 ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
@@ -171,91 +172,6 @@ class InvoiceForm(ft.UserControl):
             # Gesamtpreiszeile
             self.total_price_field,  # Gesamtpreisfeld
         ])
-
-    def update_price(self, e=None):
-        cursor = self.conn.cursor()
-        bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
-        size = self.dammdicke_dropdown.value
-        taetigkeit = self.taetigkeit_dropdown.value
-        
-        if not bauteil or not size or not taetigkeit:
-            # Zurücksetzen des Preises, wenn erforderliche Werte fehlen
-            self.position_field.value = ""
-            self.price_field.value = ""
-            self.zwischensumme_field.value = ""  # Zurücksetzen der Zwischensumme
-            self.update()
-            return
-
-        # Prüfen, ob es sich um ein Formteil handelt
-        cursor.execute('SELECT Positionsnummer, Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
-        formteil_result = cursor.fetchone()
-
-        if formteil_result:
-            position, formteil_factor = formteil_result
-            # Basispreis für Rohrleitung abrufen
-            cursor.execute('''
-                SELECT Value
-                FROM price_list
-                WHERE Bauteil = 'Rohrleitung' AND DN = ? AND DA = ? AND Size = ?
-            ''', (dn, da, size))
-        elif self.is_rohrleitung_or_formteil(bauteil):
-            cursor.execute('''
-                SELECT Positionsnummer, Value
-                FROM price_list
-                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
-            ''', (bauteil, dn, da, size))
-        else:
-            # Für andere Bauteile ohne DN und DA
-            cursor.execute('''
-                SELECT Positionsnummer, Value
-                FROM price_list
-                WHERE Bauteil = ? AND Size = ?
-            ''', (bauteil, size))
-
-        result = cursor.fetchone()
-
-        if result:
-            if formteil_result:
-                base_price = float(result[0])
-                base_price *= float(formteil_factor)
-                position = formteil_result[0]
-            else:
-                position, base_price = result
-                base_price = float(base_price)
-
-            # Tätigkeit-Faktor anwenden
-            cursor.execute('SELECT Faktor FROM Taetigkeiten WHERE Taetigkeit = ?', (taetigkeit,))
-            taetigkeit_result = cursor.fetchone()
-            if taetigkeit_result:
-                factor = float(taetigkeit_result[0])
-                base_price *= factor
-
-            # Faktor für die Sonderleistung abrufen
-            if self.selected_sonderleistungen:  # Überprüfen, ob Sonderleistungen ausgewählt sind
-                for sonderleistung in self.selected_sonderleistungen:
-                    cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
-                    faktor_result = cursor.fetchone()
-                    if faktor_result:
-                        faktor = float(faktor_result[0])
-                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor für jede ausgewählte Sonderleistung
-
-            self.position_field.value = position
-            self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
-
-            # Berechnung der Zwischensumme
-            quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
-            zwischensumme = base_price * quantity
-            self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren der Zwischensumme
-
-            # Gesamtpreis aktualisieren
-            self.update_total_price()  # Update total price based on current article summaries
-        else:
-            self.position_field.value = ""
-            self.price_field.value = ""
-
-        self.update()
 
     def update_total_price(self):
         total_price = sum(self.article_summaries)  # Summe der aktuellen Zwischensummen
@@ -427,7 +343,6 @@ class InvoiceForm(ft.UserControl):
             field.visible = True
 
     def add_item_to_invoice(self, e):
-        # Implementation for adding item to invoice
         # Extract selected values
         selected_item = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
@@ -440,7 +355,11 @@ class InvoiceForm(ft.UserControl):
         zwischensumme = self.zwischensumme_field.value
 
         # Add the item to the invoice table
-        # Implement this based on how you're storing invoice items
+        # Here you can implement how to store the invoice items
+        # For example, you might want to append to a list or update a database
+
+        # Display the added item in the UI (for example, in a list or table)
+        print(f"Added item: Position: {position}, Price: {price}, Quantity: {quantity}, Zwischensumme: {zwischensumme}")
 
         # Clear the input fields after adding the item
         self.reset_item_fields()

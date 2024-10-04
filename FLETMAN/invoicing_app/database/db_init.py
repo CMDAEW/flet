@@ -41,6 +41,8 @@ def initialize_database():
         Unit TEXT,
         Bauteil TEXT,
         quantity INTEGER,
+        sonderleistung_1 TEXT,
+        sonderleistung_2 TEXT,
         zwischensumme REAL,
         taetigkeit TEXT,
         FOREIGN KEY (invoice_id) REFERENCES invoice (id),
