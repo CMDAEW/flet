@@ -271,7 +271,7 @@ class InvoiceForm(ft.UserControl):
             
             # Sonderleistungen-Faktoren anwenden
             for sonderleistung in self.selected_sonderleistungen:
-                cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung" AND Bezeichnung = ?', (sonderleistung,))
+                cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung Wärmedämmung" AND Bezeichnung = ?', (sonderleistung,))
                 faktor_result = cursor.fetchone()
                 if faktor_result:
                     base_price *= float(faktor_result[0])
@@ -844,11 +844,16 @@ class InvoiceForm(ft.UserControl):
                 cursor.execute("SELECT DISTINCT Bezeichnung FROM Faktoren WHERE Art = 'Formteil' ORDER BY Bezeichnung")
                 formteile = [row[0] for row in cursor.fetchall()]
 
-                # Kombiniere Bauteile und Formteile
-                items = bauteile + formteile
-                items = sorted(set(items))  # Entferne Duplikate und sortiere
+                # Erstelle die Optionen mit Trennern
+                options = [
+                    ft.dropdown.Option("Bauteil", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                    *[ft.dropdown.Option(bauteil) for bauteil in bauteile],
+                    ft.dropdown.Option("Formteil", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                    *[ft.dropdown.Option(formteil) for formteil in formteile]
+                ]
 
-                self.artikelbeschreibung_dropdown.options = [ft.dropdown.Option(item) for item in items]
+                self.artikelbeschreibung_dropdown.options = options
+
             elif category == "Material":
                 cursor.execute("SELECT Positionsnummer, Benennung FROM Materialpreise ORDER BY Benennung")
                 items = cursor.fetchall()

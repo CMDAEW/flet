@@ -5,15 +5,13 @@ Positionsnummer;Art;Bezeichnung;Faktor
 49.0;Tätigkeit;Remontage vorh. Isol./ Blech;0.38
 50.0;Tätigkeit;Remontage neue. Isol. vorh. Blech;0.56
 51.0;Tätigkeit;Demontage / Entsorgung;0.6
-52.0;Sonstige Zuschläge;Folie für Begleitheizung;1.1
-53.0;Sonstige Zuschläge;Abdeckung aus Alublech;1.25
-54.0;Sonstige Zuschläge;Höhenzuschlag 5-10 m;1.0
-55.0;Sonstige Zuschläge;Höhenzuschlag 11-15 m;1.0
-56.0;Sonstige Zuschläge;Höhenzuschlag 16-20 m;1.0
-57.0;Sonstige Zuschläge;Wochenendarbeit Samstag;1.18
-58.0;Sonstige Zuschläge;Wochenendarbeit Sonntag;1.25
-59.0;Sonstige Zuschläge;Arbeiten an Feiertagen;2.0
-60.0;Sonstige Zuschläge;Arbeiten in der Nacht;1.25
+54.0;Zuschläge;Höhenzuschlag 5-10 m;1.0
+55.0;Zuschläge;Höhenzuschlag 11-15 m;1.0
+56.0;Zuschläge;Höhenzuschlag 16-20 m;1.0
+57.0;Zuschläge;Wochenendarbeit Samstag;1.18
+58.0;Zuschläge;Wochenendarbeit Sonntag;1.25
+59.0;Zuschläge;Arbeiten an Feiertagen;2.0
+60.0;Zuschläge;Arbeiten in der Nacht;1.25
 42.0;Formteil;"Bogen 90°/1;5 D";1.25
 43.0;Formteil;"Bogen 90°/5;0 D";1.25
 44.0;Formteil;Stutzen;1.28
