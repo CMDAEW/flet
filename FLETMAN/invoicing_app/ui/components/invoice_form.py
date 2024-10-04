@@ -259,6 +259,36 @@ class InvoiceForm(ft.UserControl):
         # Load invoice options
         self.load_invoice_options()
 
+        artikel_eingabe = ft.Column([
+            ft.Row([
+                ft.Text("Position", width=80),
+                ft.Text("Tätigkeit", width=180),
+                ft.Text("Artikelbeschreibung", width=180),
+                ft.Text("DN", width=60),
+                ft.Text("DA", width=60),
+                ft.Text("Dämmdicke", width=90),
+                ft.Text("Sonderleistungen", width=130),
+                ft.Text("Zuschläge", width=90),
+                ft.Text("Preis", width=80),
+                ft.Text("Menge", width=70),
+                ft.Text("Zwischensumme", width=120),
+            ]),
+            ft.Row([
+                self.position_field,
+                self.taetigkeit_dropdown,
+                self.artikelbeschreibung_dropdown,
+                self.dn_dropdown,
+                self.da_dropdown,
+                self.dammdicke_dropdown,
+                self.sonderleistungen_button,
+                self.zuschlaege_button,
+                self.price_field,
+                self.quantity_input,
+                self.zwischensumme_field,
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
+        ])
+
         # Create a scrollable container using ListView
         return ft.Container(
             content=ft.ListView(
@@ -286,37 +316,13 @@ class InvoiceForm(ft.UserControl):
                                 ft.Column([self.ausfuehrungsbeginn_dropdown, self.ausfuehrungsbeginn_new_entry], col={"sm": 12, "md": 4}),
                                 ft.Column([self.ausfuehrungsende_dropdown, self.ausfuehrungsende_new_entry], col={"sm": 12, "md": 4}),
                             ]),
-                            ft.Container(height=50),  # Spacer
-                            # Item selection section
-                            ft.ResponsiveRow([
-                                ft.Column([self.position_field], col={"sm": 12, "md": 1}),
-                                ft.Column([self.taetigkeit_dropdown], col={"sm": 12, "md": 2}),
-                                ft.Column([self.artikelbeschreibung_dropdown], col={"sm": 12, "md": 2}),
-                                ft.Column([self.dn_dropdown], col={"sm": 12, "md": 1}),
-                                ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
-                                ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
-                                ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
-                                ft.Column([self.zuschlaege_button, self.zuschlaege_container], col={"sm": 12, "md": 1}),
-                                ft.Column([self.price_field], col={"sm": 12, "md": 1}),
-                                ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),
-                                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 1}),
-                            ]),
-                            ft.Container(height=50),  # Spacer
+                            ft.Container(height=20),  # Abstandhalter
+                            ft.Text("Artikeleingabe:", weight=ft.FontWeight.BOLD),
+                            artikel_eingabe,
+                            ft.Container(height=20),  # Abstandhalter
                             ft.Text("Artikelliste:", weight=ft.FontWeight.BOLD),
-                            ft.Row([
-                                ft.Text("Pos.", width=50),
-                                ft.Text("Artikelbeschreibung", width=200),
-                                ft.Text("DN", width=50),
-                                ft.Text("DA", width=50),
-                                ft.Text("Dämmdicke", width=80),
-                                ft.Text("Tätigkeit", width=100),
-                                ft.Text("Preis", width=80),
-                                ft.Text("Menge", width=50),
-                                ft.Text("Zwischensumme", width=100),
-                                ft.Text("", width=40)  # Platz für den Löschen-Button
-                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            self.article_list,  # Container for added articles
-                            ft.Container(height=20),  # Spacer
+                            self.article_list,
+                            ft.Container(height=20),  # Abstandhalter
                             self.total_price_field,  # Gesamtpreisfeld
                         ]),
                         padding=10,
@@ -1116,26 +1122,26 @@ class InvoiceForm(ft.UserControl):
         pass
 
     # Fügen Sie eine Methode zum Entfernen der Zeile hinzu
-    def add_article_row(self, e):
-        new_row = ft.Row([
-            ft.Text(self.position_field.value, width=50),
-            ft.Text(self.artikelbeschreibung_dropdown.value, width=200),
-            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=50),
-            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=50),
-            ft.Text(self.dammdicke_dropdown.value, width=80),
-            ft.Text(self.taetigkeit_dropdown.value, width=100),
-            ft.Text(self.price_field.value, width=80),
-            ft.Text(self.quantity_input.value, width=50),
-            ft.Text(self.zwischensumme_field.value, width=100),
-            ft.IconButton(
-                icon=ft.icons.DELETE,
-                on_click=lambda _: self.remove_article_row(new_row)
-            )
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        self.article_list.controls.append(new_row)
-        self.add_zwischensumme(float(self.zwischensumme_field.value))
-        self.reset_fields()
-        self.update()
+def add_article_row(self, e):
+    new_row = ft.Row([
+        ft.Text(self.position_field.value, width=50),
+        ft.Text(self.artikelbeschreibung_dropdown.value, expand=1),
+        ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=40),
+        ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=40),
+        ft.Text(self.dammdicke_dropdown.value, width=70),
+        ft.Text(self.taetigkeit_dropdown.value, width=100),
+        ft.Text(self.price_field.value, width=70),
+        ft.Text(self.quantity_input.value, width=50),
+        ft.Text(self.zwischensumme_field.value, width=80),
+        ft.IconButton(
+            icon=ft.icons.DELETE,
+            on_click=lambda _: self.remove_article_row(new_row)
+        )
+    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+    self.article_list.controls.append(new_row)
+    self.add_zwischensumme(float(self.zwischensumme_field.value))
+    self.reset_fields()
+    self.update()
 
     def remove_article_row(self, row):
         index = self.article_list.controls.index(row)
