@@ -50,7 +50,7 @@ def initialize_database():
     )
     ''')
 
-    # Create tables
+    # Create price_list table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS price_list (
             Positionsnummer TEXT PRIMARY KEY,
@@ -63,14 +63,7 @@ def initialize_database():
         )
     ''')
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Taetigkeiten (
-            Positionsnummer TEXT PRIMARY KEY,
-            Taetigkeit TEXT NOT NULL,
-            Faktor REAL NOT NULL
-        )
-    ''')
-
+    # Create Materialpreise table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Materialpreise (
             Positionsnummer TEXT PRIMARY KEY,
@@ -83,31 +76,7 @@ def initialize_database():
         )
     ''')
     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Zuschlaege (
-            Positionsnummer TEXT PRIMARY KEY,
-            Zuschlag TEXT NOT NULL,
-            Faktor REAL NOT NULL
-        )
-    ''')
-
-   
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS sonderleistungen (
-            Positionsnummer TEXT PRIMARY KEY,
-            Sonderleistung TEXT NOT NULL,
-            Faktor REAL NOT NULL
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Formteile (
-            Positionsnummer TEXT PRIMARY KEY,
-            Formteilbezeichnung TEXT NOT NULL,
-            Faktor REAL NOT NULL
-        )
-    ''')
-
+    # Create Faktoren table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS Faktoren (
         Positionsnummer TEXT PRIMARY KEY,
@@ -115,15 +84,11 @@ def initialize_database():
         Bezeichnung TEXT NOT NULL,
         Faktor REAL NOT NULL
     )
-''')
+    ''')
 
     # Import data from CSV files
     import_csv_to_table(cursor, 'EP.csv', 'price_list')
-    import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
     import_csv_to_table(cursor, 'Materialpreise.csv', 'Materialpreise')
-    import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
-    import_csv_to_table(cursor, 'Sonderleistungen.csv', 'Sonderleistungen')
-    import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
     import_csv_to_table(cursor, 'Faktoren.csv', 'Faktoren')
 
     conn.commit()
@@ -156,7 +121,7 @@ def insert_row_into_table(cursor, table_name, row):
     if table_name == 'price_list':
         try:
             cursor.execute('''
-                INSERT INTO price_list (item_number, dn, da, size, value, unit, bauteil)
+                INSERT INTO price_list (Positionsnummer, DN, DA, Size, Value, Unit, Bauteil)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
                 row[0],
@@ -187,44 +152,19 @@ def insert_row_into_table(cursor, table_name, row):
         except ValueError as e:
             logging.error(f"Error inserting row into Materialpreise: {e}")
             logging.error(f"Problematic row: {row}")
-    elif table_name == 'Formteile':
+    elif table_name == 'Faktoren':
         try:
             cursor.execute('''
-                INSERT INTO Formteile (Positionsnummer, Formteilbezeichnung, Preis)
-                VALUES (?, ?, ?)
+                INSERT INTO Faktoren (Positionsnummer, Art, Bezeichnung, Faktor)
+                VALUES (?, ?, ?, ?)
             ''', (
                 row[0],
                 row[1],
-                float(row[2].replace(',', '.'))
+                row[2],
+                float(row[3].replace(',', '.'))
             ))
         except ValueError as e:
-            logging.error(f"Error inserting row into Formteile: {e}")
-            logging.error(f"Problematic row: {row}")
-    elif table_name == 'Taetigkeiten':
-        try:
-            cursor.execute('''
-                INSERT INTO Taetigkeiten (Positionsnummer, Taetigkeit, Faktor)
-                VALUES (?, ?, ?)
-            ''', (
-                row[0],
-                row[1],
-                float(row[2].replace(',', '.'))
-            ))
-        except ValueError as e:
-            logging.error(f"Error inserting row into Taetigkeiten: {e}")
-            logging.error(f"Problematic row: {row}")
-    elif table_name == 'Zuschlaege':
-        try:
-            cursor.execute('''
-                INSERT INTO Zuschlaege (Position, Zuschlag, Faktor)
-                VALUES (?, ?, ?)
-            ''', (
-                int(row[0]),
-                row[1],
-                float(row[2].replace(',', '.'))
-            ))
-        except ValueError as e:
-            logging.error(f"Error inserting row into Zuschlaege: {e}")
+            logging.error(f"Error inserting row into Faktoren: {e}")
             logging.error(f"Problematic row: {row}")
     else:
         logging.error(f"Unknown table name: {table_name}")
