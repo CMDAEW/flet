@@ -108,6 +108,15 @@ def initialize_database():
         )
     ''')
 
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS Faktoren (
+        Positionsnummer TEXT PRIMARY KEY,
+        Art TEXT NOT NULL,
+        Bezeichnung TEXT NOT NULL,
+        Faktor REAL NOT NULL
+    )
+''')
+
     # Import data from CSV files
     import_csv_to_table(cursor, 'EP.csv', 'price_list')
     import_csv_to_table(cursor, 'Taetigkeiten.csv', 'Taetigkeiten')
@@ -115,6 +124,7 @@ def initialize_database():
     import_csv_to_table(cursor, 'Zuschlaege.csv', 'Zuschlaege')
     import_csv_to_table(cursor, 'Sonderleistungen.csv', 'Sonderleistungen')
     import_csv_to_table(cursor, 'Formteile.csv', 'Formteile')
+    import_csv_to_table(cursor, 'Faktoren.csv', 'Faktoren')
 
     conn.commit()
     logging.info("Database initialization completed successfully")

@@ -20,9 +20,9 @@ Positionsnummer,Art,Bezeichnung,Faktor
 45.0,Formteil,Reduzierung,1.15
 46.0,Formteil,Abflachung,1.2
 47.0,Formteil,Paßstück,1.25
-,Lohnzuschlag,,
-,Lohnzuschlag,,
-,Lohnzuschlag,,
-,Lohnzuschlag,,
-,Lohnzuschlag,,
-,Lohnzuschlag,,
+90.0,Lohnzuschlag,Bauvorarbeiter,6.0
+91.0,Lohnzuschlag,Bauarbeiter,5.0
+92.0,Lohnzuschlag,Bauhilfsarbeiter,4.0
+93.0,Lohnzuschlag,Ingenieur,3.0
+94.0,Lohnzuschlag,Techniker,2.0
+
