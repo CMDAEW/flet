@@ -53,8 +53,8 @@ class InvoiceForm(ft.UserControl):
             on_change=self.load_items
         )
         self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=180)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_da_fields, width=60)
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_dammdicke_options, width=60)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=60)
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=60)
         self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=90)
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=180)
         
@@ -89,24 +89,63 @@ class InvoiceForm(ft.UserControl):
         self.ausfuehrungsbeginn_new_entry = ft.TextField(label="Neuer Ausführungsbeginn", visible=False)
         self.ausfuehrungsende_new_entry = ft.TextField(label="Neues Ausführungsende", visible=False)
 
-    def update_da_fields(self, e):
+    def update_dammdicke_options(self, e=None):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value
+        da = self.da_dropdown.value
+        if bauteil and (not self.is_rohrleitung_or_formteil(bauteil) or (dn and da)):
+            dammdicke_options = self.get_all_dammdicke_options(bauteil, dn, da)
+            if dammdicke_options:
+                self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
+                self.dammdicke_dropdown.value = str(dammdicke_options[0])
+                self.dammdicke_dropdown.visible = True
+            else:
+                self.dammdicke_dropdown.options = []
+                self.dammdicke_dropdown.value = None
+                self.dammdicke_dropdown.visible = False
+        else:
+            self.dammdicke_dropdown.options = []
+            self.dammdicke_dropdown.value = None
+            self.dammdicke_dropdown.visible = False
+        
+        self.dammdicke_dropdown.update()
+        self.update_price()
+
+    def update_dn_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value
         if bauteil and dn and self.is_rohrleitung_or_formteil(bauteil):
-            da_options = self.get_all_da_options(bauteil)  # Entfernen Sie den DN-Parameter
-            if da_options:
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-                self.da_dropdown.value = str(da_options[0])
-            else:
-                self.da_dropdown.options = []
-                self.da_dropdown.value = None
-        else:
-            self.da_dropdown.options = []
-            self.da_dropdown.value = None
-        
-        self.da_dropdown.update()
+            da_options = self.get_corresponding_da(bauteil, dn)
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+            if not self.da_dropdown.value or self.da_dropdown.value not in [str(da) for da in da_options]:
+                self.da_dropdown.value = str(da_options[0]) if da_options else None
+            self.da_dropdown.update()
         self.update_dammdicke_options()
         self.update_price()
+
+    def update_da_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
+        da = self.da_dropdown.value
+        if bauteil and da and self.is_rohrleitung_or_formteil(bauteil):
+            dn_options = self.get_corresponding_dn(bauteil, da)
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
+            if not self.dn_dropdown.value or self.dn_dropdown.value not in [str(dn) for dn in dn_options]:
+                self.dn_dropdown.value = str(dn_options[0]) if dn_options else None
+            self.dn_dropdown.update()
+        self.update_dammdicke_options()
+        self.update_price()
+
+    def get_corresponding_da(self, bauteil, dn):
+        query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
+        params = ('Rohrleitung', dn)
+        options = self.get_from_cache_or_db(f"da_options_{bauteil}_{dn}", query, params)
+        return [float(da[0]) for da in options]
+
+    def get_corresponding_dn(self, bauteil, da):
+        query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DA = ? AND DN IS NOT NULL ORDER BY DN'
+        params = ('Rohrleitung', da)
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}_{da}", query, params)
+        return [float(dn[0]) for dn in options]
 
     def get_all_da_options(self, bauteil):
         if self.is_rohrleitung_or_formteil(bauteil):
@@ -114,7 +153,7 @@ class InvoiceForm(ft.UserControl):
             params = ('Rohrleitung',)
         else:
             return []
-        
+    
         options = self.get_from_cache_or_db(f"da_options_{bauteil}", query, params)
         return [float(da[0]) for da in options]
 
@@ -216,11 +255,14 @@ class InvoiceForm(ft.UserControl):
 
     # Verwenden Sie diese Methode in anderen Funktionen, z.B.:
     def get_all_dn_options(self, bauteil):
-        return self.get_from_cache_or_db(
-            f"dn_options_{bauteil}",
-            'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN',
-            (bauteil,)
-        )
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
+            params = ('Rohrleitung',)
+        else:
+            return []
+    
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
+        return [float(dn[0]) for dn in options]
 
     def show_snackbar(self, message):
         self.snackbar.content = ft.Text(message)
@@ -391,6 +433,7 @@ class InvoiceForm(ft.UserControl):
         self.update_price()
         self.update()
 
+    
     def update_dn_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
         if bauteil:
@@ -399,54 +442,35 @@ class InvoiceForm(ft.UserControl):
             self.dn_dropdown.visible = is_rohrleitung_or_formteil
             self.da_dropdown.visible = is_rohrleitung_or_formteil
             
-            if is_rohrleitung_or_formteil:
-                dn_options = self.get_all_dn_options(bauteil)
-                if dn_options:
-                    self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
-                    self.dn_dropdown.value = str(int(dn_options[0]))
-                    self.dn_dropdown.update()
-                    self.update_da_fields(None)
-                else:
-                    self.dn_dropdown.options = []
-                    self.dn_dropdown.value = None
-                    self.da_dropdown.options = []
-                    self.da_dropdown.value = None
-            else:
-                self.dn_dropdown.options = []
-                self.dn_dropdown.value = None
-                self.da_dropdown.options = []
-                self.da_dropdown.value = None
+        if is_rohrleitung_or_formteil:
+            dn_options = self.get_all_dn_options(bauteil)
+            da_options = self.get_all_da_options(bauteil)
             
-            self.update_dammdicke_options()
-            self.update_price()
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+            
+            if not self.dn_dropdown.value or self.dn_dropdown.value not in [str(dn) for dn in dn_options]:
+                self.dn_dropdown.value = str(dn_options[0]) if dn_options else None
+            
+            if not self.da_dropdown.value or self.da_dropdown.value not in [str(da) for da in da_options]:
+                self.da_dropdown.value = str(da_options[0]) if da_options else None
+            
+            self.dn_dropdown.update()
+            self.da_dropdown.update()
         else:
-            self.dn_dropdown.visible = False
-            self.da_dropdown.visible = False
+            self.dn_dropdown.options = []
+            self.dn_dropdown.value = None
+            self.da_dropdown.options = []
+            self.da_dropdown.value = None
         
+        self.update_dammdicke_options()
+        self.update_price()
+        
+    
+    
         self.dn_dropdown.update()
         self.da_dropdown.update()
         self.update()
-
-    def update_dammdicke_options(self):
-        bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value
-        da = self.da_dropdown.value
-        if bauteil and (not self.is_rohrleitung_or_formteil(bauteil) or (dn and da)):
-            dammdicke_options = self.get_all_dammdicke_options(bauteil, dn, da)
-            if dammdicke_options:
-                self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-                self.dammdicke_dropdown.value = str(dammdicke_options[0])
-                self.dammdicke_dropdown.visible = True
-            else:
-                self.dammdicke_dropdown.options = []
-                self.dammdicke_dropdown.value = None
-                self.dammdicke_dropdown.visible = False
-        else:
-            self.dammdicke_dropdown.options = []
-            self.dammdicke_dropdown.value = None
-            self.dammdicke_dropdown.visible = False
-        
-        self.dammdicke_dropdown.update()
 
     def get_all_dammdicke_options(self, bauteil, dn=None, da=None):
         if self.is_rohrleitung_or_formteil(bauteil):
@@ -469,23 +493,8 @@ class InvoiceForm(ft.UserControl):
             return int(match.group())
         return 0  # Fallback, falls keine Zahl gefunden wird
 
-    def update_dn_fields(self, e):
-        self.update_da_fields(None)
-        self.update_dammdicke_options()
-        self.update_price()
-
     def on_dammdicke_change(self, e):
         self.update_price()
-
-    def get_all_dn_options(self, bauteil):
-        if self.is_rohrleitung_or_formteil(bauteil):
-            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
-            params = ('Rohrleitung',)
-        else:
-            return []
-        
-        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
-        return [float(dn[0]) for dn in options]
 
     def is_rohrleitung_or_formteil(self, bauteil):
         if bauteil == 'Rohrleitung':
@@ -626,43 +635,6 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
-    def get_corresponding_dn(self, bauteil, da):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT dn FROM price_list WHERE bauteil = ? AND da = ? AND value IS NOT NULL AND value != 0 ORDER BY dn LIMIT 1', ('Rohrleitung', da))
-            else:
-                cursor.execute('SELECT dn FROM price_list WHERE bauteil = ? AND da = ? AND value IS NOT NULL AND value != 0 ORDER BY dn LIMIT 1', (bauteil, da))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            cursor.close()
-
-    def get_corresponding_da(self, bauteil, dn):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT da FROM price_list WHERE bauteil = ? AND dn = ? AND value IS NOT NULL AND value != 0 ORDER BY da LIMIT 1', ('Rohrleitung', dn))
-            else:
-                cursor.execute('SELECT da FROM price_list WHERE bauteil = ? AND dn = ? AND value IS NOT NULL AND value != 0 ORDER BY da LIMIT 1', (bauteil, dn))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            cursor.close()
-
-    def get_all_dn_options(self, bauteil):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT dn FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY dn', ('Rohrleitung',))
-            else:
-                cursor.execute('SELECT DISTINCT dn FROM price_list WHERE bauteil = ? AND value IS NOT NULL AND value != 0 ORDER BY dn', (bauteil,))
-            return sorted(set(int(row[0]) for row in cursor.fetchall() if row[0] is not None and row[0] != 0))
-        finally:
-            cursor.close()
 
     def get_dammdicke_options(self, bauteil, dn=None, da=None):
         conn = self.conn
@@ -957,43 +929,6 @@ class InvoiceForm(ft.UserControl):
             return cursor.fetchone() is not None
         finally:
             cursor.close()
-
-    def get_corresponding_dn(self, bauteil, da):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT dn FROM price_list WHERE bauteil = ? AND da = ? AND value IS NOT NULL AND value != 0 ORDER BY dn LIMIT 1', ('Rohrleitung', da))
-            else:
-                cursor.execute('SELECT dn FROM price_list WHERE bauteil = ? AND da = ? AND value IS NOT NULL AND value != 0 ORDER BY dn LIMIT 1', (bauteil, da))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            cursor.close()
-
-    def get_corresponding_da(self, bauteil, dn):
-        conn = self.conn
-        cursor = conn.cursor()
-        try:
-            if self.is_formteil(bauteil):
-                cursor.execute('SELECT da FROM price_list WHERE bauteil = ? AND dn = ? AND value IS NOT NULL AND value != 0 ORDER BY da LIMIT 1', ('Rohrleitung', dn))
-            else:
-                cursor.execute('SELECT da FROM price_list WHERE bauteil = ? AND dn = ? AND value IS NOT NULL AND value != 0 ORDER BY da LIMIT 1', (bauteil, dn))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        finally:
-            cursor.close()
-
-
-    def get_all_dn_options(self, bauteil):
-        if self.is_rohrleitung_or_formteil(bauteil):
-            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
-            params = ('Rohrleitung',)
-        else:
-            return []
-        
-        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
-        return [float(dn[0]) for dn in options]
 
     def get_dammdicke_options(self, bauteil, dn=None, da=None):
         conn = self.conn
