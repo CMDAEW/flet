@@ -437,7 +437,7 @@ class InvoiceForm(ft.UserControl):
     def reset_fields(self):
         for field in [self.position_field, self.price_field, self.zwischensumme_field]:
             field.value = ""
-        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown, self.zuschlaege_dropdown]:
+        for dropdown in [self.artikelbeschreibung_dropdown, self.taetigkeit_dropdown, self.dn_dropdown, self.da_dropdown, self.dammdicke_dropdown, self.zuschlaege_button]:
             dropdown.options.clear()
             dropdown.visible = False
         self.quantity_input.visible = False
@@ -452,8 +452,8 @@ class InvoiceForm(ft.UserControl):
         # Load Zuschläge
         cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
         zuschlaege = cursor.fetchall()
-        self.zuschlaege_dropdown.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
-        self.zuschlaege_dropdown.visible = True
+        self.zuschlaege_button.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
+        self.zuschlaege_button.visible = True
 
         # Load Bauteil (Artikelbeschreibung) and Formteile
         cursor.execute("SELECT DISTINCT Bauteil FROM price_list ORDER BY Bauteil")
@@ -910,8 +910,8 @@ class InvoiceForm(ft.UserControl):
         # Load Zuschläge
         cursor.execute("SELECT DISTINCT Zuschlag FROM Zuschlaege ORDER BY Zuschlag")
         zuschlaege = cursor.fetchall()
-        self.zuschlaege_dropdown.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
-        self.zuschlaege_dropdown.visible = True
+        self.zuschlaege_button.options = [ft.dropdown.Option(zuschlag[0]) for zuschlag in zuschlaege]
+        self.zuschlaege_button.visible = True
 
         # Load Bauteil (Artikelbeschreibung) and Formteile
         cursor.execute("SELECT DISTINCT Bauteil FROM price_list ORDER BY Bauteil")
