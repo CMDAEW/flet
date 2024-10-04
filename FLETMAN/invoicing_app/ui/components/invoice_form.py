@@ -157,9 +157,10 @@ class InvoiceForm(ft.UserControl):
                 ft.Column([self.dn_dropdown], col={"sm": 12, "md": 1}),
                 ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
                 ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
+                ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),  # Preisfeld hier
                 ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),  # Mengefeld hier
-                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),  # Zwischensumme rechts daneben
+                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),  # Zwischensumme rechts daneben  # Add this line
             ]),
             ft.ResponsiveRow([
                 ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
@@ -233,30 +234,33 @@ class InvoiceForm(ft.UserControl):
 
             # Faktor für die Sonderleistung abrufen
             if self.selected_sonderleistungen:  # Überprüfen, ob Sonderleistungen ausgewählt sind
-                for sonderleistung in self.selected_sonderleistungen: # Überprüfen, ob sonderleistung ausgewählt ist
+                for sonderleistung in self.selected_sonderleistungen:
                     cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
                     faktor_result = cursor.fetchone()
                     if faktor_result:
                         faktor = float(faktor_result[0])
-                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor
+                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor für jede ausgewählte Sonderleistung
 
             self.position_field.value = position
             self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
+
             # Berechnung der Zwischensumme
             quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
             zwischensumme = base_price * quantity
             self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren der Zwischensumme
 
-            # Zwischensumme zur Liste hinzufügen
-            self.article_summaries.append(zwischensumme)
-
             # Gesamtpreis aktualisieren
-            self.update_total_price()
+            self.update_total_price()  # Update total price based on current article summaries
         else:
             self.position_field.value = ""
             self.price_field.value = ""
 
         self.update()
+
+    def update_total_price(self):
+        total_price = sum(self.article_summaries)  # Summe der aktuellen Zwischensummen
+        self.total_price_field.value = f"{total_price:.2f}"  # Gesamtpreis aktualisieren
+        self.total_price_field.update()  # Aktualisiere das Feld in der Benutzeroberfläche
 
     def update_dn_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
@@ -582,7 +586,116 @@ class InvoiceForm(ft.UserControl):
     def remove_article_row(self, e):
         # Logik zum Entfernen der Artikelzeile
         pass
+    def update_price(self, e=None):
+        cursor = self.conn.cursor()
+        bauteil = self.artikelbeschreibung_dropdown.value
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        size = self.dammdicke_dropdown.value
+        taetigkeit = self.taetigkeit_dropdown.value
+        
+        if not bauteil or not size or not taetigkeit:
+            # Zurücksetzen des Preises, wenn erforderliche Werte fehlen
+            self.position_field.value = ""
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""  # Zurücksetzen der Zwischensumme
+            self.update()
+            return
+
+        # Initialize base_price
+        base_price = 0.0
+
+        # Prüfen, ob es sich um ein Formteil handelt
+        cursor.execute('SELECT Positionsnummer, Faktor FROM Formteile WHERE Formteilbezeichnung = ?', (bauteil,))
+        formteil_result = cursor.fetchone()
+
+        if formteil_result:
+            position, formteil_factor = formteil_result
+            # Basispreis für Rohrleitung abrufen
+            cursor.execute(''' 
+                SELECT Value 
+                FROM price_list 
+                WHERE Bauteil = 'Rohrleitung' AND DN = ? AND DA = ? AND Size = ? 
+            ''', (dn, da, size))
+        elif self.is_rohrleitung_or_formteil(bauteil):
+            cursor.execute(''' 
+                SELECT Positionsnummer, Value 
+                FROM price_list 
+                WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ? 
+            ''', (bauteil, dn, da, size))
+        else:
+            # Für andere Bauteile ohne DN und DA
+            cursor.execute(''' 
+                SELECT Positionsnummer, Value 
+                FROM price_list 
+                WHERE Bauteil = ? AND Size = ? 
+            ''', (bauteil, size))
+
+        result = cursor.fetchone()
+
+        if result:
+            if formteil_result:
+                base_price = float(result[0])
+                base_price *= float(formteil_factor)
+                position = formteil_result[0]
+            else:
+                position, base_price = result
+                base_price = float(base_price)
+
+            # Tätigkeit-Faktor anwenden
+            cursor.execute('SELECT Faktor FROM Taetigkeiten WHERE Taetigkeit = ?', (taetigkeit,))
+            taetigkeit_result = cursor.fetchone()
+            if taetigkeit_result:
+                factor = float(taetigkeit_result[0])
+                base_price *= factor
+
+            # Faktor für die Sonderleistung abrufen
+            if self.selected_sonderleistungen:  # Überprüfen, ob Sonderleistungen ausgewählt sind
+                for sonderleistung in self.selected_sonderleistungen:
+                    cursor.execute("SELECT faktor FROM sonderleistungen WHERE sonderleistung = ?", (sonderleistung,))
+                    faktor_result = cursor.fetchone()
+                    if faktor_result:
+                        faktor = float(faktor_result[0])
+                        base_price *= faktor  # Multipliziere den Basispreis mit dem Faktor für jede ausgewählte Sonderleistung
+
+            self.position_field.value = position
+            self.price_field.value = f"{base_price:.2f}"  # Auf 2 Dezimalstellen formatieren
+
+            # Berechnung der Zwischensumme
+            quantity = int(self.quantity_input.value) if self.quantity_input.value.isdigit() else 0
+            zwischensumme = base_price * quantity
+            self.zwischensumme_field.value = f"{zwischensumme:.2f}"  # Aktualisieren der Zwischensumme
+
+            # Gesamtpreis aktualisieren
+            self.update_total_price()  # Update total price based on current article summaries
+        else:
+            self.position_field.value = ""
+            self.price_field.value = ""
+
+        self.update()
 
     def update_total_price(self):
-        total_price = sum(self.article_summaries)
+        total_price = sum(self.article_summaries)  # Summe der aktuellen Zwischensummen
         self.total_price_field.value = f"{total_price:.2f}"  # Gesamtpreis aktualisieren
+        self.total_price_field.update()  # Aktualisiere das Feld in der Benutzeroberfläche
+
+    def update_zwischensumme(self, index, new_value):
+        # Aktualisiere die Zwischensumme an der gegebenen Position
+        self.article_summaries[index] = new_value
+        self.update_total_price()  # Aktualisiere den Gesamtpreis
+        self.reset_fields()  # Setze die Felder zurück nach jeder Änderung der Zwischensumme
+
+    def add_zwischensumme(self, value):
+        # Füge eine neue Zwischensumme hinzu
+        self.article_summaries.append(value)
+        self.update_total_price()  # Aktualisiere den Gesamtpreis
+
+    def remove_zwischensumme(self, index):
+        # Entferne eine Zwischensumme an der gegebenen Position
+        del self.article_summaries[index]
+        self.update_total_price()  # Aktualisiere den Gesamtpreis
+
+    # Diese Methode sollte bei jeder Änderung der Menge aufgerufen werden
+    def update_quantity(self, e):
+        self.update_price()  # Aktualisiert die Zwischensumme
+        self.update_total_price()  # Aktualisiert den Gesamtpreis
