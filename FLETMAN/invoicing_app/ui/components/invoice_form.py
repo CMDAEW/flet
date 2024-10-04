@@ -228,9 +228,9 @@ class InvoiceForm(ft.UserControl):
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
-
     def is_formteil(self, bauteil):
-        formteil = self.get_from_cache_or_db(f"is_formteil_{bauteil}", 'SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil        return bool(formteil)
+        formteil = self.get_from_cache_or_db(f"is_formteil_{bauteil}", 'SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
+        return bool(formteil)
 
     def get_from_cache_or_db(self, key, query, params=()):
         if key not in self.cache:
