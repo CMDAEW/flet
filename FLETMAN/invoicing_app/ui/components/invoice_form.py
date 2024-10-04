@@ -4,9 +4,11 @@ from database.db_operations import get_db_connection
 import asyncio
 
 class InvoiceForm(ft.UserControl):
+class InvoiceForm(ft.UserControl):
     def __init__(self):
         super().__init__()
         self.conn = get_db_connection()
+        self.cache = {}  # Cache für Datenbankabfragen
         self.article_summaries = []  # Liste zur Speicherung der Zwischensummen
         self.total_price_field = ft.TextField(label="Gesamtpreis", read_only=True)  # Gesamtpreisfeld
         self.sonderleistungen = []  # Store the options for sonderleistungen
@@ -49,7 +51,6 @@ class InvoiceForm(ft.UserControl):
         self.price_field = ft.TextField(label="Preis", read_only=True)
         self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price)  # on_change hinzugefügt
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True)
-        self.add_button = ft.ElevatedButton("Position hinzufügen", on_click=self.add_article_row)
 
         # Snackbar for notifications
         self.snackbar = ft.SnackBar(content=ft.Text("")) 
@@ -80,26 +81,50 @@ class InvoiceForm(ft.UserControl):
         self.load_taetigkeiten()
         self.load_sonderleistungen()
 
+    def get_from_cache_or_db(self, key, query, params=None):
+        if key not in self.cache:
+            cursor = self.conn.cursor()
+            cursor.execute(query, params or ())
+            self.cache[key] = cursor.fetchall()
+        return self.cache[key]
+
+    # Verwenden Sie diese Methode in anderen Funktionen, z.B.:
+    def get_all_dn_options(self, bauteil):
+        return self.get_from_cache_or_db(
+            f"dn_options_{bauteil}",
+            'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN',
+            (bauteil,)
+        )
+
     def show_snackbar(self, message):
         self.snackbar.content = ft.Text(message)
         self.snackbar.open = True
         self.update()
 
     def add_article_row(self, e):
-        # Create a new row for article input
-        article_row = self.create_article_row()
-        self.article_rows.append(article_row)
-        self.article_list.controls.append(article_row)
+        new_row = ft.Row([
+            ft.Text(self.position_field.value),
+            ft.Text(self.artikelbeschreibung_dropdown.value),
+            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else ""),
+            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else ""),
+            ft.Text(self.dammdicke_dropdown.value),
+            ft.Text(self.price_field.value),
+            ft.Text(self.quantity_input.value),
+            ft.Text(self.zwischensumme_field.value),
+            ft.IconButton(
+                icon=ft.icons.DELETE,
+                on_click=lambda _: self.remove_article_row(new_row)
+            )
+        ])
+        self.article_list.controls.append(new_row)
+        self.add_zwischensumme(float(self.zwischensumme_field.value))
+        self.reset_fields()
         self.update()
 
-        # Show Snackbar notification
-        self.show_snackbar("Artikel erfolgreich hinzugefügt!")
-
-    def add_article_row(self, e):
-        # Create a new row for article input
-        article_row = self.create_article_row()
-        self.article_rows.append(article_row)
-        self.article_list.controls.append(article_row)
+    def remove_article_row(self, row):
+        index = self.article_list.controls.index(row)
+        self.article_list.controls.remove(row)
+        self.remove_zwischensumme(index)
         self.update()
 
     def create_article_row(self):
@@ -1021,9 +1046,31 @@ class InvoiceForm(ft.UserControl):
         pass
 
     # Fügen Sie eine Methode zum Entfernen der Zeile hinzu
-    def remove_article_row(self, e):
-        # Logik zum Entfernen der Artikelzeile
-        pass
+    def add_article_row(self, e):
+        new_row = ft.Row([
+            ft.Text(self.position_field.value),
+            ft.Text(self.artikelbeschreibung_dropdown.value),
+            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else ""),
+            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else ""),
+            ft.Text(self.dammdicke_dropdown.value),
+            ft.Text(self.price_field.value),
+            ft.Text(self.quantity_input.value),
+            ft.Text(self.zwischensumme_field.value),
+            ft.IconButton(
+                icon=ft.icons.DELETE,
+                on_click=lambda _: self.remove_article_row(new_row)
+            )
+        ])
+        self.article_list.controls.append(new_row)
+        self.add_zwischensumme(float(self.zwischensumme_field.value))
+        self.reset_fields()
+        self.update()
+
+    def remove_article_row(self, row):
+        index = self.article_list.controls.index(row)
+        self.article_list.controls.remove(row)
+        self.remove_zwischensumme(index)
+        self.update()
     def update_price(self, e=None):
         cursor = self.conn.cursor()
         bauteil = self.artikelbeschreibung_dropdown.value

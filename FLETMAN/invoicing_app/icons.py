@@ -1,0 +1,123 @@
+import flet as ft
+
+def main(page: ft.Page):
+    page.title = "Flet Icons Example"
+
+    # Create a list of icons with their corresponding labels
+    icons = [
+        {"icon": ft.icons.WIFI_PASSWORD_ROUNDED, "label": "WIFI_PASSWORD_ROUNDED"},
+        {"icon": ft.icons.WIFI_PASSWORD_SHARP, "label": "WIFI_PASSWORD_SHARP"},
+        {"icon": ft.icons.WIFI_PROTECTED_SETUP, "label": "WIFI_PROTECTED_SETUP"},
+        {"icon": ft.icons.WIFI_PROTECTED_SETUP_OUTLINED, "label": "WIFI_PROTECTED_SETUP_OUTLINED"},
+        {"icon": ft.icons.WIFI_PROTECTED_SETUP_ROUNDED, "label": "WIFI_PROTECTED_SETUP_ROUNDED"},
+        {"icon": ft.icons.WIFI_PROTECTED_SETUP_SHARP, "label": "WIFI_PROTECTED_SETUP_SHARP"},
+        {"icon": ft.icons.WIFI_ROUNDED, "label": "WIFI_ROUNDED"},
+        {"icon": ft.icons.WIFI_SHARP, "label": "WIFI_SHARP"},
+        {"icon": ft.icons.WIFI_TETHERING, "label": "WIFI_TETHERING"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR, "label": "WIFI_TETHERING_ERROR"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_OUTLINED, "label": "WIFI_TETHERING_ERROR_OUTLINED"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_ROUNDED, "label": "WIFI_TETHERING_ERROR_ROUNDED"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_ROUNDED_OUTLINED, "label": "WIFI_TETHERING_ERROR_ROUNDED_OUTLINED"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_ROUNDED_ROUNDED, "label": "WIFI_TETHERING_ERROR_ROUNDED_ROUNDED"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_ROUNDED_SHARP, "label": "WIFI_TETHERING_ERROR_ROUNDED_SHARP"},
+        {"icon": ft.icons.WIFI_TETHERING_ERROR_SHARP, "label": "WIFI_TETHERING_ERROR_SHARP"},
+        {"icon": ft.icons.WIFI_TETHERING_OFF, "label": "WIFI_TETHERING_OFF"},
+        {"icon": ft.icons.WIFI_TETHERING_OFF_OUTLINED, "label": "WIFI_TETHERING_OFF_OUTLINED"},
+        {"icon": ft.icons.WIFI_TETHERING_OFF_ROUNDED, "label": "WIFI_TETHERING_OFF_ROUNDED"},
+        {"icon": ft.icons.WIFI_TETHERING_OFF_SHARP, "label": "WIFI_TETHERING_OFF_SHARP"},
+        {"icon": ft.icons.WIFI_TETHERING_OUTLINED, "label": "WIFI_TETHERING_OUTLINED"},
+        {"icon": ft.icons.WIFI_TETHERING_ROUNDED, "label": "WIFI_TETHERING_ROUNDED"},
+        {"icon": ft.icons.WIFI_TETHERING_SHARP, "label": "WIFI_TETHERING_SHARP"},
+        {"icon": ft.icons.WINDOW, "label": "WINDOW"},
+        {"icon": ft.icons.WINDOW_OUTLINED, "label": "WINDOW_OUTLINED"},
+        {"icon": ft.icons.WINDOW_ROUNDED, "label": "WINDOW_ROUNDED"},
+        {"icon": ft.icons.WINDOW_SHARP, "label": "WINDOW_SHARP"},
+        {"icon": ft.icons.WIND_POWER, "label": "WIND_POWER"},
+        {"icon": ft.icons.WIND_POWER_OUTLINED, "label": "WIND_POWER_OUTLINED"},
+        {"icon": ft.icons.WIND_POWER_ROUNDED, "label": "WIND_POWER_ROUNDED"},
+        {"icon": ft.icons.WIND_POWER_SHARP, "label": "WIND_POWER_SHARP"},
+        {"icon": ft.icons.WINE_BAR, "label": "WINE_BAR"},
+        {"icon": ft.icons.WINE_BAR_OUTLINED, "label": "WINE_BAR_OUTLINED"},
+        {"icon": ft.icons.WINE_BAR_ROUNDED, "label": "WINE_BAR_ROUNDED"},
+        {"icon": ft.icons.WINE_BAR_SHARP, "label": "WINE_BAR_SHARP"},
+        {"icon": ft.icons.WOMAN, "label": "WOMAN"},
+        {"icon": ft.icons.WOMAN_2, "label": "WOMAN_2"},
+        {"icon": ft.icons.WOMAN_2_OUTLINED, "label": "WOMAN_2_OUTLINED"},
+        {"icon": ft.icons.WOMAN_2_ROUNDED, "label": "WOMAN_2_ROUNDED"},
+        {"icon": ft.icons.WOMAN_2_SHARP, "label": "WOMAN_2_SHARP"},
+        {"icon": ft.icons.WOMAN_OUTLINED, "label": "WOMAN_OUTLINED"},
+        {"icon": ft.icons.WOMAN_ROUNDED, "label": "WOMAN_ROUNDED"},
+        {"icon": ft.icons.WOMAN_SHARP, "label": "WOMAN_SHARP"},
+        {"icon": ft.icons.WOO_COMMERCE, "label": "WOO_COMMERCE"},
+        {"icon": ft.icons.WOO_COMMERCE_OUTLINED, "label": "WOO_COMMERCE_OUTLINED"},
+        {"icon": ft.icons.WOO_COMMERCE_ROUNDED, "label": "WOO_COMMERCE_ROUNDED"},
+        {"icon": ft.icons.WOO_COMMERCE_SHARP, "label": "WOO_COMMERCE_SHARP"},
+        {"icon": ft.icons.WORDPRESS, "label": "WORDPRESS"},
+        {"icon": ft.icons.WORDPRESS_OUTLINED, "label": "WORDPRESS_OUTLINED"},
+        {"icon": ft.icons.WORDPRESS_ROUNDED, "label": "WORDPRESS_ROUNDED"},
+        {"icon": ft.icons.WORDPRESS_SHARP, "label": "WORDPRESS_SHARP"},
+        {"icon": ft.icons.WORK, "label": "WORK"},
+        {"icon": ft.icons.WORKSPACES, "label": "WORKSPACES"},
+        {"icon": ft.icons.WORKSPACES_FILLED, "label": "WORKSPACES_FILLED"},
+        {"icon": ft.icons.WORKSPACES_OUTLINE, "label": "WORKSPACES_OUTLINE"},
+        {"icon": ft.icons.WORKSPACES_OUTLINED, "label": "WORKSPACES_OUTLINED"},
+        {"icon": ft.icons.WORKSPACES_ROUNDED, "label": "WORKSPACES_ROUNDED"},
+        {"icon": ft.icons.WORKSPACES_SHARP, "label": "WORKSPACES_SHARP"},
+        {"icon": ft.icons.WORKSPACE_PREMIUM, "label": "WORKSPACE_PREMIUM"},
+        {"icon": ft.icons.WORKSPACE_PREMIUM_OUTLINED, "label": "WORKSPACE_PREMIUM_OUTLINED"},
+        {"icon": ft.icons.WORKSPACE_PREMIUM_ROUNDED, "label": "WORKSPACE_PREMIUM_ROUNDED"},
+        {"icon": ft.icons.WORKSPACE_PREMIUM_SHARP, "label": "WORKSPACE_PREMIUM_SHARP"},
+        {"icon": ft.icons.WORK_HISTORY, "label": "WORK_HISTORY"},
+        {"icon": ft.icons.WORK_HISTORY_OUTLINED, "label": "WORK_HISTORY_OUTLINED"},
+        {"icon": ft.icons.WORK_HISTORY_ROUNDED, "label": "WORK_HISTORY_ROUNDED"},
+        {"icon": ft.icons.WORK_HISTORY_SHARP, "label": "WORK_HISTORY_SHARP"},
+        {"icon": ft.icons.WORK_OFF, "label": "WORK_OFF"},
+        {"icon": ft.icons.WORK_OFF_OUTLINED, "label": "WORK_OFF_OUTLINED"},
+        {"icon": ft.icons.WORK_OFF_ROUNDED, "label": "WORK_OFF_ROUNDED"},
+        {"icon": ft.icons.WORK_OFF_SHARP, "label": "WORK_OFF_SHARP"},
+        {"icon": ft.icons.WORK_OUTLINE, "label": "WORK_OUTLINE"},
+        {"icon": ft.icons.WORK_OUTLINED, "label": "WORK_OUTLINED"},
+        {"icon": ft.icons.WORK_OUTLINE_OUTLINED, "label": "WORK_OUTLINE_OUTLINED"},
+        {"icon": ft.icons.WORK_OUTLINE_ROUNDED, "label": "WORK_OUTLINE_ROUNDED"},
+        {"icon": ft.icons.WORK_OUTLINE_SHARP, "label": "WORK_OUTLINE_SHARP"},
+        {"icon": ft.icons.WORK_ROUNDED, "label": "WORK_ROUNDED"},
+        {"icon": ft.icons.WORK_SHARP, "label": "WORK_SHARP"},
+        {"icon": ft.icons.WRAP_TEXT, "label": "WRAP_TEXT"},
+        {"icon": ft.icons.WRAP_TEXT_OUTLINED, "label": "WRAP_TEXT_OUTLINED"},
+        {"icon": ft.icons.WRAP_TEXT_ROUNDED, "label": "WRAP_TEXT_ROUNDED"},
+        {"icon": ft.icons.WRAP_TEXT_SHARP, "label": "WRAP_TEXT_SHARP"},
+        {"icon": ft.icons.WRONG_LOCATION, "label": "WRONG_LOCATION"},
+        {"icon": ft.icons.WRONG_LOCATION_OUTLINED, "label": "WRONG_LOCATION_OUTLINED"},
+        {"icon": ft.icons.WRONG_LOCATION_ROUNDED, "label": "WRONG_LOCATION_ROUNDED"},
+        {"icon": ft.icons.WRONG_LOCATION_SHARP, "label": "WRONG_LOCATION_SHARP"},
+        {"icon": ft.icons.WYSIWYG, "label": "WYSIWYG"},
+        {"icon": ft.icons.WYSIWYG_OUTLINED, "label": "WYSIWYG_OUTLINED"},
+        {"icon": ft.icons.WYSIWYG_ROUNDED, "label": "WYSIWYG_ROUNDED"},
+        {"icon": ft.icons.WYSIWYG_SHARP, "label": "WYSIWYG_SHARP"},
+        {"icon": ft.icons.YARD, "label": "YARD"},
+        {"icon": ft.icons.YARD_OUTLINED, "label": "YARD_OUTLINED"},
+        {"icon": ft.icons.YARD_ROUNDED, "label": "YARD_ROUNDED"},
+        {"icon": ft.icons.YARD_SHARP, "label": "YARD_SHARP"},
+        {"icon": ft.icons.YOUTUBE_SEARCHED_FOR, "label": "YOUTUBE_SEARCHED_FOR"},
+        {"icon": ft.icons.YOUTUBE_SEARCHED_FOR_OUTLINED, "label": "YOUTUBE_SEARCHED_FOR_OUTLINED"},
+        {"icon": ft.icons.YOUTUBE_SEARCHED_FOR_ROUNDED, "label": "YOUTUBE_SEARCHED_FOR_ROUNDED"},
+        {"icon": ft.icons.YOUTUBE_SEARCHED_FOR_SHARP, "label": "YOUTUBE_SEARCHED_FOR_SHARP"},
+        {"icon": ft.icons.ZOOM_IN, "label": "ZOOM_IN"},
+    ]
+
+    # Create a column to hold the icon buttons
+    icon_buttons = ft.Column()
+
+    for item in icons:
+        icon_button = ft.IconButton(
+            icon=item["icon"],
+            tooltip=item["label"],
+            on_click=lambda e, label=item["label"]: print(f"{label} clicked")
+        )
+        icon_buttons.controls.append(icon_button)
+
+    # Add the icon buttons to the page
+    page.add(icon_buttons)
+
+# Run the app
+ft.app(target=main)
