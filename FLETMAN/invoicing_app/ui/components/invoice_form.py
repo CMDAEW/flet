@@ -298,15 +298,25 @@ class InvoiceForm(ft.UserControl):
                                 ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
                                 ft.Column([self.zuschlaege_button, self.zuschlaege_container], col={"sm": 12, "md": 1}),
                                 ft.Column([self.price_field], col={"sm": 12, "md": 1}),
-                                ft.Column([
-                                    ft.Row([
-                                        self.quantity_input,
-                                        self.zwischensumme_field
-                                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-                                ], col={"sm": 12, "md": 2}),
+                                ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),
+                                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 1}),
                             ]),
                             ft.Container(height=50),  # Spacer
+                            ft.Text("Artikelliste:", weight=ft.FontWeight.BOLD),
+                            ft.Row([
+                                ft.Text("Pos.", width=50),
+                                ft.Text("Artikelbeschreibung", width=200),
+                                ft.Text("DN", width=50),
+                                ft.Text("DA", width=50),
+                                ft.Text("Dämmdicke", width=80),
+                                ft.Text("Tätigkeit", width=100),
+                                ft.Text("Preis", width=80),
+                                ft.Text("Menge", width=50),
+                                ft.Text("Zwischensumme", width=100),
+                                ft.Text("", width=40)  # Platz für den Löschen-Button
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             self.article_list,  # Container for added articles
+                            ft.Container(height=20),  # Spacer
                             self.total_price_field,  # Gesamtpreisfeld
                         ]),
                         padding=10,
@@ -1108,19 +1118,20 @@ class InvoiceForm(ft.UserControl):
     # Fügen Sie eine Methode zum Entfernen der Zeile hinzu
     def add_article_row(self, e):
         new_row = ft.Row([
-            ft.Text(self.position_field.value),
-            ft.Text(self.artikelbeschreibung_dropdown.value),
-            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else ""),
-            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else ""),
-            ft.Text(self.dammdicke_dropdown.value),
-            ft.Text(self.price_field.value),
-            ft.Text(self.quantity_input.value),
-            ft.Text(self.zwischensumme_field.value),
+            ft.Text(self.position_field.value, width=50),
+            ft.Text(self.artikelbeschreibung_dropdown.value, width=200),
+            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=50),
+            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=50),
+            ft.Text(self.dammdicke_dropdown.value, width=80),
+            ft.Text(self.taetigkeit_dropdown.value, width=100),
+            ft.Text(self.price_field.value, width=80),
+            ft.Text(self.quantity_input.value, width=50),
+            ft.Text(self.zwischensumme_field.value, width=100),
             ft.IconButton(
                 icon=ft.icons.DELETE,
                 on_click=lambda _: self.remove_article_row(new_row)
             )
-        ])
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         self.article_list.controls.append(new_row)
         self.add_zwischensumme(float(self.zwischensumme_field.value))
         self.reset_fields()
