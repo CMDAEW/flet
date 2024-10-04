@@ -211,51 +211,65 @@ class InvoiceForm(ft.UserControl):
         # Load invoice options
         self.load_invoice_options()
 
-        return ft.Column([
-            ft.Container(
-                content=self.category_dropdown,
-                alignment=ft.alignment.center,
-                margin=ft.margin.only(bottom=20)
+        # Create a scrollable container using ListView
+        return ft.Container(
+            content=ft.ListView(
+                controls=[
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Container(
+                                content=self.category_dropdown,
+                                alignment=ft.alignment.center,
+                                margin=ft.margin.only(bottom=20)
+                            ),
+                            # Invoice details section
+                            ft.ResponsiveRow([
+                                ft.Column([self.client_name_dropdown, self.client_name_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.bestell_nr_dropdown, self.bestell_nr_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.bestelldatum_dropdown, self.bestelldatum_new_entry], col={"sm": 12, "md": 4}),
+                            ]),
+                            ft.ResponsiveRow([
+                                ft.Column([self.baustelle_dropdown, self.baustelle_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.anlagenteil_dropdown, self.anlagenteil_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.aufmass_nr_dropdown, self.aufmass_nr_new_entry], col={"sm": 12, "md": 4}),
+                            ]),
+                            ft.ResponsiveRow([
+                                ft.Column([self.auftrags_nr_dropdown, self.auftrags_nr_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.ausfuehrungsbeginn_dropdown, self.ausfuehrungsbeginn_new_entry], col={"sm": 12, "md": 4}),
+                                ft.Column([self.ausfuehrungsende_dropdown, self.ausfuehrungsende_new_entry], col={"sm": 12, "md": 4}),
+                            ]),
+                            ft.Container(height=50),  # Spacer
+                            # Item selection section
+                            ft.ResponsiveRow([
+                                ft.Column([self.position_field], col={"sm": 12, "md": 1}),
+                                ft.Column([self.taetigkeit_dropdown], col={"sm": 12, "md": 2}),
+                                ft.Column([self.artikelbeschreibung_dropdown], col={"sm": 12, "md": 2}),
+                                ft.Column([self.dn_dropdown], col={"sm": 12, "md": 1}),
+                                ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
+                                ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
+                                ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
+                                ft.Column([self.price_field], col={"sm": 12, "md": 1}),
+                                ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),
+                                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),
+                            ]),
+                            ft.ResponsiveRow([
+                                ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
+                                ft.Column([self.add_button], col={"sm": 12, "md": 6}),
+                            ]),
+                            ft.Container(height=50),  # Spacer
+                            ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_article_row),
+                            self.article_list,  # Container for added articles
+                            self.total_price_field,  # Gesamtpreisfeld
+                        ]),
+                        padding=10,
+                    )
+                ],
+                expand=True,
+                auto_scroll=True
             ),
-            # Invoice details section
-            ft.ResponsiveRow([
-                ft.Column([self.client_name_dropdown, self.client_name_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.bestell_nr_dropdown, self.bestell_nr_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.bestelldatum_dropdown, self.bestelldatum_new_entry], col={"sm": 12, "md": 4}),
-            ]),
-            ft.ResponsiveRow([
-                ft.Column([self.baustelle_dropdown, self.baustelle_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.anlagenteil_dropdown, self.anlagenteil_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.aufmass_nr_dropdown, self.aufmass_nr_new_entry], col={"sm": 12, "md": 4}),
-            ]),
-            ft.ResponsiveRow([
-                ft.Column([self.auftrags_nr_dropdown, self.auftrags_nr_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.ausfuehrungsbeginn_dropdown, self.ausfuehrungsbeginn_new_entry], col={"sm": 12, "md": 4}),
-                ft.Column([self.ausfuehrungsende_dropdown, self.ausfuehrungsende_new_entry], col={"sm": 12, "md": 4}),
-            ]),
-            ft.Container(height=50),  # Spacer
-            # Item selection section
-            ft.ResponsiveRow([
-                ft.Column([self.position_field], col={"sm": 12, "md": 1}),
-                ft.Column([self.taetigkeit_dropdown], col={"sm": 12, "md": 2}),
-                ft.Column([self.artikelbeschreibung_dropdown], col={"sm": 12, "md": 2}),
-                ft.Column([self.dn_dropdown], col={"sm": 12, "md": 1}),
-                ft.Column([self.da_dropdown], col={"sm": 12, "md": 1}),
-                ft.Column([self.dammdicke_dropdown], col={"sm": 12, "md": 1}),
-                ft.Column([self.sonderleistungen_button, self.sonderleistungen_container], col={"sm": 12, "md": 1}),
-                ft.Column([self.price_field], col={"sm": 12, "md": 1}),  # Preisfeld hier
-                ft.Column([self.quantity_input], col={"sm": 12, "md": 1}),  # Mengefeld hier
-                ft.Column([self.zwischensumme_field], col={"sm": 12, "md": 2}),  # Zwischensumme rechts daneben  # Add this line
-            ]),
-            ft.ResponsiveRow([
-                ft.Column([self.zuschlaege_dropdown], col={"sm": 12, "md": 6}),
-                ft.Column([self.add_button], col={"sm": 12, "md": 6}),
-            ]),
-            ft.Container(height=50),  # Spacer
-            ft.ElevatedButton("Artikel hinzufügen", on_click=self.add_article_row),  # Button zum Hinzufügen von Artikeln
-            # Gesamtpreiszeile
-            self.total_price_field,  # Gesamtpreisfeld
-        ])
+            expand=True,
+            height=600,  # Set a fixed height or use page.height to make it full height
+        )
 
     def update_total_price(self):
         total_price = sum(self.article_summaries)  # Summe der aktuellen Zwischensummen

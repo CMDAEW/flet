@@ -16,6 +16,17 @@ def main(page: ft.Page):
         ])
     )
 
+    page.theme = ft.Theme(
+        scrollbar_theme=ft.ScrollbarTheme(
+            thickness=10,
+            radius=3,
+            main_axis_margin=4,
+            cross_axis_margin=2,
+            thumb_color="blue",
+            track_color="lightblue",
+        )
+    )
+
 def save_invoice(form, table):
     # Implement save logic
     pass
