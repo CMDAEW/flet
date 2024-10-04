@@ -93,11 +93,16 @@ class InvoiceForm(ft.UserControl):
         bauteil = self.artikelbeschreibung_dropdown.value
         dn = self.dn_dropdown.value
         da = self.da_dropdown.value
+        current_dammdicke = self.dammdicke_dropdown.value
+        
         if bauteil and (not self.is_rohrleitung_or_formteil(bauteil) or (dn and da)):
             dammdicke_options = self.get_all_dammdicke_options(bauteil, dn, da)
             if dammdicke_options:
                 self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-                self.dammdicke_dropdown.value = str(dammdicke_options[0])
+                if current_dammdicke in [str(size) for size in dammdicke_options]:
+                    self.dammdicke_dropdown.value = current_dammdicke
+                else:
+                    self.dammdicke_dropdown.value = str(dammdicke_options[0])
                 self.dammdicke_dropdown.visible = True
             else:
                 self.dammdicke_dropdown.options = []
@@ -476,8 +481,20 @@ class InvoiceForm(ft.UserControl):
         if bauteil and self.is_rohrleitung_or_formteil(bauteil):
             all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
             
-            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in all_dn_options]
-            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in all_da_options]
+            # Behalte die aktuellen Werte bei
+            current_dn = self.dn_dropdown.value
+            current_da = self.da_dropdown.value
+            current_dammdicke = self.dammdicke_dropdown.value
+            
+            # Aktualisiere die Optionen, aber behalte die aktuellen Werte bei
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+            self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+            
+            # Setze die Werte zurück, wenn sie in den neuen Optionen vorhanden sind
+            if current_dn in [str(dn) for dn in all_dn_options]:
+                self.dn_dropdown.value = current_dn
+            if current_da in [str(da) for da in all_da_options]:
+                self.da_dropdown.value = current_da
             
             self.dn_dropdown.visible = True
             self.da_dropdown.visible = True
@@ -487,12 +504,16 @@ class InvoiceForm(ft.UserControl):
             self.dn_dropdown.visible = False
             self.da_dropdown.visible = False
         
-        self.dn_dropdown.value = None
-        self.da_dropdown.value = None
-        
         self.dn_dropdown.update()
         self.da_dropdown.update()
+        
+        # Aktualisiere die Dämmdicke-Optionen, aber behalte den aktuellen Wert bei
         self.update_dammdicke_options()
+        if current_dammdicke in [opt.key for opt in self.dammdicke_dropdown.options]:
+            self.dammdicke_dropdown.value = current_dammdicke
+        self.dammdicke_dropdown.update()
+        
+        # Aktualisiere nur den Preis
         self.update_price()
         self.update()
 
