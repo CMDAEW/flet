@@ -219,7 +219,7 @@ class InvoiceForm(ft.UserControl):
             cursor = self.conn.cursor()
             try:
                 # Finde den ersten gültigen DA-Wert für den ausgewählten DN
-                cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = ? AND DN = ?', (bauteil, dn))
+                cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn,))
                 first_valid_da = cursor.fetchone()[0]
                 if first_valid_da:
                     self.da_dropdown.value = str(first_valid_da)
@@ -239,7 +239,7 @@ class InvoiceForm(ft.UserControl):
             cursor = self.conn.cursor()
             try:
                 # Finde den ersten gültigen DN-Wert für den ausgewählten DA
-                cursor.execute('SELECT MIN(DN) FROM price_list WHERE Bauteil = ? AND DA = ?', (bauteil, da))
+                cursor.execute('SELECT MIN(DN) FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ?', (da,))
                 first_valid_dn = cursor.fetchone()[0]
                 if first_valid_dn:
                     self.dn_dropdown.value = str(int(first_valid_dn))
@@ -254,19 +254,8 @@ class InvoiceForm(ft.UserControl):
 
     def update_dn_da_fields(self, e):
         bauteil = self.artikelbeschreibung_dropdown.value
-        if bauteil == "Rohrleitung":
-            self.auto_fill_rohrleitung()
-        elif self.is_rohrleitung_or_formteil(bauteil):
-            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
-            
-            self.dn_dropdown.options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
-            self.da_dropdown.options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
-            
-            self.dn_dropdown.value = None
-            self.da_dropdown.value = None
-            
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
+        if self.is_rohrleitung_or_formteil(bauteil):
+            self.auto_fill_rohrleitung_or_formteil(bauteil)
         else:
             self.dn_dropdown.visible = False
             self.da_dropdown.visible = False
@@ -277,7 +266,7 @@ class InvoiceForm(ft.UserControl):
         self.update_price()
         self.update()
 
-    def auto_fill_rohrleitung(self):
+    def auto_fill_rohrleitung_or_formteil(self, bauteil):
         cursor = self.conn.cursor()
         try:
             # Hole alle DN-Werte
@@ -412,8 +401,8 @@ class InvoiceForm(ft.UserControl):
         cursor = self.conn.cursor()
         try:
             if self.is_rohrleitung_or_formteil(bauteil):
-                query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND DN = ? AND DA = ? ORDER BY Size'
-                params = (bauteil, dn, da)
+                query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? AND DA = ? ORDER BY Size'
+                params = (dn, da)
             else:
                 query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? ORDER BY Size'
                 params = (bauteil,)
@@ -452,7 +441,7 @@ class InvoiceForm(ft.UserControl):
                         if base_price:
                             return base_price[0] * formteil_faktor[0]
                 else:
-                    cursor.execute('SELECT Value FROM price_list WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?', (bauteil, dn, da, dammdicke))
+                    cursor.execute('SELECT Value FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? AND DA = ? AND Size = ?', (dn, da, dammdicke))
                     result = cursor.fetchone()
                     if result:
                         return result[0]
