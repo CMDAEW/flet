@@ -5,6 +5,7 @@ Positionsnummer;Art;Bezeichnung;Faktor
 49.0;Tätigkeit;Remontage vorh. Isol./ Blech;0.38
 50.0;Tätigkeit;Remontage neue. Isol. vorh. Blech;0.56
 51.0;Tätigkeit;Demontage / Entsorgung;0.6
+00.0;Tätigkeit;Keine DeRemontage;1.0
 54.0;Zuschläge;Höhenzuschlag 5-10 m;1.0
 55.0;Zuschläge;Höhenzuschlag 11-15 m;1.0
 56.0;Zuschläge;Höhenzuschlag 16-20 m;1.0

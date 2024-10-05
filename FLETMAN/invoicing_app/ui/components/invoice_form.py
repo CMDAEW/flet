@@ -2,6 +2,10 @@ import flet as ft
 from database.db_operations import get_db_connection
 import logging
 
+# Am Anfang der Datei, nach den Importen
+ROHRLEITUNG = "Rohrleitung"
+FORMTEIL = "Formteil"
+
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
@@ -11,6 +15,7 @@ class InvoiceForm(ft.UserControl):
         self.previous_bauteil = None
         self.create_ui_elements()
         self.load_data()
+        # Entfernen Sie den Aufruf von self.initialize_taetigkeit() hier
 
     def create_ui_elements(self):
         # Rechnungsdetails Felder
@@ -33,36 +38,100 @@ class InvoiceForm(ft.UserControl):
 
         # Rechnungspositionen Felder
         self.position_fields = {
-            'Bauteil': ft.Dropdown(label="Bauteil", width=200, on_change=self.update_dn_da_fields),
-            'DN': ft.Dropdown(label="DN", width=80, on_change=self.update_dn_fields),
-            'DA': ft.Dropdown(label="DA", width=80, on_change=self.update_da_fields),
-            'Size': ft.Dropdown(label="Dämmdicke", width=100, on_change=self.update_price),
-            'Unit': ft.TextField(label="Einheit", width=100, read_only=True),
-            'Taetigkeit': ft.Dropdown(label="Tätigkeit", width=300, on_change=self.update_price),
+            'Positionsnummer': ft.Dropdown(
+                label="Positionsnummer",
+                width=200,
+                on_change=self.update_from_positionsnummer,
+            ),
+            'DN': ft.Dropdown(label="DN", width=80),
+            'DA': ft.Dropdown(label="DA", width=80),
+            'Size': ft.Dropdown(label="Dämmdicke", width=100),
+            'Bauteil': ft.Dropdown(label="Bauteil", width=200),
+            'Unit': ft.TextField(label="Einheit", width=80, read_only=True),
+            'Taetigkeit': ft.Dropdown(label="Tätigkeit", width=200),
         }
         
         self.position_text_fields = {
             'Value': ft.TextField(label="Preis", width=100),
-            'quantity': ft.TextField(label="Menge", width=100),
+            'quantity': ft.TextField(label="Menge", width=100, value="1", on_change=self.update_zwischensumme),
             'zwischensumme': ft.TextField(label="Zwischensumme", width=150, read_only=True),
         }
 
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen)
         self.add_position_button = ft.ElevatedButton("Hinzufügen", on_click=self.add_position)
 
-    def update_price(self, e):
-        # Hier können Sie die Logik zur Aktualisierung des Preises implementieren
-        # Zum Beispiel:
-        positionsnummer = self.position_fields['Positionsnummer'].value
+        # Entfernen Sie den Aufruf von self.initialize_taetigkeit() hier
+
+    def did_mount(self):
+        # Diese Methode wird aufgerufen, nachdem das Control der Seite hinzugefügt wurde
+        self.initialize_taetigkeit()
+        self.update()
+
+    def initialize_taetigkeit(self):
+        if 'Taetigkeit' in self.position_fields:
+            self.position_fields['Taetigkeit'].value = "keine Deremontage"
+            # Entfernen Sie den Aufruf von update() hier, da es nicht nötig ist
+
+    def update_price(self, e=None):
+        bauteil = self.position_fields['Bauteil'].value
+        dn = self.position_fields['DN'].value if self.position_fields['DN'].visible else None
+        da = self.position_fields['DA'].value if self.position_fields['DA'].visible else None
         size = self.position_fields['Size'].value
-        if positionsnummer and size:
-            # Hier würden Sie den Preis aus der Datenbank abrufen
-            # und das Value-Feld aktualisieren
-            # Beispiel:
-            # price = self.get_price_from_db(positionsnummer, size)
-            # self.position_text_fields['Value'].value = str(price)
-            # self.position_text_fields['Value'].update()
-            pass
+        taetigkeit = self.position_fields['Taetigkeit'].value
+
+        if not all([bauteil, size, taetigkeit]):
+            self.position_text_fields['Value'].value = "Unvollständige Daten"
+            self.update_zwischensumme()
+            return
+
+        cursor = self.conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                cursor.execute("""
+                    SELECT Value FROM price_list 
+                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
+                """, (ROHRLEITUNG, dn, da, size))
+            else:
+                cursor.execute("""
+                    SELECT Value FROM price_list 
+                    WHERE Bauteil = ? AND Size = ?
+                """, (bauteil, size))
+            
+            result = cursor.fetchone()
+            if result:
+                base_price = result[0]
+                
+                cursor.execute("""
+                    SELECT Faktor FROM Faktoren 
+                    WHERE Art = 'Tätigkeit' AND Bezeichnung = ?
+                """, (taetigkeit,))
+                taetigkeit_result = cursor.fetchone()
+                if taetigkeit_result:
+                    taetigkeit_faktor = taetigkeit_result[0]
+                    final_price = base_price * taetigkeit_faktor
+                    self.position_text_fields['Value'].value = f"{final_price:.2f}"
+                else:
+                    self.position_text_fields['Value'].value = "Tätigkeitsfaktor nicht gefunden"
+            else:
+                self.position_text_fields['Value'].value = "Preis nicht gefunden"
+        except Exception as e:
+            logging.error(f"Fehler bei der Preisberechnung: {e}")
+            self.position_text_fields['Value'].value = "Fehler bei der Berechnung"
+        finally:
+            cursor.close()
+        
+        self.update_zwischensumme()
+        self.update()
+
+    def update_zwischensumme(self, e=None):
+        try:
+            preis = float(self.position_text_fields['Value'].value or 0)
+            menge = float(self.position_text_fields['quantity'].value or 1)
+            zwischensumme = preis * menge
+            self.position_text_fields['zwischensumme'].value = f"{zwischensumme:.2f}"
+        except ValueError:
+            self.position_text_fields['zwischensumme'].value = "Ungültige Eingabe"
+        self.update()
 
     def build(self):
         form_layout = ft.Column([
@@ -97,6 +166,7 @@ class InvoiceForm(ft.UserControl):
         ])
 
         position_layout = ft.Row([
+            self.position_fields['Positionsnummer'],
             self.position_fields['Bauteil'],
             self.position_fields['DN'],
             self.position_fields['DA'],
@@ -126,6 +196,7 @@ class InvoiceForm(ft.UserControl):
     def load_data(self):
         self.load_invoice_options()
         self.load_position_options()
+        self.load_positionsnummer_options()
 
     def load_invoice_options(self):
         for field_name in self.invoice_detail_fields:
@@ -137,6 +208,27 @@ class InvoiceForm(ft.UserControl):
         for field_name, dropdown in self.position_fields.items():
             if field_name not in ['Bauteil', 'Taetigkeit']:
                 self.load_options_for_position_field(field_name)
+
+    def load_positionsnummer_options(self):
+        cursor = self.conn.cursor()
+        try:
+            # Lade Positionsnummern aus der price_list Tabelle
+            cursor.execute("SELECT DISTINCT Positionsnummer FROM price_list ORDER BY Positionsnummer")
+            price_list_options = [row[0] for row in cursor.fetchall() if row[0]]
+
+            # Lade Positionsnummern aus der Faktoren Tabelle für Formteile
+            cursor.execute("SELECT DISTINCT Positionsnummer FROM Faktoren WHERE Art = 'Formteil' ORDER BY Positionsnummer")
+            formteil_options = [row[0] for row in cursor.fetchall() if row[0]]
+
+            # Kombiniere und entferne Duplikate
+            all_options = list(set(price_list_options + formteil_options))
+            all_options.sort()
+
+            self.position_fields['Positionsnummer'].options = [ft.dropdown.Option(option) for option in all_options]
+        except Exception as e:
+            logging.error(f"Fehler beim Laden der Positionsnummer-Optionen: {e}")
+        finally:
+            cursor.close()
 
     def load_options_for_field(self, field_name):
         cursor = self.conn.cursor()
@@ -260,6 +352,7 @@ class InvoiceForm(ft.UserControl):
         
         if bauteil:
             self.update_unit(bauteil)
+            self.update_positionsnummer()
             current_dn = self.position_fields['DN'].value
             current_da = self.position_fields['DA'].value
 
@@ -328,6 +421,12 @@ class InvoiceForm(ft.UserControl):
         else:
             self.position_fields['Size'].value = None
         self.position_fields['Size'].update()
+        
+        # Aktualisiere die Positionsnummer, wenn sich die Dämmdicke ändert
+        self.update_positionsnummer()
+        
+        # Aktualisiere den Preis
+        self.update_price()
 
     def get_dammdicke_options(self, bauteil, dn=None, da=None):
         cursor = self.conn.cursor()
@@ -367,6 +466,7 @@ class InvoiceForm(ft.UserControl):
             self.position_fields['DA'].update()
         
         self.update_dammdicke_options()
+        self.update_positionsnummer()
         self.update_price()
 
     def update_da_fields(self, e):
@@ -391,14 +491,15 @@ class InvoiceForm(ft.UserControl):
             self.position_fields['DN'].update()
         
         self.update_dammdicke_options()
+        self.update_positionsnummer()
         self.update_price()
         self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
-        if bauteil == 'Rohrleitung':
+        if bauteil == ROHRLEITUNG:
             return True
         cursor = self.conn.cursor()
-        cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
+        cursor.execute('SELECT 1 FROM Faktoren WHERE Art = ? AND Bezeichnung = ?', (FORMTEIL, bauteil))
         return cursor.fetchone() is not None
 
     def get_from_cache_or_db(self, key, query, params=None):
@@ -416,7 +517,7 @@ class InvoiceForm(ft.UserControl):
     def get_all_dn_options(self, bauteil):
         if self.is_rohrleitung_or_formteil(bauteil):
             query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
-            params = ('Rohrleitung',)
+            params = (ROHRLEITUNG,)
         else:
             return []
 
@@ -426,7 +527,7 @@ class InvoiceForm(ft.UserControl):
     def get_all_da_options(self, bauteil):
         if self.is_rohrleitung_or_formteil(bauteil):
             query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DA IS NOT NULL ORDER BY DA'
-            params = ('Rohrleitung',)
+            params = (ROHRLEITUNG,)
         else:
             return []
     
@@ -435,12 +536,92 @@ class InvoiceForm(ft.UserControl):
 
     def get_corresponding_da(self, bauteil, dn):
         query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
-        params = ('Rohrleitung', dn)
-        options = self.get_from_cache_or_db(f"da_options_Rohrleitung_{dn}", query, params)
+        params = (ROHRLEITUNG, dn)
+        options = self.get_from_cache_or_db(f"da_options_{ROHRLEITUNG}_{dn}", query, params)
         return [float(da[0]) for da in options]
 
     def get_corresponding_dn(self, bauteil, da):
         query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DA = ? AND DN IS NOT NULL ORDER BY DN'
-        params = ('Rohrleitung', da)
-        options = self.get_from_cache_or_db(f"dn_options_Rohrleitung_{da}", query, params)
+        params = (ROHRLEITUNG, da)
+        options = self.get_from_cache_or_db(f"dn_options_{ROHRLEITUNG}_{da}", query, params)
         return [int(float(dn[0])) for dn in options]
+
+    def update_from_positionsnummer(self, e):
+        positionsnummer = self.position_fields['Positionsnummer'].value
+        if positionsnummer:
+            cursor = self.conn.cursor()
+            try:
+                # Zuerst in der price_list Tabelle suchen
+                cursor.execute("""
+                    SELECT Bauteil, DN, DA, Size, Unit, Value
+                    FROM price_list
+                    WHERE Positionsnummer = ?
+                """, (positionsnummer,))
+                result = cursor.fetchone()
+                
+                if not result:
+                    # Wenn nicht gefunden, in der Faktoren Tabelle für Formteile suchen
+                    cursor.execute("""
+                        SELECT Bezeichnung
+                        FROM Faktoren
+                        WHERE Art = 'Formteil' AND Positionsnummer = ?
+                    """, (positionsnummer,))
+                    formteil_result = cursor.fetchone()
+                    if formteil_result:
+                        bauteil = formteil_result[0]
+                        # Für Formteile setzen wir DN, DA, und Size auf None, da sie später basierend auf der Rohrleitung ausgewählt werden
+                        result = (bauteil, None, None, None, 'm2', None)
+
+                if result:
+                    bauteil, dn, da, size, unit, value = result
+                    self.position_fields['Bauteil'].value = bauteil
+                    self.position_fields['DN'].value = str(dn) if dn else None
+                    self.position_fields['DA'].value = str(da) if da else None
+                    self.position_fields['Size'].value = str(size) if size else None
+                    self.position_fields['Unit'].value = unit
+                    self.position_text_fields['Value'].value = str(value) if value else None
+                    
+                    # Setze das Tätigkeitsfeld auf "keine Deremontage"
+                    self.position_fields['Taetigkeit'].value = "keine Deremontage"
+                    
+                    self.update_dn_da_fields(None)
+                    self.update_price()
+                    self.update_zwischensumme()
+                else:
+                    logging.warning(f"Keine Daten für Positionsnummer {positionsnummer} gefunden.")
+            except Exception as e:
+                logging.error(f"Fehler beim Aktualisieren der Felder von der Positionsnummer: {e}")
+            finally:
+                cursor.close()
+        self.update()
+
+    def update_positionsnummer(self):
+        bauteil = self.position_fields['Bauteil'].value
+        dn = self.position_fields['DN'].value
+        da = self.position_fields['DA'].value
+        size = self.position_fields['Size'].value
+
+        cursor = self.conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                cursor.execute("""
+                    SELECT Positionsnummer
+                    FROM price_list
+                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size = ?
+                """, (bauteil, dn, da, size))
+            else:
+                cursor.execute("""
+                    SELECT Positionsnummer
+                    FROM price_list
+                    WHERE Bauteil = ? AND Size = ?
+                """, (bauteil, size))
+            result = cursor.fetchone()
+            if result:
+                self.position_fields['Positionsnummer'].value = result[0]
+            else:
+                self.position_fields['Positionsnummer'].value = ""
+        except Exception as e:
+            logging.error(f"Fehler beim Aktualisieren der Positionsnummer: {e}")
+        finally:
+            cursor.close()
+        self.position_fields['Positionsnummer'].update()
