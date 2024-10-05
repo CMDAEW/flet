@@ -16,6 +16,9 @@ class InvoiceForm(ft.UserControl):
         self.selected_zuschlaege = []
         self.previous_bauteil = None
         self.current_category = None
+        self.edit_mode = False
+        self.edit_row_index = None
+        self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         
         self.create_ui_elements()
         self.load_data()
@@ -95,18 +98,18 @@ class InvoiceForm(ft.UserControl):
         # Spaltennamen für die Artikelliste mit dynamischer Breite
         self.article_list_header = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Position", size=20, weight=ft.FontWeight.BOLD), width=80),
-                ft.DataColumn(ft.Text("Bauteil", size=20, weight=ft.FontWeight.BOLD), expand=3),
-                ft.DataColumn(ft.Text("DN", size=20, weight=ft.FontWeight.BOLD), width=60),
-                ft.DataColumn(ft.Text("DA", size=20, weight=ft.FontWeight.BOLD), width=60),
-                ft.DataColumn(ft.Text("Dämmdicke", size=20, weight=ft.FontWeight.BOLD), expand=1),
-                ft.DataColumn(ft.Text("Tätigkeit", size=20, weight=ft.FontWeight.BOLD), expand=2),
-                ft.DataColumn(ft.Text("Einheit", size=20, weight=ft.FontWeight.BOLD), width=80),
-                ft.DataColumn(ft.Text("Preis", size=20, weight=ft.FontWeight.BOLD), expand=1),
-                ft.DataColumn(ft.Text("Menge", size=20, weight=ft.FontWeight.BOLD), width=80),
-                ft.DataColumn(ft.Text("Zwischensumme", size=20, weight=ft.FontWeight.BOLD), expand=1),
-                ft.DataColumn(ft.Text("Sonderleistungen", size=20, weight=ft.FontWeight.BOLD), expand=2),
-                ft.DataColumn(ft.Text("Aktionen", size=20, weight=ft.FontWeight.BOLD), width=100),
+                ft.DataColumn(ft.Text("Position", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Bauteil", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("DN", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("DA", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Dämmdicke", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Tätigkeit", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Einheit", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Preis", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Menge", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Zwischensumme", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Sonderleistungen", size=20, weight=ft.FontWeight.BOLD)),
+                ft.DataColumn(ft.Text("Aktionen", size=20, weight=ft.FontWeight.BOLD)),
             ],
             expand=True,
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
@@ -227,12 +230,10 @@ class InvoiceForm(ft.UserControl):
 
     def toggle_sonderleistungen(self, e):
         self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
-        self.zuschlaege_container.visible = False  # Schließe den anderen Container
         self.update()
 
     def toggle_zuschlaege(self, e):
         self.zuschlaege_container.visible = not self.zuschlaege_container.visible
-        self.sonderleistungen_container.visible = False  # Schließe den anderen Container
         self.update()
 
     def show_error(self, message):
@@ -391,12 +392,16 @@ class InvoiceForm(ft.UserControl):
         quantity = self.quantity_input.value
 
         if not all([category, bauteil, quantity]):
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
             return
 
         try:
             quantity = float(quantity)
         except ValueError:
             self.show_error("Ungültige Menge")
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
             return
 
         # Hole die Positionsnummer
