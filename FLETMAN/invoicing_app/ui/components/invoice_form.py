@@ -21,23 +21,33 @@ class InvoiceForm(ft.UserControl):
 
     def create_ui_elements(self):
         # Dropdown-Menüs
-        self.category_dropdown = ft.Dropdown(label="Kategorie", options=self.get_category_options(), on_change=self.load_items)
-        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=180)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=60)
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=60)
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=90)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=180)
+        self.category_dropdown = ft.Dropdown(
+            label="Kategorie",
+            options=[
+                ft.dropdown.Option("Aufmaß"),
+                ft.dropdown.Option("Material"),
+                ft.dropdown.Option("Lohn"),
+                ft.dropdown.Option("Festpreis")
+            ],
+            on_change=self.load_items,
+            width=200
+        )
+        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=250)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=80, options=[])
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=80, options=[])
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=120)
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=220)
         
         # Textfelder
-        self.position_field = ft.TextField(label="Position", read_only=True, width=80)
-        self.price_field = ft.TextField(label="Preis", read_only=True, width=80)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price, width=70)
-        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=120)
+        self.position_field = ft.TextField(label="Position", read_only=True, width=100)
+        self.price_field = ft.TextField(label="Preis", read_only=True, width=100)
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.update_price, width=90)
+        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=140)
         self.total_price_field = ft.Text(value="Gesamtpreis: 0,00 €", style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD))
 
         # Buttons und Container
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen)
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
+        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=180)
+        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege, width=180)
         self.sonderleistungen_container = ft.Column(visible=False, spacing=10)
         self.zuschlaege_container = ft.Column(visible=False, spacing=10)
 
@@ -537,15 +547,15 @@ class InvoiceForm(ft.UserControl):
 
     def add_article_row(self, e):
         new_row = ft.Row([
-            ft.Text(self.position_field.value, width=50),
+            ft.Text(self.position_field.value, width=70),  # Breite erhöht
             ft.Text(self.artikelbeschreibung_dropdown.value, expand=1),
-            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=40),
-            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=40),
-            ft.Text(self.dammdicke_dropdown.value, width=70),
-            ft.Text(self.taetigkeit_dropdown.value, width=100),
-            ft.Text(self.price_field.value, width=70),
-            ft.Text(self.quantity_input.value, width=50),
-            ft.Text(self.zwischensumme_field.value, width=80),
+            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=50),  # Breite erhöht
+            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=50),  # Breite erhöht
+            ft.Text(self.dammdicke_dropdown.value, width=90),  # Breite erhöht
+            ft.Text(self.taetigkeit_dropdown.value, width=120),  # Breite erhöht
+            ft.Text(self.price_field.value, width=90),  # Breite erhöht
+            ft.Text(self.quantity_input.value, width=70),  # Breite erhöht
+            ft.Text(self.zwischensumme_field.value, width=100),  # Breite erhöht
             ft.IconButton(
                 icon=ft.icons.DELETE,
                 on_click=lambda _: self.remove_article_row(new_row)
