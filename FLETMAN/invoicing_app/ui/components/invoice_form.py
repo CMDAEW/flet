@@ -67,9 +67,16 @@ class InvoiceForm(ft.UserControl):
             ]),
         ])
 
+        # Logo hinzufügen
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                             'assets', 'logos', 'KAE_Logo_RGB_300dpi2.jpg')
+        logo = ft.Image(src=logo_path, width=100, height=50)  # Logo-Pfad aus der Konstante
+        logo_container = ft.Container(content=logo)
+
         # Hauptlayout
         return ft.Container(
             content=ft.Column([
+                ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),  # Logo in einer Zeile rechts ausrichten
                 ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
                 invoice_details,
                 ft.Container(height=20),
@@ -622,7 +629,8 @@ class InvoiceForm(ft.UserControl):
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value if self.invoice_detail_fields['ausfuehrungsende'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsende'].value,
             'category': self.current_category,
             'articles': [],
-            'total_price': 0
+            'zuschlaege': self.selected_zuschlaege,
+            'total_price': float(self.total_price_field.value.split(": ")[1].replace(" €", "").replace(",", "."))
         }
 
         for row in self.article_list_header.rows:
