@@ -67,6 +67,54 @@ class InvoiceForm(ft.UserControl):
 
         self.article_list = ft.Column()
 
+        # Neue Buttons und Textfeld
+        self.delete_invoice_button = ft.IconButton(
+            icon=ft.icons.DELETE,
+            tooltip="Rechnung löschen",
+            on_click=self.delete_invoice
+        )
+        self.create_pdf_with_prices_button = ft.ElevatedButton(
+            "PDF mit Preisen erstellen",
+            on_click=self.create_pdf_with_prices
+        )
+        self.create_pdf_without_prices_button = ft.ElevatedButton(
+            "PDF ohne Preise erstellen",
+            on_click=self.create_pdf_without_prices
+        )
+        self.back_to_main_menu_button = ft.ElevatedButton(
+            "Zurück zum Hauptmenü",
+            on_click=self.back_to_main_menu
+        )
+        self.bemerkung_field = ft.TextField(
+            label="Bemerkung",
+            multiline=True,
+            min_lines=3,
+            max_lines=5
+        )
+
+        # Spaltennamen für die Artikelliste mit dynamischer Breite
+        self.article_list_header = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Position", size=20, weight=ft.FontWeight.BOLD), width=80),
+                ft.DataColumn(ft.Text("Bauteil", size=20, weight=ft.FontWeight.BOLD), expand=3),
+                ft.DataColumn(ft.Text("DN", size=20, weight=ft.FontWeight.BOLD), width=60),
+                ft.DataColumn(ft.Text("DA", size=20, weight=ft.FontWeight.BOLD), width=60),
+                ft.DataColumn(ft.Text("Dämmdicke", size=20, weight=ft.FontWeight.BOLD), expand=1),
+                ft.DataColumn(ft.Text("Tätigkeit", size=20, weight=ft.FontWeight.BOLD), expand=2),
+                ft.DataColumn(ft.Text("Einheit", size=20, weight=ft.FontWeight.BOLD), width=80),
+                ft.DataColumn(ft.Text("Preis", size=20, weight=ft.FontWeight.BOLD), expand=1),
+                ft.DataColumn(ft.Text("Menge", size=20, weight=ft.FontWeight.BOLD), width=80),
+                ft.DataColumn(ft.Text("Zwischensumme", size=20, weight=ft.FontWeight.BOLD), expand=1),
+                ft.DataColumn(ft.Text("Sonderleistungen", size=20, weight=ft.FontWeight.BOLD), expand=2),
+                ft.DataColumn(ft.Text("Aktionen", size=20, weight=ft.FontWeight.BOLD), width=100),
+            ],
+            expand=True,
+            horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
+            vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
+        )
+
+        self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
+
     def load_aufmass_items(self):
         cursor = self.conn.cursor()
         try:
@@ -143,6 +191,7 @@ class InvoiceForm(ft.UserControl):
     def load_data(self):
         self.load_faktoren("Sonstige Zuschläge")
         self.load_faktoren("Sonderleistung")
+        self.load_zuschlaege()
         self.load_invoice_options()
 
     def get_category_options(self):
@@ -153,7 +202,6 @@ class InvoiceForm(ft.UserControl):
         container = self.sonderleistungen_container if art == "Sonderleistung" else self.zuschlaege_container
         container.controls.clear()
         for bezeichnung, faktor in faktoren:
-            # Änderung hier: Entfernung des Faktors aus dem Label
             checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
             checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren(e, b, f, art)
             container.controls.append(checkbox)
@@ -178,10 +226,14 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def toggle_sonderleistungen(self, e):
-        self.toggle_container(self.sonderleistungen_container)
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+        self.zuschlaege_container.visible = False  # Schließe den anderen Container
+        self.update()
 
     def toggle_zuschlaege(self, e):
-        self.toggle_container(self.zuschlaege_container)
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.sonderleistungen_container.visible = False  # Schließe den anderen Container
+        self.update()
 
     def show_error(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
@@ -271,6 +323,7 @@ class InvoiceForm(ft.UserControl):
             self.da_dropdown.value = None
         
         self.update_dammdicke_options()
+        self.update_einheit()
         self.update_price()
         self.update()
 
@@ -649,109 +702,116 @@ class InvoiceForm(ft.UserControl):
 
         return ft.Container(
             content=ft.Column([
-                # Zentrierte Buttons
-                ft.Container(
-                    content=ft.Row(
-                        controls=self.category_buttons,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                    alignment=ft.alignment.center,
-                    expand=True,
-                ),
-                # Rest des Inhalts
-                ft.Container(
-                    content=ft.ListView(
-                        controls=[
-                            ft.Container(
-                                content=ft.Column([
-                                    invoice_details,
-                                    ft.Container(height=20),
-                                    ft.Text("Aufmaßeingabe:", weight=ft.FontWeight.BOLD),
-                                    ft.Column([
-                                        ft.Row([
-                                            self.bauteil_dropdown,
-                                            self.dn_dropdown,
-                                            self.da_dropdown,
-                                            self.dammdicke_dropdown,
-                                            self.taetigkeit_dropdown,
-                                            ft.Column([
-                                                self.sonderleistungen_button,
-                                                self.sonderleistungen_container
-                                            ], width=200),
-                                            self.price_field,
-                                            self.quantity_input,
-                                            self.zwischensumme_field,
-                                            ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
-                                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                                    ]),
-                                    ft.Container(height=20),
-                                    ft.Text("Artikelliste:", weight=ft.FontWeight.BOLD),
-                                    self.article_list,
-                                    ft.Container(height=20),
-                                    self.total_price_field,
-                                    self.zuschlaege_button,
-                                    self.zuschlaege_container,
-                                ]),
-                                padding=10,
-                            )
-                        ],
-                        expand=True,
-                        auto_scroll=True
-                    ),
-                    expand=True,
-                ),
+                ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
+                self.category_row,  # Kategorie-Buttons (Aufmaß, Material, Lohn, Festpreis)
+                ft.Container(height=20),
+                invoice_details,  # Kopfdaten
+                ft.Container(height=20),
+                ft.Row([
+                    self.position_field,
+                    self.bauteil_dropdown,
+                    self.dn_dropdown,
+                    self.da_dropdown,
+                    self.dammdicke_dropdown,
+                    self.taetigkeit_dropdown,
+                    self.einheit_field,
+                    self.price_field,
+                    self.quantity_input,
+                    self.zwischensumme_field,
+                    self.sonderleistungen_button,
+                    self.zuschlaege_button,
+                    ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
+                ], alignment=ft.MainAxisAlignment.START),
+                self.sonderleistungen_container,
+                self.zuschlaege_container,
+                ft.Container(height=20),
+                self.article_list_header,
+                self.total_price_field,
+                ft.Container(height=20),
+                ft.Row([
+                    ft.Column([
+                        self.bemerkung_field,
+                    ], expand=1),
+                    ft.Column([
+                        self.create_pdf_with_prices_button,
+                        ft.Container(height=10),
+                        self.create_pdf_without_prices_button,
+                        ft.Container(height=10),
+                        self.back_to_main_menu_button,
+                    ], expand=1),
+                ]),
             ]),
+            padding=40,
             expand=True,
         )
 
     def add_article_row(self, e):
-        new_row = ft.Row([
-            ft.Text(self.position_field.value, width=70),
-            ft.Text(self.bauteil_dropdown.value, expand=1),
-            ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", width=50),
-            ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", width=50),
-            ft.Text(self.dammdicke_dropdown.value, width=90),
-            ft.Text(self.taetigkeit_dropdown.value, width=120),
-            ft.Text(self.price_field.value, width=90),
-            ft.Text(self.quantity_input.value, width=70),
-            ft.Text(self.zwischensumme_field.value, width=100),
-            ft.IconButton(
-                icon=ft.icons.DELETE,
-                on_click=lambda _: self.remove_article_row(new_row)
-            )
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        self.article_list.controls.append(new_row)
-        self.add_zwischensumme(float(self.zwischensumme_field.value))
+        new_row = ft.DataRow(
+            cells=[
+                ft.DataCell(ft.Text(self.position_field.value, size=20)),
+                ft.DataCell(ft.Text(self.bauteil_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=20)),
+                ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=20)),
+                ft.DataCell(ft.Text(self.dammdicke_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.taetigkeit_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.einheit_field.value, size=20)),
+                ft.DataCell(ft.Text(self.price_field.value, size=20)),
+                ft.DataCell(ft.Text(self.quantity_input.value, size=20)),
+                ft.DataCell(ft.Text(self.zwischensumme_field.value, size=20)),
+                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]), size=20)),
+                ft.DataCell(ft.Row([
+                    ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
+                    ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
+                ])),
+            ]
+        )
+        self.article_list_header.rows.append(new_row)
+        
+        # Füge ein Dictionary zur article_summaries Liste hinzu
+        self.article_summaries.append({
+            'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
+            'sonderleistungen': self.selected_sonderleistungen.copy()
+        })
+        
+        self.update_total_price()
         self.reset_fields()
+        self.update()
+
+    def edit_article_row(self, row):
+        # Implementieren Sie hier die Logik zum Bearbeiten einer Zeile
+        self.position_field.value = row.cells[0].content.value
+        self.bauteil_dropdown.value = row.cells[1].content.value
+        self.dn_dropdown.value = row.cells[2].content.value
+        self.da_dropdown.value = row.cells[3].content.value
+        self.dammdicke_dropdown.value = row.cells[4].content.value
+        self.taetigkeit_dropdown.value = row.cells[5].content.value
+        self.einheit_field.value = row.cells[6].content.value
+        self.price_field.value = row.cells[7].content.value
+        self.quantity_input.value = row.cells[8].content.value
+        self.zwischensumme_field.value = row.cells[9].content.value
+        
+        # Setze die Sonderleistungen zurück
+        for checkbox in self.sonderleistungen_container.controls:
+            checkbox.value = checkbox.label in row.cells[10].content.value.split(", ")
+        
         self.update()
 
     def remove_article_row(self, row):
-        index = self.article_list.controls.index(row)
-        self.article_list.controls.remove(row)
-        self.remove_zwischensumme(index)
+        index = self.article_list_header.rows.index(row)
+        self.article_list_header.rows.remove(row)
+        del self.article_summaries[index]
+        self.update_total_price()
         self.update()
 
     def update_total_price(self):
-        total_price = sum(float(article['zwischensumme'].replace(',', '.')) for article in self.article_summaries)
-        self.total_price_field.value = f"Gesamtpreis: {total_price:.2f} €".replace('.', ',')
+        base_total_price = sum(article['zwischensumme'] for article in self.article_summaries)
+        
+        # Anwenden von Zuschlägen auf den Gesamtpreis
+        for _, faktor in self.selected_zuschlaege:
+            base_total_price *= faktor
+
+        self.total_price_field.value = f"Gesamtpreis: {base_total_price:.2f} €".replace('.', ',')
         self.update()
-
-    def update_zwischensumme(self, index, new_value):
-        self.article_summaries[index] = new_value
-        self.update_total_price()
-        self.reset_fields()
-
-    def add_zwischensumme(self, value):
-        self.article_summaries.append(value)
-        self.update_total_price()
-
-    def remove_zwischensumme(self, index):
-        del self.article_summaries[index]
-        self.update_total_price()
-
-    def update_quantity(self, e):
-        self.update_price()
-        self.update_total_price()
 
     def reset_fields(self):
         self.bauteil_dropdown.value = None
@@ -763,6 +823,15 @@ class InvoiceForm(ft.UserControl):
         self.price_field.value = ""
         self.quantity_input.value = "1"
         self.zwischensumme_field.value = ""
+        
+        # Setze auch die Sonderleistungen und Zuschläge zurück
+        for checkbox in self.sonderleistungen_container.controls:
+            checkbox.value = False
+        for checkbox in self.zuschlaege_container.controls:
+            checkbox.value = False
+        self.selected_sonderleistungen = []
+        self.selected_zuschlaege = []
+        
         self.update()
 
     def get_invoice_data(self):
@@ -780,17 +849,17 @@ class InvoiceForm(ft.UserControl):
             'articles': []
         }
 
-        for row in self.article_list.controls:
+        for row in self.article_list_header.rows:
             article = {
-                'position': row.controls[0].value,
-                'artikelbeschreibung': row.controls[1].value,
-                'dn': row.controls[2].value,
-                'da': row.controls[3].value,
-                'dammdicke': row.controls[4].value,
-                'taetigkeit': row.controls[5].value,
-                'price': row.controls[6].value,
-                'quantity': row.controls[7].value,
-                'zwischensumme': row.controls[8].value
+                'position': row.cells[0].content.value,
+                'artikelbeschreibung': row.cells[1].content.value,
+                'dn': row.cells[2].content.value,
+                'da': row.cells[3].content.value,
+                'dammdicke': row.cells[4].content.value,
+                'taetigkeit': row.cells[5].content.value,
+                'price': row.cells[6].content.value,
+                'quantity': row.cells[7].content.value,
+                'zwischensumme': row.cells[8].content.value
             }
             invoice_data['articles'].append(article)
 
@@ -803,26 +872,29 @@ class InvoiceForm(ft.UserControl):
             if field in self.invoice_detail_fields:
                 self.invoice_detail_fields[field].value = value
 
-        self.article_list.controls.clear()
+        self.article_list_header.rows.clear()
         self.article_summaries.clear()
 
         for article in invoice_data['articles']:
-            new_row = ft.Row([
-                ft.Text(article['position'], width=70),
-                ft.Text(article['artikelbeschreibung'], expand=1),
-                ft.Text(article['dn'], width=50),
-                ft.Text(article['da'], width=50),
-                ft.Text(article['dammdicke'], width=90),
-                ft.Text(article['taetigkeit'], width=120),
-                ft.Text(article['price'], width=90),
-                ft.Text(article['quantity'], width=70),
-                ft.Text(article['zwischensumme'], width=100),
-                ft.IconButton(
-                    icon=ft.icons.DELETE,
-                    on_click=lambda _: self.remove_article_row(new_row)
-                )
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-            self.article_list.controls.append(new_row)
+            new_row = ft.DataRow(
+                cells=[
+                    ft.DataCell(ft.Text(article['position'])),
+                    ft.DataCell(ft.Text(article['artikelbeschreibung'])),
+                    ft.DataCell(ft.Text(article['dn'])),
+                    ft.DataCell(ft.Text(article['da'])),
+                    ft.DataCell(ft.Text(article['dammdicke'])),
+                    ft.DataCell(ft.Text(article['taetigkeit'])),
+                    ft.DataCell(ft.Text(article['price'])),
+                    ft.DataCell(ft.Text(article['quantity'])),
+                    ft.DataCell(ft.Text(article['zwischensumme'])),
+                    ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]))),
+                    ft.DataCell(ft.Row([
+                        ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
+                        ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
+                    ])),
+                ]
+            )
+            self.article_list_header.rows.append(new_row)
             self.add_zwischensumme(float(article['zwischensumme'].replace(',', '.')))
 
         self.total_price_field.value = invoice_data['total_price']
@@ -850,3 +922,52 @@ class InvoiceForm(ft.UserControl):
             self.update_artikelbeschreibung_dropdown(bauteile)
         finally:
             cursor.close()
+
+    def delete_invoice(self, e):
+        # Implementieren Sie hier die Logik zum Löschen der gesamten Rechnung
+        pass
+
+    def create_pdf_with_prices(self, e):
+        # Implementieren Sie hier die Logik zum Erstellen eines PDFs mit Preisen
+        pass
+
+    def create_pdf_without_prices(self, e):
+        # Implementieren Sie hier die Logik zum Erstellen eines PDFs ohne Preise
+        pass
+
+    def back_to_main_menu(self, e):
+        # Implementieren Sie hier die Logik zur Rückkehr zum Hauptmenü
+        pass
+
+    def load_zuschlaege(self):
+        zuschlaege = self.get_from_cache_or_db("zuschlaege", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', ("Zuschläge",))
+        self.zuschlaege_container.controls.clear()
+        for bezeichnung, faktor in zuschlaege:
+            checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
+            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
+            self.zuschlaege_container.controls.append(checkbox)
+        self.update()
+
+    def update_selected_zuschlaege(self, e, bezeichnung, faktor):
+        if e.control.value:
+            self.selected_zuschlaege.append((bezeichnung, faktor))
+        else:
+            self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
+        self.update_total_price()
+
+    def update_einheit(self):
+        bauteil = self.bauteil_dropdown.value
+        if bauteil:
+            cursor = self.conn.cursor()
+            try:
+                cursor.execute('SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1', (bauteil,))
+                result = cursor.fetchone()
+                if result:
+                    self.einheit_field.value = result[0]
+                else:
+                    self.einheit_field.value = ""
+            finally:
+                cursor.close()
+        else:
+            self.einheit_field.value = ""
+        self.update()
