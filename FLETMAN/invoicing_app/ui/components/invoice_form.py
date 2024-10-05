@@ -259,9 +259,9 @@ class InvoiceForm(ft.UserControl):
         was_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(previous_bauteil)
         
         if bauteil:
+            self.update_unit(bauteil)
             current_dn = self.position_fields['DN'].value
             current_da = self.position_fields['DA'].value
-            current_dammdicke = self.position_fields['Size'].value
 
             if is_rohrleitung_or_formteil:
                 all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
@@ -291,15 +291,59 @@ class InvoiceForm(ft.UserControl):
             self.position_fields['DA'].update()
             
             self.update_dammdicke_options()
-            if current_dammdicke in [opt.key for opt in self.position_fields['Size'].options]:
-                self.position_fields['Size'].value = current_dammdicke
-            self.position_fields['Size'].update()
 
         if bauteil != previous_bauteil or is_rohrleitung_or_formteil != was_rohrleitung_or_formteil:
             self.update_price()
         
         self.previous_bauteil = bauteil
         self.update()
+
+    def update_unit(self, bauteil):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1", (bauteil,))
+            result = cursor.fetchone()
+            if result:
+                self.position_fields['Unit'].value = result[0]
+            else:
+                self.position_fields['Unit'].value = ""
+        except Exception as e:
+            logging.error(f"Fehler beim Aktualisieren der Einheit: {e}")
+        finally:
+            cursor.close()
+        self.position_fields['Unit'].update()
+
+    def update_dammdicke_options(self, e=None):
+        bauteil = self.position_fields['Bauteil'].value
+        if not bauteil:
+            return
+
+        dn = self.position_fields['DN'].value if self.position_fields['DN'].visible else None
+        da = self.position_fields['DA'].value if self.position_fields['DA'].visible else None
+
+        dammdicke_options = self.get_dammdicke_options(bauteil, dn, da)
+        self.position_fields['Size'].options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
+        if dammdicke_options:
+            self.position_fields['Size'].value = str(dammdicke_options[0])
+        else:
+            self.position_fields['Size'].value = None
+        self.position_fields['Size'].update()
+
+    def get_dammdicke_options(self, bauteil, dn=None, da=None):
+        cursor = self.conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                if dn and da:
+                    cursor.execute('SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size IS NOT NULL ORDER BY Size', ('Rohrleitung', dn, da))
+                else:
+                    cursor.execute('SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND Size IS NOT NULL ORDER BY Size', ('Rohrleitung',))
+            else:
+                cursor.execute('SELECT DISTINCT Size FROM price_list WHERE Bauteil = ? AND Size IS NOT NULL ORDER BY Size', (bauteil,))
+            
+            sizes = [row[0] for row in cursor.fetchall()]
+            return sorted(set(sizes), key=lambda x: float(x.split()[0]) if isinstance(x, str) and x.split()[0].replace('.', '').isdigit() else x)
+        finally:
+            cursor.close()
 
     def update_dn_fields(self, e):
         bauteil = self.position_fields['Bauteil'].value
@@ -391,12 +435,12 @@ class InvoiceForm(ft.UserControl):
 
     def get_corresponding_da(self, bauteil, dn):
         query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
-        params = (bauteil, dn)
-        options = self.get_from_cache_or_db(f"da_options_{bauteil}_{dn}", query, params)
+        params = ('Rohrleitung', dn)
+        options = self.get_from_cache_or_db(f"da_options_Rohrleitung_{dn}", query, params)
         return [float(da[0]) for da in options]
 
     def get_corresponding_dn(self, bauteil, da):
         query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DA = ? AND DN IS NOT NULL ORDER BY DN'
-        params = (bauteil, da)
-        options = self.get_from_cache_or_db(f"dn_options_{bauteil}_{da}", query, params)
+        params = ('Rohrleitung', da)
+        options = self.get_from_cache_or_db(f"dn_options_Rohrleitung_{da}", query, params)
         return [int(float(dn[0])) for dn in options]
