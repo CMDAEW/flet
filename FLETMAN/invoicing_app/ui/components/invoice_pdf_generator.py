@@ -110,8 +110,9 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         total_price_data = [
             ["Nettobetrag:", f"{invoice_data.get('net_total', 0):.2f} €"],
         ]
-        for zuschlag, wert in invoice_data.get('zuschlaege', []):
-            total_price_data.append([f"Zuschlag {zuschlag}:", f"{wert:.2f} €"])
+        for zuschlag, faktor in invoice_data.get('zuschlaege', []):
+            zuschlag_betrag = invoice_data['net_total'] * (faktor - 1)
+            total_price_data.append([f"Zuschlag {zuschlag}:", f"{zuschlag_betrag:.2f} €"])
         total_price_data.append(["Gesamtbetrag:", f"{invoice_data.get('total_price', 0):.2f} €"])
         
         total_price_table = Table(total_price_data, colWidths=[150*mm, 40*mm])

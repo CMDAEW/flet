@@ -34,7 +34,7 @@ class InvoiceForm(ft.UserControl):
         self.selected_sonderleistungen = []
         self.selected_zuschlaege = []
         self.previous_bauteil = None
-        self.current_category = None
+        self.current_category = "Aufmaß"  # Setzen Sie eine Standardkategorie
         self.edit_mode = False
         self.edit_row_index = None
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
@@ -45,7 +45,8 @@ class InvoiceForm(ft.UserControl):
         self.load_invoice_options()
         logging.info("Loading data")
         self.load_data()
-        load_aufmass_items(self)  # Hier rufen wir die importierte Funktion auf
+        load_items(self, self.current_category)  # Laden Sie die Items basierend auf der Standardkategorie
+        self.update_price()  # Initialisieren Sie die Preisberechnung
         logging.info("InvoiceForm initialization complete")
 
     def build(self):
@@ -124,7 +125,11 @@ class InvoiceForm(ft.UserControl):
         self.price_field = ft.TextField(label="Preis", read_only=True, width=100)
         self.quantity_input = ft.TextField(label="Menge", value="1", on_change=lambda e: update_price(self, e), width=90)
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=160)
-        self.total_price_field = ft.Text(value="Gesamtpreis: 0,00 €", style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD))
+        self.total_price_field = ft.Text(
+            value="Gesamtpreis: 0,00 €",
+            style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD),
+            text_align=ft.TextAlign.RIGHT
+        )
 
         # Buttons und Container
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=200)
@@ -767,4 +772,91 @@ class InvoiceForm(ft.UserControl):
             checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
             checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren(e, b, f, art)
             container.controls.append(checkbox)
+        self.update()
+
+    def update_price(self, e=None):
+        logging.info("Starte Preisberechnung")
+        category = self.current_category
+        bauteil = self.bauteil_dropdown.value
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        dammdicke = self.dammdicke_dropdown.value
+        taetigkeit = self.taetigkeit_dropdown.value
+        quantity = self.quantity_input.value
+
+        logging.info(f"Kategorie: {category}, Bauteil: {bauteil}, DN: {dn}, DA: {da}, Dämmdicke: {dammdicke}, Tätigkeit: {taetigkeit}, Menge: {quantity}")
+
+        if not all([category, bauteil, quantity]):
+            logging.warning("Nicht alle erforderlichen Felder sind ausgefüllt")
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
+            return
+
+        try:
+            quantity = float(quantity)
+        except ValueError:
+            logging.error(f"Ungültige Menge: {quantity}")
+            self.show_error("Ungültige Menge")
+            self.price_field.value = ""
+            self.zwischensumme_field.value = ""
+            return
+
+        # Hole die Positionsnummer
+        positionsnummer = get_positionsnummer(self, bauteil, dammdicke, dn, da, category)
+        if positionsnummer:
+            self.position_field.value = str(positionsnummer)
+        else:
+            self.position_field.value = ""
+
+        if category == "Aufmaß":
+            if not all([taetigkeit, dammdicke]):
+                logging.warning("Tätigkeit oder Dämmdicke fehlt für Aufmaß")
+                return
+
+            base_price = get_base_price(self, bauteil, dn, da, dammdicke)
+            logging.info(f"Basispreis: {base_price}")
+            if base_price is None:
+                logging.error("Kein Preis gefunden")
+                self.show_error("Kein Preis gefunden")
+                return
+
+            taetigkeit_faktor = get_taetigkeit_faktor(self, taetigkeit)
+            logging.info(f"Tätigkeitsfaktor: {taetigkeit_faktor}")
+            if taetigkeit_faktor is None:
+                logging.error("Kein Tätigkeitsfaktor gefunden")
+                self.show_error("Kein Tätigkeitsfaktor gefunden")
+                return
+
+            price = base_price * taetigkeit_faktor
+
+            # Anwenden von Sonderleistungen
+            for bezeichnung, faktor in self.selected_sonderleistungen:
+                logging.info(f"Anwenden von Sonderleistung: {bezeichnung} mit Faktor {faktor}")
+                price *= faktor
+
+            # Anwenden von Zuschlägen
+            for bezeichnung, faktor in self.selected_zuschlaege:
+                logging.info(f"Anwenden von Zuschlag: {bezeichnung} mit Faktor {faktor}")
+                price *= faktor
+
+        elif category == "Material":
+            price = get_material_price(self, bauteil)
+            logging.info(f"Materialpreis: {price}")
+            if price is None:
+                logging.error("Kein Materialpreis gefunden")
+                self.show_error("Kein Materialpreis gefunden")
+                return
+
+        else:
+            logging.error(f"Preisberechnung für Kategorie {category} nicht implementiert")
+            self.show_error("Preisberechnung für diese Kategorie nicht implementiert")
+            return
+
+        total_price = price * quantity
+
+        logging.info(f"Berechneter Preis: {price:.2f}, Gesamtpreis: {total_price:.2f}")
+
+        self.price_field.value = f"{price:.2f}"
+        self.zwischensumme_field.value = f"{total_price:.2f}"
+        
         self.update()

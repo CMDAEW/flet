@@ -107,7 +107,9 @@ def main(page: ft.Page):
         bgcolor=ft.colors.WHITE,
     )
 
-    show_start_screen()
+    page.go = show_start_screen  # Setzen Sie die Standardroute '/' auf show_start_screen
+
+    show_start_screen()  # Zeigen Sie den Startbildschirm initial an
 
 if __name__ == "__main__":
     try:
