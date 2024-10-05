@@ -14,7 +14,6 @@ def initialize_database():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invoice (
         id INTEGER PRIMARY KEY,
-        invoice_id INTEGER,
         client_name TEXT NOT NULL,
         bestell_nr TEXT,
         bestelldatum TEXT,
@@ -24,40 +23,28 @@ def initialize_database():
         auftrags_nr TEXT,
         ausfuehrungsbeginn TEXT,
         ausfuehrungsende TEXT,
-        total_amount REAL
+        total_amount REAL,
+        zuschlaege TEXT
     )
     ''')
 
-    # Create invoice_items table with new columns
+    # Create invoice_items table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invoice_items (
         id INTEGER PRIMARY KEY,
         invoice_id INTEGER,
-        Positionsnummer TEXT,
+        position TEXT,
+        Bauteil TEXT,
         DN REAL,
         DA REAL,
         Size TEXT,
-        Value REAL,
-        Unit TEXT,
-        Bauteil TEXT,
-        quantity INTEGER,
-        sonderleistung_1 TEXT,
-        sonderleistung_2 TEXT,
-        zwischensumme REAL,
         taetigkeit TEXT,
-        bemerkungen TEXT,
-        zuschlag1 TEXT,
-        zuschlag2 TEXT,
-        zuschlag3 TEXT,
-        zuschlag4 TEXT,
-        zuschlag5 TEXT,
-        zuschlag6 TEXT,
-        zuschlag7 TEXT,
-        zuschlag8 TEXT,
-        zuschlag9 TEXT,
-        zuschlag10 TEXT,
-        FOREIGN KEY (invoice_id) REFERENCES invoice (id),
-        FOREIGN KEY (Positionsnummer) REFERENCES price_list (Positionsnummer)
+        Unit TEXT,
+        Value REAL,
+        quantity REAL,
+        zwischensumme REAL,
+        sonderleistungen TEXT,
+        FOREIGN KEY (invoice_id) REFERENCES invoice (id)
     )
     ''')
 
@@ -90,7 +77,7 @@ def initialize_database():
     # Create Faktoren table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Faktoren (
-            Positionsnummer TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             Art TEXT NOT NULL,
             Bezeichnung TEXT NOT NULL,
             Faktor REAL NOT NULL

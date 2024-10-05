@@ -12,7 +12,6 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     doc = SimpleDocTemplate(filename, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
     elements = []
     
-    # Styles
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='Normal_RIGHT', parent=styles['Normal'], alignment=2))
     styles.add(ParagraphStyle(name='Normal_CENTER', parent=styles['Normal'], alignment=1))
@@ -41,13 +40,15 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     
     # Rechnungsdetails
     invoice_details = [
-        ["Rechnungsnummer:", invoice_data.get('invoice_number', '')],
-        ["Rechnungsdatum:", invoice_data.get('invoice_date', '')],
-        ["Kundennummer:", invoice_data.get('customer_number', '')],
-        ["Bestellnummer:", invoice_data.get('order_number', '')],
-        ["Bestelldatum:", invoice_data.get('order_date', '')],
-        ["Lieferscheinnummer:", invoice_data.get('delivery_note_number', '')],
-        ["Lieferdatum:", invoice_data.get('delivery_date', '')],
+        ["Kunde:", invoice_data.get('client_name', '')],
+        ["Bestell-Nr.:", invoice_data.get('bestell_nr', '')],
+        ["Bestelldatum:", invoice_data.get('bestelldatum', '')],
+        ["Baustelle:", invoice_data.get('baustelle', '')],
+        ["Anlagenteil:", invoice_data.get('anlagenteil', '')],
+        ["Aufmaß-Nr.:", invoice_data.get('aufmass_nr', '')],
+        ["Auftrags-Nr.:", invoice_data.get('auftrags_nr', '')],
+        ["Ausführungsbeginn:", invoice_data.get('ausfuehrungsbeginn', '')],
+        ["Ausführungsende:", invoice_data.get('ausfuehrungsende', '')],
     ]
     details_table = Table(invoice_details, colWidths=[60*mm, 130*mm])
     details_table.setStyle(TableStyle([
@@ -61,28 +62,29 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     
     # Artikelliste
     if include_prices:
-        data = [["Pos.", "Artikelbezeichnung", "Menge", "Einheit", "Einzelpreis", "Gesamtpreis"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Menge", "Einheit", "Einheitspreis", "Gesamtpreis"]]
     else:
-        data = [["Pos.", "Artikelbezeichnung", "Menge", "Einheit"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Menge", "Einheit"]]
     
     for article in invoice_data['articles']:
         row = [
-            article.get('position', ''),
-            article.get('artikelbeschreibung', ''),
-            article.get('quantity', ''),
-            article.get('einheit', ''),
+            article['position'],
+            article['artikelbeschreibung'],
+            article.get('dn', ''),
+            article.get('da', ''),
+            article.get('dammdicke', ''),
+            article.get('taetigkeit', ''),  # Jetzt die Tätigkeits-ID
+            article['quantity'],
+            article['einheit'],
         ]
         if include_prices:
-            row.extend([
-                article.get('price', ''),
-                article.get('zwischensumme', '')
-            ])
+            row.extend([article['einheitspreis'], article['zwischensumme']])
         data.append(row)
     
     if include_prices:
-        col_widths = [15*mm, 85*mm, 20*mm, 20*mm, 25*mm, 25*mm]
+        col_widths = [15*mm, 40*mm, 15*mm, 15*mm, 20*mm, 25*mm, 15*mm, 15*mm, 20*mm, 20*mm]
     else:
-        col_widths = [15*mm, 125*mm, 20*mm, 30*mm]
+        col_widths = [15*mm, 50*mm, 20*mm, 20*mm, 25*mm, 30*mm, 15*mm, 15*mm]
     
     articles_table = Table(data, colWidths=col_widths)
     articles_table.setStyle(TableStyle([
@@ -103,13 +105,15 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     elements.append(articles_table)
     
     if include_prices:
-        # Gesamtsumme
+        # Gesamtsumme und Zuschläge
         elements.append(Spacer(1, 5*mm))
         total_price_data = [
-            ["Nettobetrag:", invoice_data.get('net_total', '')],
-            ["Mehrwertsteuer 19%:", invoice_data.get('vat', '')],
-            ["Gesamtbetrag:", invoice_data.get('total_price', '')]
+            ["Nettobetrag:", f"{invoice_data.get('net_total', 0):.2f} €"],
         ]
+        for zuschlag, wert in invoice_data.get('zuschlaege', []):
+            total_price_data.append([f"Zuschlag {zuschlag}:", f"{wert:.2f} €"])
+        total_price_data.append(["Gesamtbetrag:", f"{invoice_data.get('total_price', 0):.2f} €"])
+        
         total_price_table = Table(total_price_data, colWidths=[150*mm, 40*mm])
         total_price_table.setStyle(TableStyle([
             ('ALIGN', (0,0), (0,-1), 'RIGHT'),
