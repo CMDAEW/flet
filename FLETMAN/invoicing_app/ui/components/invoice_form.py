@@ -7,6 +7,8 @@ class InvoiceForm(ft.UserControl):
         super().__init__()
         self.page = page
         self.conn = get_db_connection()
+        self.cache = {}
+        self.previous_bauteil = None
         self.create_ui_elements()
         self.load_data()
 
@@ -31,12 +33,12 @@ class InvoiceForm(ft.UserControl):
 
         # Rechnungspositionen Felder
         self.position_fields = {
-            'Bauteil': ft.Dropdown(label="Bauteil", width=200, on_change=self.on_bauteil_change),
-            'DN': ft.Dropdown(label="DN", width=80, on_change=self.on_dn_change, visible=True),
-            'DA': ft.Dropdown(label="DA", width=80, on_change=self.on_da_change, visible=True),
-            'Size': ft.Dropdown(label="Dämmdicke", width=100),
-            'Unit': ft.TextField(label="Einheit", width=100, read_only=True),  # Geändert von "Mengeneinheit" zu "Einheit"
-            'Taetigkeit': ft.Dropdown(label="Tätigkeit", width=300),
+            'Bauteil': ft.Dropdown(label="Bauteil", width=200, on_change=self.update_dn_da_fields),
+            'DN': ft.Dropdown(label="DN", width=80, on_change=self.update_dn_fields),
+            'DA': ft.Dropdown(label="DA", width=80, on_change=self.update_da_fields),
+            'Size': ft.Dropdown(label="Dämmdicke", width=100, on_change=self.update_price),
+            'Unit': ft.TextField(label="Einheit", width=100, read_only=True),
+            'Taetigkeit': ft.Dropdown(label="Tätigkeit", width=300, on_change=self.update_price),
         }
         
         self.position_text_fields = {
@@ -45,11 +47,22 @@ class InvoiceForm(ft.UserControl):
             'zwischensumme': ft.TextField(label="Zwischensumme", width=150, read_only=True),
         }
 
-        # Button für Sonderleistungen
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen)
-
-        # Button zum Hinzufügen der Position
         self.add_position_button = ft.ElevatedButton("Hinzufügen", on_click=self.add_position)
+
+    def update_price(self, e):
+        # Hier können Sie die Logik zur Aktualisierung des Preises implementieren
+        # Zum Beispiel:
+        positionsnummer = self.position_fields['Positionsnummer'].value
+        size = self.position_fields['Size'].value
+        if positionsnummer and size:
+            # Hier würden Sie den Preis aus der Datenbank abrufen
+            # und das Value-Feld aktualisieren
+            # Beispiel:
+            # price = self.get_price_from_db(positionsnummer, size)
+            # self.position_text_fields['Value'].value = str(price)
+            # self.position_text_fields['Value'].update()
+            pass
 
     def build(self):
         form_layout = ft.Column([
@@ -239,171 +252,151 @@ class InvoiceForm(ft.UserControl):
         # Implementierung zum Hinzufügen einer Position
         pass
 
-    def on_bauteil_change(self, e):
-        selected_bauteil = e.control.value
-        cursor = self.conn.cursor()
-        try:
-            if selected_bauteil == "Festpreis":
-                self.position_fields['Unit'].value = "pauschal"
+    def update_dn_da_fields(self, e):
+        bauteil = self.position_fields['Bauteil'].value
+        previous_bauteil = self.previous_bauteil
+        is_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(bauteil)
+        was_rohrleitung_or_formteil = self.is_rohrleitung_or_formteil(previous_bauteil)
+        
+        if bauteil:
+            current_dn = self.position_fields['DN'].value
+            current_da = self.position_fields['DA'].value
+            current_dammdicke = self.position_fields['Size'].value
+
+            if is_rohrleitung_or_formteil:
+                all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
+                
+                self.position_fields['DN'].options = [ft.dropdown.Option(str(dn)) for dn in all_dn_options]
+                self.position_fields['DA'].options = [ft.dropdown.Option(str(da)) for da in all_da_options]
+                
+                if current_dn in [opt.key for opt in self.position_fields['DN'].options]:
+                    self.position_fields['DN'].value = current_dn
+                else:
+                    self.position_fields['DN'].value = str(all_dn_options[0]) if all_dn_options else None
+
+                if current_da in [opt.key for opt in self.position_fields['DA'].options]:
+                    self.position_fields['DA'].value = current_da
+                else:
+                    self.position_fields['DA'].value = str(all_da_options[0]) if all_da_options else None
+
+                self.position_fields['DN'].visible = True
+                self.position_fields['DA'].visible = True
+            else:
+                self.position_fields['DN'].value = None
+                self.position_fields['DA'].value = None
                 self.position_fields['DN'].visible = False
                 self.position_fields['DA'].visible = False
-                self.position_fields['Size'].options = []
-            else:
-                cursor.execute("SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1", (selected_bauteil,))
-                result = cursor.fetchone()
-                if result:
-                    unit = result[0]
-                    self.position_fields['Unit'].value = unit
-                    if unit in ['St', 'm2']:
-                        self.position_fields['DN'].visible = False
-                        self.position_fields['DA'].visible = False
-                        # Laden der verfügbaren Dämmdicken für dieses Bauteil
-                        self.load_size_options(selected_bauteil)
-                    else:
-                        self.position_fields['DN'].visible = True
-                        self.position_fields['DA'].visible = True
-                        # Laden der DN und DA Optionen für das ausgewählte Bauteil
-                        self.load_dn_da_options(selected_bauteil)
-                        # Automatisch die ersten verfügbaren Werte für DN und DA auswählen
-                        if self.position_fields['DN'].options:
-                            self.position_fields['DN'].value = self.position_fields['DN'].options[0].key
-                        if self.position_fields['DA'].options:
-                            self.position_fields['DA'].value = self.position_fields['DA'].options[0].key
-                        # Dämmdicken basierend auf den ausgewählten DN und DA Werten laden
-                        self.update_size_options()
-                else:
-                    self.position_fields['Unit'].value = ""
-                    self.position_fields['DN'].visible = True
-                    self.position_fields['DA'].visible = True
-                    self.position_fields['Size'].options = []
+
+            self.position_fields['DN'].update()
+            self.position_fields['DA'].update()
             
-            # Zurücksetzen der Werte für Size
-            self.position_fields['Size'].value = None
-        except Exception as e:
-            logging.error(f"Fehler beim Aktualisieren der Felder nach Bauteil-Änderung: {e}")
-        finally:
-            cursor.close()
+            self.update_dammdicke_options()
+            if current_dammdicke in [opt.key for opt in self.position_fields['Size'].options]:
+                self.position_fields['Size'].value = current_dammdicke
+            self.position_fields['Size'].update()
+
+        if bauteil != previous_bauteil or is_rohrleitung_or_formteil != was_rohrleitung_or_formteil:
+            self.update_price()
+        
+        self.previous_bauteil = bauteil
         self.update()
 
-    def load_size_options(self, bauteil):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("""
-                SELECT DISTINCT Size 
-                FROM price_list 
-                WHERE Bauteil = ? AND Size IS NOT NULL
-                ORDER BY CAST(Size AS INTEGER)
-            """, (bauteil,))
-            size_options = [row[0] for row in cursor.fetchall()]
-            self.position_fields['Size'].options = [ft.dropdown.Option(str(option)) for option in size_options]
+    def update_dn_fields(self, e):
+        bauteil = self.position_fields['Bauteil'].value
+        dn = self.position_fields['DN'].value
+        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
+            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
             
-            # Automatisch die erste Größenoption auswählen, wenn verfügbar
-            if size_options:
-                self.position_fields['Size'].value = str(size_options[0])
+            self.position_fields['DN'].options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+            
+            if dn:
+                compatible_da = self.get_corresponding_da(bauteil, dn)
+                new_da_value = str(compatible_da[0]) if compatible_da else None
+                self.position_fields['DA'].value = new_da_value
+                
+                self.position_fields['DA'].options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+                self.position_fields['DA'].value = new_da_value
             else:
-                self.position_fields['Size'].value = None
-        except Exception as e:
-            logging.error(f"Fehler beim Laden der Dämmdicken-Optionen für Bauteil {bauteil}: {e}")
-        finally:
-            cursor.close()
-
-    def load_dn_da_options(self, bauteil):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("SELECT DISTINCT DN, DA FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL AND DA IS NOT NULL ORDER BY DN, DA", (bauteil,))
-            dn_da_pairs = cursor.fetchall()
-            
-            dn_options = sorted(set(pair[0] for pair in dn_da_pairs))
-            da_options = sorted(set(pair[1] for pair in dn_da_pairs))
-            
-            self.position_fields['DN'].options = [ft.dropdown.Option(str(int(dn) if isinstance(dn, float) and dn.is_integer() else dn)) for dn in dn_options]
-            self.position_fields['DA'].options = [ft.dropdown.Option(str(da)) for da in da_options]
-            
-            # Speichern der DN-DA Paare für spätere Verwendung
-            self.dn_da_pairs = dn_da_pairs
-        except Exception as e:
-            logging.error(f"Fehler beim Laden der DN/DA Optionen für Bauteil {bauteil}: {e}")
-        finally:
-            cursor.close()
-
-    def on_dn_change(self, e):
-        selected_dn = e.control.value
-        if selected_dn:
-            matching_das = [pair[1] for pair in self.dn_da_pairs if str(pair[0]) == selected_dn]
-            if matching_das:
-                # Wähle den ersten korrespondierenden DA-Wert aus
-                da_value = str(matching_das[0])
-                self.position_fields['DA'].value = da_value
-                self.position_fields['DA'].visible = True
-                # Aktualisiere die Dämmdicken-Optionen
-                self.update_size_options()
-            else:
-                # Wenn kein passendes DA gefunden wird, setzen wir es auf None, aber lassen es sichtbar
                 self.position_fields['DA'].value = None
-                self.position_fields['DA'].visible = True
-                self.position_fields['Size'].options = []
-                self.position_fields['Size'].value = None
-        else:
-            self.position_fields['DA'].value = None
-            self.position_fields['DA'].visible = True
-            self.position_fields['Size'].options = []
-            self.position_fields['Size'].value = None
+                self.position_fields['DA'].options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+            
+            self.position_fields['DA'].update()
         
-        # Erzwinge ein Update des DA-Feldes
-        self.position_fields['DA'].update()
-        self.update()
+        self.update_dammdicke_options()
+        self.update_price()
 
-    def on_da_change(self, e):
-        selected_da = e.control.value
-        if selected_da:
-            matching_dns = [pair[0] for pair in self.dn_da_pairs if str(pair[1]) == selected_da]
-            if matching_dns:
-                self.position_fields['DN'].value = str(int(matching_dns[0]) if isinstance(matching_dns[0], float) and matching_dns[0].is_integer() else matching_dns[0])
+    def update_da_fields(self, e):
+        bauteil = self.position_fields['Bauteil'].value
+        da = self.position_fields['DA'].value
+        if bauteil and self.is_rohrleitung_or_formteil(bauteil):
+            all_dn_options, all_da_options = self.load_all_dn_da_options(bauteil)
+            
+            self.position_fields['DA'].options = [ft.dropdown.Option(str(da_opt)) for da_opt in all_da_options]
+            
+            if da:
+                compatible_dn = self.get_corresponding_dn(bauteil, da)
+                new_dn_value = str(compatible_dn[0]) if compatible_dn else None
+                self.position_fields['DN'].value = new_dn_value
+                
+                self.position_fields['DN'].options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+                self.position_fields['DN'].value = new_dn_value
             else:
-                # Wenn kein passendes DN gefunden wird, setzen wir es auf None, aber lassen es sichtbar
                 self.position_fields['DN'].value = None
-            self.update_size_options()
-        else:
-            self.position_fields['DN'].value = None
-            self.position_fields['Size'].options = []
-            self.position_fields['Size'].value = None
+                self.position_fields['DN'].options = [ft.dropdown.Option(str(dn_opt)) for dn_opt in all_dn_options]
+            
+            self.position_fields['DN'].update()
+        
+        self.update_dammdicke_options()
+        self.update_price()
         self.update()
 
-    def update_size_options(self):
-        selected_bauteil = self.position_fields['Bauteil'].value
-        selected_dn = self.position_fields['DN'].value
-        selected_da = self.position_fields['DA'].value
-        
-        if selected_bauteil and selected_dn and selected_da:
+    def is_rohrleitung_or_formteil(self, bauteil):
+        if bauteil == 'Rohrleitung':
+            return True
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
+        return cursor.fetchone() is not None
+
+    def get_from_cache_or_db(self, key, query, params=None):
+        if key not in self.cache:
             cursor = self.conn.cursor()
-            try:
-                cursor.execute("""
-                    SELECT DISTINCT Size 
-                    FROM price_list 
-                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size IS NOT NULL
-                    ORDER BY CAST(Size AS INTEGER)
-                """, (selected_bauteil, selected_dn, selected_da))
-                size_options = [row[0] for row in cursor.fetchall()]
-                self.position_fields['Size'].options = [ft.dropdown.Option(str(option)) for option in size_options]
-                
-                # Automatisch die erste Größenoption auswählen, wenn verfügbar
-                if size_options:
-                    self.position_fields['Size'].value = str(size_options[0])
-                else:
-                    self.position_fields['Size'].value = None
-                
-                # Size-Feld immer sichtbar lassen
-                self.position_fields['Size'].visible = True
-            except Exception as e:
-                logging.error(f"Fehler beim Aktualisieren der Dämmdicken-Optionen: {e}")
-            finally:
-                cursor.close()
+            cursor.execute(query, params or ())
+            self.cache[key] = cursor.fetchall()
+        return self.cache[key]
+
+    def load_all_dn_da_options(self, bauteil):
+        all_dn_options = self.get_all_dn_options(bauteil)
+        all_da_options = self.get_all_da_options(bauteil)
+        return all_dn_options, all_da_options
+
+    def get_all_dn_options(self, bauteil):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL ORDER BY DN'
+            params = ('Rohrleitung',)
         else:
-            self.position_fields['Size'].options = []
-            self.position_fields['Size'].value = None
-            # Size-Feld immer sichtbar lassen
-            self.position_fields['Size'].visible = True
-        
-        # Erzwinge ein Update des Size-Feldes
-        self.position_fields['Size'].update()
-        self.update()
+            return []
+
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}", query, params)
+        return [int(float(dn[0])) for dn in options]
+
+    def get_all_da_options(self, bauteil):
+        if self.is_rohrleitung_or_formteil(bauteil):
+            query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DA IS NOT NULL ORDER BY DA'
+            params = ('Rohrleitung',)
+        else:
+            return []
+    
+        options = self.get_from_cache_or_db(f"da_options_{bauteil}", query, params)
+        return [float(da[0]) for da in options]
+
+    def get_corresponding_da(self, bauteil, dn):
+        query = 'SELECT DISTINCT DA FROM price_list WHERE Bauteil = ? AND DN = ? AND DA IS NOT NULL ORDER BY DA'
+        params = (bauteil, dn)
+        options = self.get_from_cache_or_db(f"da_options_{bauteil}_{dn}", query, params)
+        return [float(da[0]) for da in options]
+
+    def get_corresponding_dn(self, bauteil, da):
+        query = 'SELECT DISTINCT DN FROM price_list WHERE Bauteil = ? AND DA = ? AND DN IS NOT NULL ORDER BY DN'
+        params = (bauteil, da)
+        options = self.get_from_cache_or_db(f"dn_options_{bauteil}_{da}", query, params)
+        return [int(float(dn[0])) for dn in options]
