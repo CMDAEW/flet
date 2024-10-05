@@ -32,10 +32,11 @@ class InvoiceForm(ft.UserControl):
         # Rechnungspositionen Felder
         self.position_fields = {
             'Bauteil': ft.Dropdown(label="Bauteil", width=200, on_change=self.on_bauteil_change),
-            'DN': ft.Dropdown(label="DN", width=80, on_change=self.on_dn_change),
-            'DA': ft.Dropdown(label="DA", width=80, on_change=self.on_da_change),
+            'DN': ft.Dropdown(label="DN", width=80, on_change=self.on_dn_change, visible=True),
+            'DA': ft.Dropdown(label="DA", width=80, on_change=self.on_da_change, visible=True),
             'Size': ft.Dropdown(label="Dämmdicke", width=100),
-            'Unit': ft.TextField(label="Mengeneinheit", width=100, read_only=True),
+            'Unit': ft.TextField(label="Einheit", width=100, read_only=True),  # Geändert von "Mengeneinheit" zu "Einheit"
+            'Taetigkeit': ft.Dropdown(label="Tätigkeit", width=300),
         }
         
         self.position_text_fields = {
@@ -88,6 +89,7 @@ class InvoiceForm(ft.UserControl):
             self.position_fields['DA'],
             self.position_fields['Size'],
             self.position_fields['Unit'],
+            self.position_fields['Taetigkeit'],
             self.position_text_fields['Value'],
             self.position_text_fields['quantity'],
             self.position_text_fields['zwischensumme'],
@@ -118,8 +120,9 @@ class InvoiceForm(ft.UserControl):
 
     def load_position_options(self):
         self.load_bauteil_options()
+        self.load_taetigkeit_options()
         for field_name, dropdown in self.position_fields.items():
-            if field_name != 'Bauteil':
+            if field_name not in ['Bauteil', 'Taetigkeit']:
                 self.load_options_for_position_field(field_name)
 
     def load_options_for_field(self, field_name):
@@ -171,18 +174,29 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
+    def load_taetigkeit_options(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT DISTINCT Bezeichnung FROM Faktoren WHERE Art = 'Tätigkeit' ORDER BY Bezeichnung")
+            options = [row[0] for row in cursor.fetchall()]
+            self.position_fields['Taetigkeit'].options = [ft.dropdown.Option(option) for option in options]
+        except Exception as e:
+            logging.error(f"Fehler beim Laden der Tätigkeits-Optionen: {e}")
+        finally:
+            cursor.close()
+
     def load_options_for_position_field(self, field_name):
         cursor = self.conn.cursor()
         try:
             if field_name in ['DN', 'DA']:
-                cursor.execute(f'SELECT DISTINCT {field_name} FROM price_list ORDER BY {field_name}')
-                options = [row[0] for row in cursor.fetchall() if row[0] is not None]
+                cursor.execute(f'SELECT DISTINCT {field_name} FROM price_list WHERE {field_name} IS NOT NULL ORDER BY {field_name}')
+                options = [row[0] for row in cursor.fetchall()]
                 if field_name == 'DN':
-                    options = [int(option) if option.is_integer() else option for option in options]
+                    options = [int(option) if isinstance(option, float) and option.is_integer() else option for option in options]
                 self.position_fields[field_name].options = [ft.dropdown.Option(str(option)) for option in options]
-            else:
-                cursor.execute(f'SELECT DISTINCT {field_name} FROM price_list ORDER BY {field_name}')
-                options = [row[0] for row in cursor.fetchall() if row[0] is not None]
+            elif field_name != 'Size':  # Size wird separat behandelt
+                cursor.execute(f'SELECT DISTINCT {field_name} FROM price_list WHERE {field_name} IS NOT NULL ORDER BY {field_name}')
+                options = [row[0] for row in cursor.fetchall()]
                 self.position_fields[field_name].options = [ft.dropdown.Option(str(option)) for option in options]
         except Exception as e:
             logging.error(f"Fehler beim Laden der Optionen für {field_name}: {e}")
@@ -231,47 +245,165 @@ class InvoiceForm(ft.UserControl):
         try:
             if selected_bauteil == "Festpreis":
                 self.position_fields['Unit'].value = "pauschal"
+                self.position_fields['DN'].visible = False
+                self.position_fields['DA'].visible = False
+                self.position_fields['Size'].options = []
             else:
                 cursor.execute("SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1", (selected_bauteil,))
                 result = cursor.fetchone()
                 if result:
-                    self.position_fields['Unit'].value = result[0]
+                    unit = result[0]
+                    self.position_fields['Unit'].value = unit
+                    if unit in ['St', 'm2']:
+                        self.position_fields['DN'].visible = False
+                        self.position_fields['DA'].visible = False
+                        # Laden der verfügbaren Dämmdicken für dieses Bauteil
+                        self.load_size_options(selected_bauteil)
+                    else:
+                        self.position_fields['DN'].visible = True
+                        self.position_fields['DA'].visible = True
+                        # Laden der DN und DA Optionen für das ausgewählte Bauteil
+                        self.load_dn_da_options(selected_bauteil)
+                        # Automatisch die ersten verfügbaren Werte für DN und DA auswählen
+                        if self.position_fields['DN'].options:
+                            self.position_fields['DN'].value = self.position_fields['DN'].options[0].key
+                        if self.position_fields['DA'].options:
+                            self.position_fields['DA'].value = self.position_fields['DA'].options[0].key
+                        # Dämmdicken basierend auf den ausgewählten DN und DA Werten laden
+                        self.update_size_options()
                 else:
                     self.position_fields['Unit'].value = ""
+                    self.position_fields['DN'].visible = True
+                    self.position_fields['DA'].visible = True
+                    self.position_fields['Size'].options = []
+            
+            # Zurücksetzen der Werte für Size
+            self.position_fields['Size'].value = None
         except Exception as e:
-            logging.error(f"Fehler beim Aktualisieren der Mengeneinheit: {e}")
+            logging.error(f"Fehler beim Aktualisieren der Felder nach Bauteil-Änderung: {e}")
         finally:
             cursor.close()
         self.update()
 
-    def on_dn_change(self, e):
-        selected_dn = e.control.value
+    def load_size_options(self, bauteil):
         cursor = self.conn.cursor()
         try:
-            cursor.execute("SELECT DA FROM price_list WHERE DN = ? LIMIT 1", (selected_dn,))
-            result = cursor.fetchone()
-            if result:
-                self.position_fields['DA'].value = str(result[0])
+            cursor.execute("""
+                SELECT DISTINCT Size 
+                FROM price_list 
+                WHERE Bauteil = ? AND Size IS NOT NULL
+                ORDER BY CAST(Size AS INTEGER)
+            """, (bauteil,))
+            size_options = [row[0] for row in cursor.fetchall()]
+            self.position_fields['Size'].options = [ft.dropdown.Option(str(option)) for option in size_options]
+            
+            # Automatisch die erste Größenoption auswählen, wenn verfügbar
+            if size_options:
+                self.position_fields['Size'].value = str(size_options[0])
             else:
-                self.position_fields['DA'].value = None
+                self.position_fields['Size'].value = None
         except Exception as e:
-            logging.error(f"Fehler beim Aktualisieren des DA-Werts: {e}")
+            logging.error(f"Fehler beim Laden der Dämmdicken-Optionen für Bauteil {bauteil}: {e}")
         finally:
             cursor.close()
+
+    def load_dn_da_options(self, bauteil):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT DISTINCT DN, DA FROM price_list WHERE Bauteil = ? AND DN IS NOT NULL AND DA IS NOT NULL ORDER BY DN, DA", (bauteil,))
+            dn_da_pairs = cursor.fetchall()
+            
+            dn_options = sorted(set(pair[0] for pair in dn_da_pairs))
+            da_options = sorted(set(pair[1] for pair in dn_da_pairs))
+            
+            self.position_fields['DN'].options = [ft.dropdown.Option(str(int(dn) if isinstance(dn, float) and dn.is_integer() else dn)) for dn in dn_options]
+            self.position_fields['DA'].options = [ft.dropdown.Option(str(da)) for da in da_options]
+            
+            # Speichern der DN-DA Paare für spätere Verwendung
+            self.dn_da_pairs = dn_da_pairs
+        except Exception as e:
+            logging.error(f"Fehler beim Laden der DN/DA Optionen für Bauteil {bauteil}: {e}")
+        finally:
+            cursor.close()
+
+    def on_dn_change(self, e):
+        selected_dn = e.control.value
+        if selected_dn:
+            matching_das = [pair[1] for pair in self.dn_da_pairs if str(pair[0]) == selected_dn]
+            if matching_das:
+                # Wähle den ersten korrespondierenden DA-Wert aus
+                da_value = str(matching_das[0])
+                self.position_fields['DA'].value = da_value
+                self.position_fields['DA'].visible = True
+                # Aktualisiere die Dämmdicken-Optionen
+                self.update_size_options()
+            else:
+                # Wenn kein passendes DA gefunden wird, setzen wir es auf None, aber lassen es sichtbar
+                self.position_fields['DA'].value = None
+                self.position_fields['DA'].visible = True
+                self.position_fields['Size'].options = []
+                self.position_fields['Size'].value = None
+        else:
+            self.position_fields['DA'].value = None
+            self.position_fields['DA'].visible = True
+            self.position_fields['Size'].options = []
+            self.position_fields['Size'].value = None
+        
+        # Erzwinge ein Update des DA-Feldes
+        self.position_fields['DA'].update()
         self.update()
 
     def on_da_change(self, e):
         selected_da = e.control.value
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute("SELECT DN FROM price_list WHERE DA = ? LIMIT 1", (selected_da,))
-            result = cursor.fetchone()
-            if result:
-                self.position_fields['DN'].value = str(int(result[0]) if result[0].is_integer() else result[0])
+        if selected_da:
+            matching_dns = [pair[0] for pair in self.dn_da_pairs if str(pair[1]) == selected_da]
+            if matching_dns:
+                self.position_fields['DN'].value = str(int(matching_dns[0]) if isinstance(matching_dns[0], float) and matching_dns[0].is_integer() else matching_dns[0])
             else:
+                # Wenn kein passendes DN gefunden wird, setzen wir es auf None, aber lassen es sichtbar
                 self.position_fields['DN'].value = None
-        except Exception as e:
-            logging.error(f"Fehler beim Aktualisieren des DN-Werts: {e}")
-        finally:
-            cursor.close()
+            self.update_size_options()
+        else:
+            self.position_fields['DN'].value = None
+            self.position_fields['Size'].options = []
+            self.position_fields['Size'].value = None
+        self.update()
+
+    def update_size_options(self):
+        selected_bauteil = self.position_fields['Bauteil'].value
+        selected_dn = self.position_fields['DN'].value
+        selected_da = self.position_fields['DA'].value
+        
+        if selected_bauteil and selected_dn and selected_da:
+            cursor = self.conn.cursor()
+            try:
+                cursor.execute("""
+                    SELECT DISTINCT Size 
+                    FROM price_list 
+                    WHERE Bauteil = ? AND DN = ? AND DA = ? AND Size IS NOT NULL
+                    ORDER BY CAST(Size AS INTEGER)
+                """, (selected_bauteil, selected_dn, selected_da))
+                size_options = [row[0] for row in cursor.fetchall()]
+                self.position_fields['Size'].options = [ft.dropdown.Option(str(option)) for option in size_options]
+                
+                # Automatisch die erste Größenoption auswählen, wenn verfügbar
+                if size_options:
+                    self.position_fields['Size'].value = str(size_options[0])
+                else:
+                    self.position_fields['Size'].value = None
+                
+                # Size-Feld immer sichtbar lassen
+                self.position_fields['Size'].visible = True
+            except Exception as e:
+                logging.error(f"Fehler beim Aktualisieren der Dämmdicken-Optionen: {e}")
+            finally:
+                cursor.close()
+        else:
+            self.position_fields['Size'].options = []
+            self.position_fields['Size'].value = None
+            # Size-Feld immer sichtbar lassen
+            self.position_fields['Size'].visible = True
+        
+        # Erzwinge ein Update des Size-Feldes
+        self.position_fields['Size'].update()
         self.update()
