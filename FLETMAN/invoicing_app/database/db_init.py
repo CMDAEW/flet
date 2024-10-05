@@ -28,7 +28,7 @@ def initialize_database():
     )
     ''')
 
-    # Create invoice_items table
+    # Create invoice_items table with new columns
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invoice_items (
         id INTEGER PRIMARY KEY,
@@ -45,6 +45,17 @@ def initialize_database():
         sonderleistung_2 TEXT,
         zwischensumme REAL,
         taetigkeit TEXT,
+        bemerkungen TEXT,
+        zuschlag1 TEXT,
+        zuschlag2 TEXT,
+        zuschlag3 TEXT,
+        zuschlag4 TEXT,
+        zuschlag5 TEXT,
+        zuschlag6 TEXT,
+        zuschlag7 TEXT,
+        zuschlag8 TEXT,
+        zuschlag9 TEXT,
+        zuschlag10 TEXT,
         FOREIGN KEY (invoice_id) REFERENCES invoice (id),
         FOREIGN KEY (Positionsnummer) REFERENCES price_list (Positionsnummer)
     )

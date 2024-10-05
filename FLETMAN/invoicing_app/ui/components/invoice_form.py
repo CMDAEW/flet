@@ -15,28 +15,25 @@ class InvoiceForm(ft.UserControl):
         self.selected_sonderleistungen = []
         self.selected_zuschlaege = []
         self.previous_bauteil = None
-        self.current_category = None  # Neue Variable für die aktuelle Kategorie
-        
+
         self.create_ui_elements()
         self.load_data()
 
     def create_ui_elements(self):
-        # Ersetzen des Dropdown-Menüs durch Buttons
-        self.category_buttons = [
-            ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=150),
-            ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=150),
-            ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=150),
-            ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=150)
-        ]
-        self.category_row = ft.Row(controls=self.category_buttons, spacing=10)
+        # Entfernen Sie den Aufmaß-Button
+        # self.aufmass_button = ft.ElevatedButton("Aufmaß", on_click=self.on_aufmass_click, width=150)
 
         # Restlicher Code bleibt unverändert
-        self.artikelbeschreibung_dropdown = ft.Dropdown(label="Artikelbeschreibung", on_change=self.update_dn_da_fields, width=250)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=80, options=[])
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=80, options=[])
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.update_price, width=120)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.update_price, width=220)
-        
+        self.artikelbeschreibung_dropdown = ft.Dropdown(
+            label="Artikelbeschreibung", 
+            on_change=self.update_dn_da_fields, 
+            width=250
+        )
+        self.dn_dropdown = ft.Dropdown(label="DN", width=100)
+        self.da_dropdown = ft.Dropdown(label="DA", width=100)
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", width=150)
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", width=200)  # Hier hinzugefügt
+
         # Textfelder
         self.position_field = ft.TextField(label="Position", read_only=True, width=100)
         self.price_field = ft.TextField(label="Preis", read_only=True, width=100)
@@ -66,36 +63,55 @@ class InvoiceForm(ft.UserControl):
 
         self.article_list = ft.Column()
 
+    def load_data(self):
+        self.load_faktoren("Sonstige Zuschläge")
+        self.load_faktoren("Sonderleistung")
+        self.load_invoice_options()
+        self.load_aufmass_items()  # Laden Sie die Aufmaß-Items direkt
+
     def load_aufmass_items(self):
         cursor = self.conn.cursor()
         try:
-            # Laden Sie alle Bauteile und gruppieren Sie sie
+            # Laden Sie Bauteile aus der Preisliste
             cursor.execute('''
                 SELECT 
                     CASE 
-                        WHEN Bauteil IN (SELECT Bezeichnung FROM Faktoren WHERE Art = "Formteil") THEN 'Formteile'
-                        WHEN Kategorie = "Kleinkram" THEN 'Kleinkram'
+                        WHEN Size LIKE '%-%' THEN 'Kleinkram'
                         ELSE 'Bauteile'
                     END AS Gruppe,
                     Bauteil
-                FROM price_list
-                WHERE Bauteil != 'Rohrleitung'
-                UNION
-                SELECT 'Bauteile' AS Gruppe, 'Rohrleitung' AS Bauteil
-                ORDER BY Gruppe, Bauteil
+                FROM 
+                    (SELECT DISTINCT Bauteil, Size FROM price_list)
+                WHERE 
+                    Bauteil != 'Rohrleitung'
             ''')
             
-            grouped_items = {}
+            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
             for gruppe, bauteil in cursor.fetchall():
-                if gruppe not in grouped_items:
-                    grouped_items[gruppe] = []
-                grouped_items[gruppe].append(bauteil)
+                grouped_items[gruppe].add(bauteil)
+
+            # Laden Sie Formteile aus der Faktoren-Tabelle
+            cursor.execute('''
+                SELECT Bezeichnung
+                FROM Faktoren
+                WHERE Art = 'Formteil'
+            ''')
+            formteile = cursor.fetchall()
+            grouped_items['Formteile'] = set(item[0] for item in formteile)
 
             # Erstellen Sie die Optionen für das Dropdown
-            options = []
-            for gruppe, bauteile in grouped_items.items():
-                options.append(ft.dropdown.Option(gruppe, disabled=True))
-                options.extend([ft.dropdown.Option(bauteil) for bauteil in bauteile])
+            options = [
+                ft.dropdown.Option("Rohrleitung"),  # Rohrleitung als erste Option
+                ft.dropdown.Option("Festpreis"),    # Festpreis als zweite Option
+                ft.dropdown.Option("--- Bauteile ---", disabled=True)
+            ]
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Bauteile'])])
+            
+            options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
+            
+            options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
 
             self.artikelbeschreibung_dropdown.options = options
             self.artikelbeschreibung_dropdown.value = None
@@ -110,70 +126,104 @@ class InvoiceForm(ft.UserControl):
 
         self.update()
 
-    def on_category_click(self, e):
-        # Setze alle Buttons zurück
-        for button in self.category_buttons:
-            button.style = None
+    def build(self):
+        # Gruppieren der Felder in drei Spalten
+        field_columns = [
+            ['client_name', 'bestell_nr', 'bestelldatum'],
+            ['baustelle', 'anlagenteil', 'aufmass_nr'],
+            ['auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende']
+        ]
 
-        # Hebe den geklickten Button hervor
-        e.control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE)
+        invoice_details = ft.Row([
+            ft.Column([
+                ft.Column([
+                    self.invoice_detail_fields[field],
+                    self.new_entry_fields[field]
+                ])
+                for field in column
+            ], expand=1)
+            for column in field_columns
+        ])
 
-        # Aktualisiere die aktuelle Kategorie
-        self.current_category = e.control.data
+        return ft.Container(
+            content=ft.Column([
+                # Entfernen Sie den Container mit dem Aufmaß-Button
+                # Rest des Inhalts
+                ft.Container(
+                    content=ft.ListView(
+                        controls=[
+                            ft.Container(
+                                content=ft.Column([
+                                    invoice_details,
+                                    ft.Container(height=20),
+                                    ft.Text("Aufmaßeingabe:", weight=ft.FontWeight.BOLD),
+                                    ft.Column([
+                                        ft.Row([
+                                            self.artikelbeschreibung_dropdown,
+                                            self.dn_dropdown,
+                                            self.da_dropdown,
+                                            self.dammdicke_dropdown,
+                                            self.taetigkeit_dropdown,
+                                            ft.Column([
+                                                self.sonderleistungen_button,
+                                                self.sonderleistungen_container
+                                            ], width=130),
+                                            self.price_field,
+                                            self.quantity_input,
+                                            self.zwischensumme_field,
+                                            ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
+                                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                    ]),
+                                    ft.Container(height=20),
+                                    ft.Text("Artikelliste:", weight=ft.FontWeight.BOLD),
+                                    self.article_list,
+                                    ft.Container(height=20),
+                                    self.total_price_field,
+                                    self.zuschlaege_button,
+                                    self.zuschlaege_container,
+                                ]),
+                                padding=10,
+                            )
+                        ],
+                        expand=True,
+                        auto_scroll=True
+                    ),
+                    expand=True,
+                ),
+            ]),
+            expand=True,
+        )
 
-        # Führe die load_items Funktion aus
-        self.load_items(self.current_category)
-
-        self.update_field_visibility()  # Rufe update_field_visibility hier auf
+    def update_field_visibility(self):
+        is_festpreis = self.artikelbeschreibung_dropdown.value == "Festpreis"
+        is_rohrleitung = self.artikelbeschreibung_dropdown.value == "Rohrleitung"
+        
+        self.dn_dropdown.visible = self.da_dropdown.visible = is_rohrleitung
+        self.dammdicke_dropdown.visible = not is_festpreis
+        self.taetigkeit_dropdown.visible = not is_festpreis
+        
+        self.artikelbeschreibung_dropdown.visible = True
+        self.quantity_input.visible = True
+        self.price_field.visible = True
+        self.zwischensumme_field.visible = True
+        
+        # Wenn Festpreis ausgewählt ist, machen Sie das Preisfeld bearbeitbar
+        self.price_field.read_only = not is_festpreis
+        
         self.update()
 
-    def load_items(self, category):
-        # Ändern Sie diese Methode, um direkt die Kategorie zu akzeptieren
-        if category == "Aufmaß":
-            self.load_aufmass_items()
-        elif category == "Material":
-            self.load_material_items()
-        elif category == "Lohn":
-            self.load_lohn_items()
-        elif category == "Festpreis":
-            self.load_festpreis_items()
+    def update_dn_da_fields(self, e):
+        bauteil = self.artikelbeschreibung_dropdown.value
         self.update_field_visibility()
-
-    def load_data(self):
-        self.load_faktoren("Sonstige Zuschläge")
-        self.load_faktoren("Sonderleistung")
-        self.load_invoice_options()
-
-    def get_category_options(self):
-        return [ft.dropdown.Option(cat) for cat in ["Aufmaß", "Material", "Lohn", "Festpreis"]]
-
-    def load_faktoren(self, art):
-        faktoren = self.get_from_cache_or_db(f"faktoren_{art}", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
-        container = self.sonderleistungen_container if art == "Sonderleistung" else self.zuschlaege_container
-        container.controls.clear()
-        for bezeichnung, faktor in faktoren:
-            checkbox = ft.Checkbox(label=f"{bezeichnung} (Faktor: {faktor})", value=False)
-            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren(e, b, f, art)
-            container.controls.append(checkbox)
-        self.update()
-
-    def update_selected_faktoren(self, e, bezeichnung, faktor, art):
-        selected_list = self.selected_sonderleistungen if art == "Sonderleistung" else self.selected_zuschlaege
-        if e.control.value:
-            selected_list.append((bezeichnung, faktor))
+        if self.is_rohrleitung_or_formteil(bauteil):
+            self.auto_fill_rohrleitung_or_formteil(bauteil)
         else:
-            selected_list = [item for item in selected_list if item[0] != bezeichnung]
+            self.dn_dropdown.value = None
+            self.da_dropdown.value = None
+        
+        self.update_dammdicke_options()
         self.update_price()
-
-    def toggle_container(self, container):
-        container.visible = not container.visible
         self.update()
-
-    def toggle_sonderleistungen(self, e):
-        self.toggle_container(self.sonderleistungen_container)
-
-    def toggle_zuschlaege(self, e):
-        self.toggle_container(self.zuschlaege_container)
 
     def show_error(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
@@ -269,67 +319,78 @@ class InvoiceForm(ft.UserControl):
     def auto_fill_rohrleitung_or_formteil(self, bauteil):
         cursor = self.conn.cursor()
         try:
-            # Hole alle DN-Werte
-            cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
+            cursor.execute('''
+                SELECT DISTINCT DN
+                FROM price_list
+                WHERE Bauteil = 'Rohrleitung'
+                ORDER BY DN
+            ''')
             dn_options = [row[0] for row in cursor.fetchall()]
-            self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
-            self.dn_dropdown.value = str(int(dn_options[0]))
+            self.dn_dropdown.options = [ft.dropdown.Option(str(dn)) for dn in dn_options]
+            self.dn_dropdown.value = None
 
-            # Hole alle DA-Werte für Rohrleitungen, unabhängig von DN
-            cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
+            cursor.execute('''
+                SELECT DISTINCT DA
+                FROM price_list
+                WHERE Bauteil = 'Rohrleitung'
+                ORDER BY DA
+            ''')
             da_options = [row[0] for row in cursor.fetchall()]
             self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-            
-            # Wähle den ersten DA-Wert, der für den ausgewählten DN verfügbar ist
-            cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
-            first_valid_da = cursor.fetchone()[0]
-            self.da_dropdown.value = str(first_valid_da)
-
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
-
-            # Aktualisiere die Dämmdicke-Optionen und wähle die erste aus
-            self.update_dammdicke_options()
-            if self.dammdicke_dropdown.options:
-                self.dammdicke_dropdown.value = self.dammdicke_dropdown.options[0].key
-
-            # Hole die erste Tätigkeit
-            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung LIMIT 1')
-            first_taetigkeit = cursor.fetchone()[0]
-            self.taetigkeit_dropdown.value = first_taetigkeit
-
-            # Aktualisiere den Preis
-            self.update_price()
+            self.da_dropdown.value = None
         finally:
             cursor.close()
 
-
-    def update_dammdicke_options(self, e=None):
+    def update_dammdicke_options(self):
         bauteil = self.artikelbeschreibung_dropdown.value
-        if not bauteil:
+        dn = self.dn_dropdown.value
+        da = self.da_dropdown.value
+
+        if bauteil == "Festpreis":
+            self.dammdicke_dropdown.options = []
+            self.dammdicke_dropdown.value = None
             return
 
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        cursor = self.conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                query = '''
+                    SELECT DISTINCT Size 
+                    FROM price_list 
+                    WHERE Bauteil = ? AND DN = ? AND DA = ?
+                    ORDER BY CAST(SUBSTR(Size, 1, INSTR(Size, ' ') - 1) AS INTEGER)
+                '''
+                cursor.execute(query, ('Rohrleitung', dn, da))
+            else:
+                query = '''
+                    SELECT DISTINCT Size 
+                    FROM price_list 
+                    WHERE Bauteil = ?
+                    ORDER BY CAST(SUBSTR(Size, 1, INSTR(Size, ' ') - 1) AS INTEGER)
+                '''
+                cursor.execute(query, (bauteil,))
 
-        dammdicke_options = self.get_dammdicke_options(bauteil, dn, da)
-        self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-        if dammdicke_options:
-            self.dammdicke_dropdown.value = str(dammdicke_options[0])
-        else:
-            self.dammdicke_dropdown.value = None
-        self.dammdicke_dropdown.update()
+            dammdicken = [row[0] for row in cursor.fetchall()]
+            self.dammdicke_dropdown.options = [ft.dropdown.Option(dammdicke) for dammdicke in dammdicken]
+            
+            if dammdicken:
+                self.dammdicke_dropdown.value = dammdicken[0]
+            else:
+                self.dammdicke_dropdown.value = None
+        finally:
+            cursor.close()
+
+        self.update()
 
     def update_price(self, e=None):
-        category = self.current_category
         bauteil = self.artikelbeschreibung_dropdown.value
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        dn = self.dn_dropdown.value
+        da = self.da_dropdown.value
         dammdicke = self.dammdicke_dropdown.value
         taetigkeit = self.taetigkeit_dropdown.value
         quantity = self.quantity_input.value
 
-        if not all([category, bauteil, quantity]):
+        if not all([bauteil, quantity]):
             return
 
         try:
@@ -338,47 +399,39 @@ class InvoiceForm(ft.UserControl):
             self.show_error("Ungültige Menge")
             return
 
-        # Hole die Positionsnummer
-        positionsnummer = self.get_positionsnummer(bauteil, dammdicke, dn, da, category)
-        if positionsnummer:
-            self.position_field.value = str(positionsnummer)
+        if bauteil == "Festpreis":
+            try:
+                price = float(self.price_field.value)
+            except ValueError:
+                self.show_error("Ungültiger Preis")
+                return
         else:
-            self.position_field.value = ""
+            cursor = self.conn.cursor()
+            try:
+                if self.is_rohrleitung_or_formteil(bauteil):
+                    cursor.execute('''
+                        SELECT Value
+                        FROM price_list
+                        WHERE Bauteil = 'Rohrleitung' AND DN = ? AND DA = ? AND Size = ?
+                    ''', (dn, da, dammdicke))
+                else:
+                    cursor.execute('''
+                        SELECT Value
+                        FROM price_list
+                        WHERE Bauteil = ? AND Size = ?
+                    ''', (bauteil, dammdicke))
+                
+                result = cursor.fetchone()
+                if result:
+                    price = result[0]
+                else:
+                    self.show_error("Preis nicht gefunden")
+                    return
+            finally:
+                cursor.close()
 
-        if category == "Aufmaß":
-            if not all([taetigkeit, dammdicke]):
-                return
-
-            base_price = self.get_base_price(bauteil, dn, da, dammdicke)
-            if base_price is None:
-                self.show_error("Kein Preis gefunden")
-                return
-
-            taetigkeit_faktor = self.get_taetigkeit_faktor(taetigkeit)
-            if taetigkeit_faktor is None:
-                self.show_error("Kein Tätigkeitsfaktor gefunden")
-                return
-
-            price = base_price * taetigkeit_faktor
-
-            # Anwenden von Sonderleistungen
-            for _, faktor in self.selected_sonderleistungen:
-                price *= faktor
-
-            # Anwenden von Zuschlägen
-            for _, faktor in self.selected_zuschlaege:
-                price *= faktor
-
-        elif category == "Material":
-            price = self.get_material_price(bauteil)
-            if price is None:
-                self.show_error("Kein Materialpreis gefunden")
-                return
-
-        else:
-            # Für andere Kategorien (z.B. Lohn, Festpreis) müssen Sie hier die entsprechende Logik implementieren
-            self.show_error("Preisberechnung für diese Kategorie nicht implementiert")
-            return
+        # Anwenden von Faktoren (Tätigkeit, Sonderleistungen, Zuschläge)
+        price = self.apply_factors(price, taetigkeit)
 
         total_price = price * quantity
 
@@ -386,6 +439,29 @@ class InvoiceForm(ft.UserControl):
         self.zwischensumme_field.value = f"{total_price:.2f}"
         
         self.update()
+
+    def apply_factors(self, base_price, taetigkeit):
+        cursor = self.conn.cursor()
+        try:
+            # Tätigkeit Faktor
+            if taetigkeit:
+                cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Tätigkeit" AND Bezeichnung = ?', (taetigkeit,))
+                result = cursor.fetchone()
+                if result:
+                    base_price *= result[0]
+
+            # Sonderleistungen
+            for sonderleistung, faktor in self.selected_sonderleistungen:
+                base_price *= faktor
+
+            # Zuschläge
+            for zuschlag, faktor in self.selected_zuschlaege:
+                base_price *= faktor
+
+        finally:
+            cursor.close()
+
+        return base_price
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
@@ -509,62 +585,6 @@ class InvoiceForm(ft.UserControl):
             self.load_festpreis_items()
         self.update_field_visibility()
 
-    def load_aufmass_items(self):
-        cursor = self.conn.cursor()
-        try:
-            # Laden Sie Bauteile aus der Preisliste
-            cursor.execute('''
-                SELECT 
-                    CASE 
-                        WHEN Size LIKE '%-%' THEN 'Kleinkram'
-                        ELSE 'Bauteile'
-                    END AS Gruppe,
-                    Bauteil
-                FROM 
-                    (SELECT DISTINCT Bauteil, Size FROM price_list)
-                WHERE 
-                    Bauteil != 'Rohrleitung'
-            ''')
-            
-            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
-            for gruppe, bauteil in cursor.fetchall():
-                grouped_items[gruppe].add(bauteil)
-
-            # Laden Sie Formteile aus der Faktoren-Tabelle
-            cursor.execute('''
-                SELECT Bezeichnung
-                FROM Faktoren
-                WHERE Art = 'Formteil'
-            ''')
-            formteile = cursor.fetchall()
-            grouped_items['Formteile'] = set(item[0] for item in formteile)
-
-            # Erstellen Sie die Optionen für das Dropdown
-            options = [
-                ft.dropdown.Option("Rohrleitung"),  # Rohrleitung als erste Option
-                ft.dropdown.Option("--- Bauteile ---", disabled=True)
-            ]
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Bauteile'])])
-            
-            options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
-            
-            options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
-
-            self.artikelbeschreibung_dropdown.options = options
-            self.artikelbeschreibung_dropdown.value = None
-            
-            # Laden Sie die Tätigkeiten
-            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung')
-            taetigkeiten = [row[0] for row in cursor.fetchall()]
-            self.taetigkeit_dropdown.options = [ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeiten]
-            self.taetigkeit_dropdown.value = None
-        finally:
-            cursor.close()
-
-        self.update()
-
     def load_material_items(self):
         cursor = self.conn.cursor()
         try:
@@ -582,22 +602,6 @@ class InvoiceForm(ft.UserControl):
     def load_festpreis_items(self):
         # Implementieren Sie hier die Logik zum Laden der Festpreis-Artikel
         pass
-
-    def update_field_visibility(self):
-        # Anstatt den Wert aus dem Dropdown zu holen, verwenden wir eine neue Variable
-        category = self.current_category  # Diese Variable müssen wir in der Klasse definieren und in on_category_click aktualisieren
-        is_aufmass = category == "Aufmaß"
-        
-        self.dn_dropdown.visible = self.da_dropdown.visible = is_aufmass
-        self.dammdicke_dropdown.visible = is_aufmass
-        self.taetigkeit_dropdown.visible = is_aufmass
-        
-        self.artikelbeschreibung_dropdown.visible = True
-        self.quantity_input.visible = True
-        self.price_field.visible = True
-        self.zwischensumme_field.visible = True
-        
-        self.update()
 
     def load_invoice_options(self):
         for field_name in self.invoice_detail_fields:
@@ -619,82 +623,6 @@ class InvoiceForm(ft.UserControl):
         else:
             self.new_entry_fields[field_name].visible = False
         self.update()
-
-    def build(self):
-        # Gruppieren der Felder in drei Spalten
-        field_columns = [
-            ['client_name', 'bestell_nr', 'bestelldatum'],
-            ['baustelle', 'anlagenteil', 'aufmass_nr'],
-            ['auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende']
-        ]
-
-        invoice_details = ft.Row([
-            ft.Column([
-                ft.Column([
-                    self.invoice_detail_fields[field],
-                    self.new_entry_fields[field]
-                ])
-                for field in column
-            ], expand=1)
-            for column in field_columns
-        ])
-
-        return ft.Container(
-            content=ft.Column([
-                # Zentrierte Buttons
-                ft.Container(
-                    content=ft.Row(
-                        controls=self.category_buttons,
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    ),
-                    alignment=ft.alignment.center,
-                    expand=True,
-                ),
-                # Rest des Inhalts
-                ft.Container(
-                    content=ft.ListView(
-                        controls=[
-                            ft.Container(
-                                content=ft.Column([
-                                    invoice_details,
-                                    ft.Container(height=20),
-                                    ft.Text("Aufmaßeingabe:", weight=ft.FontWeight.BOLD),
-                                    ft.Column([
-                                        ft.Row([
-                                            self.artikelbeschreibung_dropdown,
-                                            self.dn_dropdown,
-                                            self.da_dropdown,
-                                            self.dammdicke_dropdown,
-                                            self.taetigkeit_dropdown,
-                                            ft.Column([
-                                                self.sonderleistungen_button,
-                                                self.sonderleistungen_container
-                                            ], width=130),
-                                            self.price_field,
-                                            self.quantity_input,
-                                            self.zwischensumme_field,
-                                            ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
-                                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                                    ]),
-                                    ft.Container(height=20),
-                                    ft.Text("Artikelliste:", weight=ft.FontWeight.BOLD),
-                                    self.article_list,
-                                    ft.Container(height=20),
-                                    self.total_price_field,
-                                    self.zuschlaege_button,
-                                    self.zuschlaege_container,
-                                ]),
-                                padding=10,
-                            )
-                        ],
-                        expand=True,
-                        auto_scroll=True
-                    ),
-                    expand=True,
-                ),
-            ]),
-            expand=True,
-        )
 
     def add_article_row(self, e):
         new_row = ft.Row([
@@ -842,3 +770,38 @@ class InvoiceForm(ft.UserControl):
             self.update_artikelbeschreibung_dropdown(bauteile)
         finally:
             cursor.close()
+
+    # Fügen Sie diese Methoden hinzu:
+    def toggle_sonderleistungen(self, e):
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+        self.update()
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.update()
+
+    def load_faktoren(self, art):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+            faktoren = cursor.fetchall()
+            container = self.sonderleistungen_container if art == "Sonderleistung" else self.zuschlaege_container
+            for bezeichnung, faktor in faktoren:
+                checkbox = ft.Checkbox(label=f"{bezeichnung} ({faktor})", value=False)
+                checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.on_faktor_change(e, b, f, art)
+                container.controls.append(checkbox)
+        finally:
+            cursor.close()
+
+    def on_faktor_change(self, e, bezeichnung, faktor, art):
+        if e.control.value:
+            if art == "Sonderleistung":
+                self.selected_sonderleistungen.append((bezeichnung, faktor))
+            else:
+                self.selected_zuschlaege.append((bezeichnung, faktor))
+        else:
+            if art == "Sonderleistung":
+                self.selected_sonderleistungen = [x for x in self.selected_sonderleistungen if x[0] != bezeichnung]
+            else:
+                self.selected_zuschlaege = [x for x in self.selected_zuschlaege if x[0] != bezeichnung]
+        self.update_price()
