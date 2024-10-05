@@ -51,8 +51,13 @@ class InvoiceForm(ft.UserControl):
         # Buttons und Container
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=200)
         self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege, width=180)
-        self.sonderleistungen_container = ft.Column(visible=False, spacing=10)
+        
+        # Container für Sonderleistungen, der direkt unter dem Button angezeigt wird
+        self.sonderleistungen_container = ft.Column(visible=False, spacing=10)  # Container für Sonderleistungen
         self.zuschlaege_container = ft.Column(visible=False, spacing=10)
+
+        # Update Position Button
+        self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
 
         # Rechnungsdetails Felder
         self.invoice_detail_fields = {
@@ -117,6 +122,19 @@ class InvoiceForm(ft.UserControl):
         )
 
         self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
+
+    def toggle_sonderleistungen(self, e):
+        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+        self.update()
+
+    def edit_article_row(self, row):
+        self.edit_mode = True
+        self.edit_row_index = self.article_list_header.rows.index(row)
+        
+        # ... bestehender Code ...
+
+        self.update_position_button.visible = True  # Button sichtbar machen, wenn ein Artikel bearbeitet wird
+        self.update()
 
     def load_aufmass_items(self):
         cursor = self.conn.cursor()
@@ -705,6 +723,11 @@ class InvoiceForm(ft.UserControl):
             for column in field_columns
         ])
 
+        sonderleistungen_column = ft.Column([
+            self.sonderleistungen_button,
+            self.sonderleistungen_container
+        ])
+
         return ft.Container(
             content=ft.Column([
                 ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
@@ -723,11 +746,10 @@ class InvoiceForm(ft.UserControl):
                     self.price_field,
                     self.quantity_input,
                     self.zwischensumme_field,
-                    self.sonderleistungen_button,
+                    sonderleistungen_column,  # Neue Spalte hier eingefügt
                     ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
                     self.update_position_button,
                 ], alignment=ft.MainAxisAlignment.START),
-                self.sonderleistungen_container,
                 ft.Container(height=20),
                 self.article_list_header,
                 self.total_price_field,
@@ -805,7 +827,7 @@ class InvoiceForm(ft.UserControl):
         for checkbox in self.sonderleistungen_container.controls:
             checkbox.value = checkbox.label in row.cells[10].content.value.split(", ")
         
-        self.update_position_button.visible = True
+        self.update_position_button.visible = True  # Button sichtbar machen, wenn ein Artikel bearbeitet wird
         self.update()
 
     def remove_article_row(self, row):
