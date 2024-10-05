@@ -4,12 +4,24 @@ import flet as ft
 import re
 
 from database.db_operations import get_db_connection
+from .invoice_pdf_generator import generate_pdf
+import os
+from datetime import datetime
 
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
+        logging.info("Initializing InvoiceForm")
         self.page = page
         self.conn = get_db_connection()
+        
+        # Überprüfen Sie den Datenbankinhalt
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM price_list")
+        count = cursor.fetchone()[0]
+        logging.info(f"Number of items in price_list: {count}")
+        cursor.close()
+        
         self.cache = {}
         self.article_summaries = []
         self.selected_sonderleistungen = []
@@ -20,8 +32,59 @@ class InvoiceForm(ft.UserControl):
         self.edit_row_index = None
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         
+        logging.info("Creating UI elements")
         self.create_ui_elements()
+        logging.info("Loading data")
         self.load_data()
+        logging.info("InvoiceForm initialization complete")
+
+    def build(self):
+        logging.info("Building InvoiceForm UI")
+        return ft.Column([
+            ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
+            self.category_row,
+            ft.Container(height=20),
+            ft.Row([
+                self.position_field,
+                self.bauteil_dropdown,
+                self.dn_dropdown,
+                self.da_dropdown,
+                ft.Container(self.dammdicke_dropdown, width=150),
+                self.taetigkeit_dropdown,
+                self.einheit_field,
+                self.price_field,
+                self.quantity_input,
+                self.zwischensumme_field,
+            ], wrap=True),
+            ft.Row([
+                ft.Column([
+                    self.sonderleistungen_button,
+                    self.sonderleistungen_container
+                ]),
+                ft.Column([
+                    self.zuschlaege_button,
+                    self.zuschlaege_container
+                ]),
+                ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
+                self.update_position_button,
+            ]),
+            ft.Container(height=20),
+            self.article_list_header,
+            self.total_price_field,
+            ft.Container(height=20),
+            ft.Row([
+                ft.Column([
+                    self.bemerkung_field,
+                ], expand=1),
+                ft.Column([
+                    self.create_pdf_with_prices_button,
+                    ft.Container(height=10),
+                    self.create_pdf_without_prices_button,
+                    ft.Container(height=10),
+                    self.back_to_main_menu_button,
+                ], expand=1),
+            ]),
+        ])
 
     def create_ui_elements(self):
         # Änderung hier: Umbenennung von artikelbeschreibung_dropdown zu bauteil_dropdown
@@ -137,35 +200,48 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def load_aufmass_items(self):
+        logging.info("Loading Aufmaß items")
         cursor = self.conn.cursor()
         try:
-            # Laden Sie alle Bauteile und gruppieren Sie sie
+            # Laden Sie Bauteile aus der Preisliste
             cursor.execute('''
                 SELECT 
                     CASE 
-                        WHEN Bauteil IN (SELECT Bezeichnung FROM Faktoren WHERE Art = "Formteil") THEN 'Formteile'
-                        WHEN Kategorie = "Kleinkram" THEN 'Kleinkram'
+                        WHEN Size LIKE '%-%' THEN 'Kleinkram'
                         ELSE 'Bauteile'
                     END AS Gruppe,
                     Bauteil
-                FROM price_list
-                WHERE Bauteil != 'Rohrleitung'
-                UNION
-                SELECT 'Bauteile' AS Gruppe, 'Rohrleitung' AS Bauteil
-                ORDER BY Gruppe, Bauteil
+                FROM 
+                    (SELECT DISTINCT Bauteil, Size FROM price_list)
+                WHERE 
+                    Bauteil != 'Rohrleitung'
             ''')
             
-            grouped_items = {}
+            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
             for gruppe, bauteil in cursor.fetchall():
-                if gruppe not in grouped_items:
-                    grouped_items[gruppe] = []
-                grouped_items[gruppe].append(bauteil)
+                grouped_items[gruppe].add(bauteil)
+
+            # Laden Sie Formteile aus der Faktoren-Tabelle
+            cursor.execute('''
+                SELECT Bezeichnung
+                FROM Faktoren
+                WHERE Art = 'Formteil'
+            ''')
+            formteile = cursor.fetchall()
+            grouped_items['Formteile'] = set(item[0] for item in formteile)
 
             # Erstellen Sie die Optionen für das Dropdown
-            options = []
-            for gruppe, bauteile in grouped_items.items():
-                options.append(ft.dropdown.Option(gruppe, disabled=True))
-                options.extend([ft.dropdown.Option(bauteil) for bauteil in bauteile])
+            options = [
+                ft.dropdown.Option("Rohrleitung"),  # Rohrleitung als erste Option
+                ft.dropdown.Option("--- Bauteile ---", disabled=True)
+            ]
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Bauteile'])])
+            
+            options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
+            
+            options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
 
             self.bauteil_dropdown.options = options
             self.bauteil_dropdown.value = None
@@ -178,6 +254,7 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
 
+        logging.info(f"Loaded {len(options)} options for bauteil_dropdown")
         self.update()
 
     def on_category_click(self, e):
@@ -213,7 +290,22 @@ class InvoiceForm(ft.UserControl):
         self.load_faktoren("Sonstige Zuschläge")
         self.load_faktoren("Sonderleistung")
         self.load_zuschlaege()
-        self.load_invoice_options()
+        # Entfernen Sie die folgende Zeile, wenn sie nicht benötigt wird
+        # self.load_invoice_options()
+
+    def load_invoice_options(self):
+        for field_name in self.invoice_detail_fields:
+            self.load_options_for_field(field_name)
+
+    def load_options_for_field(self, field_name):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(f'SELECT DISTINCT {field_name} FROM invoice ORDER BY {field_name}')
+            options = [row[0] for row in cursor.fetchall() if row[0]]
+            self.invoice_detail_fields[field_name].options = [ft.dropdown.Option(option) for option in options]
+            self.invoice_detail_fields[field_name].options.append(ft.dropdown.Option("Neuer Eintrag"))
+        finally:
+            cursor.close()
 
     def get_category_options(self):
         return [ft.dropdown.Option(cat) for cat in ["Aufmaß", "Material", "Lohn", "Festpreis"]]
@@ -593,386 +685,22 @@ class InvoiceForm(ft.UserControl):
             self.load_festpreis_items()
         self.update_field_visibility()
 
-    def load_aufmass_items(self):
-        cursor = self.conn.cursor()
+    def create_pdf_with_prices(self, e):
+        logging.info("Starte PDF-Erstellung mit Preisen")
         try:
-            # Laden Sie Bauteile aus der Preisliste
-            cursor.execute('''
-                SELECT 
-                    CASE 
-                        WHEN Size LIKE '%-%' THEN 'Kleinkram'
-                        ELSE 'Bauteile'
-                    END AS Gruppe,
-                    Bauteil
-                FROM 
-                    (SELECT DISTINCT Bauteil, Size FROM price_list)
-                WHERE 
-                    Bauteil != 'Rohrleitung'
-            ''')
-            
-            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
-            for gruppe, bauteil in cursor.fetchall():
-                grouped_items[gruppe].add(bauteil)
-
-            # Laden Sie Formteile aus der Faktoren-Tabelle
-            cursor.execute('''
-                SELECT Bezeichnung
-                FROM Faktoren
-                WHERE Art = 'Formteil'
-            ''')
-            formteile = cursor.fetchall()
-            grouped_items['Formteile'] = set(item[0] for item in formteile)
-
-            # Erstellen Sie die Optionen für das Dropdown
-            options = [
-                ft.dropdown.Option("Rohrleitung"),  # Rohrleitung als erste Option
-                ft.dropdown.Option("--- Bauteile ---", disabled=True)
-            ]
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Bauteile'])])
-            
-            options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
-            
-            options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
-
-            self.bauteil_dropdown.options = options
-            self.bauteil_dropdown.value = None
-            
-            # Laden Sie die Tätigkeiten
-            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung')
-            taetigkeiten = [row[0] for row in cursor.fetchall()]
-            self.taetigkeit_dropdown.options = [ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeiten]
-            self.taetigkeit_dropdown.value = None
-        finally:
-            cursor.close()
-
-        self.update()
-
-    def load_material_items(self):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('SELECT DISTINCT Bauteil FROM price_list WHERE Category = "Material" ORDER BY Bauteil')
-            items = [row[0] for row in cursor.fetchall()]
-            self.bauteil_dropdown.options = [ft.dropdown.Option(item) for item in items]
-            self.bauteil_dropdown.value = None
-        finally:
-            cursor.close()
-
-    def load_lohn_items(self):
-        # Implementieren Sie hier die Logik zum Laden der Lohn-Artikel
-        pass
-
-    def load_festpreis_items(self):
-        # Implementieren Sie hier die Logik zum Laden der Festpreis-Artikel
-        pass
-
-    def update_field_visibility(self):
-        # Anstatt den Wert aus dem Dropdown zu holen, verwenden wir eine neue Variable
-        category = self.current_category  # Diese Variable müssen wir in der Klasse definieren und in on_category_click aktualisieren
-        is_aufmass = category == "Aufmaß"
-        
-        self.dn_dropdown.visible = self.da_dropdown.visible = is_aufmass
-        self.dammdicke_dropdown.visible = is_aufmass
-        self.taetigkeit_dropdown.visible = is_aufmass
-        
-        self.bauteil_dropdown.visible = True
-        self.quantity_input.visible = True
-        self.price_field.visible = True
-        self.zwischensumme_field.visible = True
-        
-        self.update()
-
-    def load_invoice_options(self):
-        for field_name in self.invoice_detail_fields:
-            self.load_options_for_field(field_name)
-
-    def load_options_for_field(self, field_name):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute(f'SELECT DISTINCT {field_name} FROM invoice ORDER BY {field_name}')
-            options = [row[0] for row in cursor.fetchall() if row[0]]
-            self.invoice_detail_fields[field_name].options = [ft.dropdown.Option(option) for option in options]
-            self.invoice_detail_fields[field_name].options.append(ft.dropdown.Option("Neuer Eintrag"))
-        finally:
-            cursor.close()
-
-    def toggle_new_entry(self, e, field_name):
-        if e.control.value == "Neuer Eintrag":
-            self.new_entry_fields[field_name].visible = True
-        else:
-            self.new_entry_fields[field_name].visible = False
-        self.update()
-
-    def build(self):
-        # Gruppieren der Felder in drei Spalten
-        field_columns = [
-            ['client_name', 'bestell_nr', 'bestelldatum'],
-            ['baustelle', 'anlagenteil', 'aufmass_nr'],
-            ['auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende']
-        ]
-
-        invoice_details = ft.Row([
-            ft.Column([
-                ft.Column([
-                    self.invoice_detail_fields[field],
-                    self.new_entry_fields[field]
-                ])
-                for field in column
-            ], expand=1)
-            for column in field_columns
-        ])
-
-        sonderleistungen_column = ft.Column([
-            self.sonderleistungen_button,
-            self.sonderleistungen_container
-        ])
-
-        return ft.Container(
-            content=ft.Column([
-                ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
-                self.category_row,
-                ft.Container(height=20),
-                invoice_details,
-                ft.Container(height=20),
-                ft.Row([
-                    self.position_field,
-                    self.bauteil_dropdown,
-                    self.dn_dropdown,
-                    self.da_dropdown,
-                    ft.Container(self.dammdicke_dropdown, width=150),  # Breiteres Dämmdicke-Feld
-                    self.taetigkeit_dropdown,
-                    self.einheit_field,
-                    self.price_field,
-                    self.quantity_input,
-                    self.zwischensumme_field,
-                    sonderleistungen_column,  # Neue Spalte hier eingefügt
-                    ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
-                    self.update_position_button,
-                ], alignment=ft.MainAxisAlignment.START),
-                ft.Container(height=20),
-                self.article_list_header,
-                self.total_price_field,
-                ft.Container(height=20),
-                ft.Row([
-                    ft.Column([
-                        self.bemerkung_field,
-                    ], expand=1),
-                    ft.Column([
-                        self.zuschlaege_button,
-                        self.zuschlaege_container,
-                        ft.Container(height=10),
-                        self.create_pdf_with_prices_button,
-                        ft.Container(height=10),
-                        self.create_pdf_without_prices_button,
-                        ft.Container(height=10),
-                        self.back_to_main_menu_button,
-                    ], expand=1),
-                ]),
-            ]),
-            padding=40,
-            expand=True,
-        )
-
-    def add_article_row(self, e):
-        if float(self.price_field.value or 0) == 0:
-            self.show_error("Der Preis darf nicht Null sein.")
-            return
-
-        new_row = ft.DataRow(
-            cells=[
-                ft.DataCell(ft.Text(self.position_field.value, size=20)),
-                ft.DataCell(ft.Text(self.bauteil_dropdown.value, size=20)),
-                ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=20)),
-                ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=20)),
-                ft.DataCell(ft.Text(self.dammdicke_dropdown.value, size=20)),
-                ft.DataCell(ft.Text(self.taetigkeit_dropdown.value, size=20)),
-                ft.DataCell(ft.Text(self.einheit_field.value, size=20)),
-                ft.DataCell(ft.Text(self.price_field.value, size=20)),
-                ft.DataCell(ft.Text(self.quantity_input.value, size=20)),
-                ft.DataCell(ft.Text(self.zwischensumme_field.value, size=20)),
-                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]), size=20)),
-                ft.DataCell(ft.Row([
-                    ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
-                    ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
-                ])),
-            ]
-        )
-        self.article_list_header.rows.append(new_row)
-        
-        self.article_summaries.append({
-            'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
-            'sonderleistungen': self.selected_sonderleistungen.copy()
-        })
-        
-        self.update_total_price()
-        self.reset_fields()
-        self.update()
-
-    def edit_article_row(self, row):
-        self.edit_mode = True
-        self.edit_row_index = self.article_list_header.rows.index(row)
-        
-        self.position_field.value = row.cells[0].content.value
-        self.bauteil_dropdown.value = row.cells[1].content.value
-        self.dn_dropdown.value = row.cells[2].content.value
-        self.da_dropdown.value = row.cells[3].content.value
-        self.dammdicke_dropdown.value = row.cells[4].content.value
-        self.taetigkeit_dropdown.value = row.cells[5].content.value
-        self.einheit_field.value = row.cells[6].content.value
-        self.price_field.value = row.cells[7].content.value
-        self.quantity_input.value = row.cells[8].content.value
-        self.zwischensumme_field.value = row.cells[9].content.value
-        
-        for checkbox in self.sonderleistungen_container.controls:
-            checkbox.value = checkbox.label in row.cells[10].content.value.split(", ")
-        
-        self.update_position_button.visible = True  # Button sichtbar machen, wenn ein Artikel bearbeitet wird
-        self.update()
-
-    def remove_article_row(self, row):
-        index = self.article_list_header.rows.index(row)
-        self.article_list_header.rows.remove(row)
-        del self.article_summaries[index]
-        self.update_total_price()
-        self.update()
-
-    def update_total_price(self):
-        base_total_price = sum(article['zwischensumme'] for article in self.article_summaries)
-        
-        # Anwenden von Zuschlägen auf den Gesamtpreis
-        for _, faktor in self.selected_zuschlaege:
-            base_total_price *= faktor
-
-        self.total_price_field.value = f"Gesamtpreis: {base_total_price:.2f} €".replace('.', ',')
-        self.update()
-
-    def reset_fields(self):
-        self.bauteil_dropdown.value = None
-        self.dn_dropdown.value = None
-        self.da_dropdown.value = None
-        self.dammdicke_dropdown.value = None
-        self.taetigkeit_dropdown.value = None
-        self.position_field.value = ""
-        self.price_field.value = ""
-        self.quantity_input.value = "1"
-        self.zwischensumme_field.value = ""
-        
-        # Setze auch die Sonderleistungen und Zuschläge zurück
-        for checkbox in self.sonderleistungen_container.controls:
-            checkbox.value = False
-        for checkbox in self.zuschlaege_container.controls:
-            checkbox.value = False
-        self.selected_sonderleistungen = []
-        self.selected_zuschlaege = []
-        
-        self.update()
-
-    def get_invoice_data(self):
-        invoice_data = {
-            'client_name': self.invoice_detail_fields['client_name'].value,
-            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
-            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
-            'baustelle': self.invoice_detail_fields['baustelle'].value,
-            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
-            'aufmass_nr': self.invoice_detail_fields['aufmass_nr'].value,
-            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
-            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
-            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
-            'category': self.current_category,
-            'articles': []
-        }
-
-        for row in self.article_list_header.rows:
-            article = {
-                'position': row.cells[0].content.value,
-                'artikelbeschreibung': row.cells[1].content.value,
-                'dn': row.cells[2].content.value,
-                'da': row.cells[3].content.value,
-                'dammdicke': row.cells[4].content.value,
-                'taetigkeit': row.cells[5].content.value,
-                'price': row.cells[6].content.value,
-                'quantity': row.cells[7].content.value,
-                'zwischensumme': row.cells[8].content.value
-            }
-            invoice_data['articles'].append(article)
-
-        invoice_data['total_price'] = self.total_price_field.value
-
-        return invoice_data
-
-    def load_invoice_data(self, invoice_data):
-        for field, value in invoice_data.items():
-            if field in self.invoice_detail_fields:
-                self.invoice_detail_fields[field].value = value
-
-        self.article_list_header.rows.clear()
-        self.article_summaries.clear()
-
-        for article in invoice_data['articles']:
-            new_row = ft.DataRow(
-                cells=[
-                    ft.DataCell(ft.Text(article['position'])),
-                    ft.DataCell(ft.Text(article['artikelbeschreibung'])),
-                    ft.DataCell(ft.Text(article['dn'])),
-                    ft.DataCell(ft.Text(article['da'])),
-                    ft.DataCell(ft.Text(article['dammdicke'])),
-                    ft.DataCell(ft.Text(article['taetigkeit'])),
-                    ft.DataCell(ft.Text(article['price'])),
-                    ft.DataCell(ft.Text(article['quantity'])),
-                    ft.DataCell(ft.Text(article['zwischensumme'])),
-                    ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]))),
-                    ft.DataCell(ft.Row([
-                        ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
-                        ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
-                    ])),
-                ]
-            )
-            self.article_list_header.rows.append(new_row)
-            self.add_zwischensumme(float(article['zwischensumme'].replace(',', '.')))
-
-        self.total_price_field.value = invoice_data['total_price']
-        self.update()
-
-
-    def update_artikelbeschreibung_dropdown(self, bauteile):
-        self.bauteil_dropdown.options = [ft.dropdown.Option(bauteil) for bauteil in bauteile]
-        self.bauteil_dropdown.value = None
-        self.bauteil_dropdown.update()
-
-    def load_all_bauteile(self):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('''
-                SELECT DISTINCT Bauteil 
-                FROM (
-                    SELECT Bezeichnung AS Bauteil FROM Faktoren WHERE Art = "Formteil"
-                    UNION ALL
-                    SELECT Bauteil FROM price_list WHERE Kategorie IN ("Kleinkram", "Bauteil")
-                ) 
-                ORDER BY Bauteil
-            ''')
-            bauteile = [row[0] for row in cursor.fetchall()]
-            self.update_artikelbeschreibung_dropdown(bauteile)
-        finally:
-            cursor.close()
-
-    def delete_invoice(self, e):
-        # Implementieren Sie hier die Logik zum Löschen der gesamten Rechnung      
-          pass
-    
-    def create_pdf_with_prices(self):
-            # Implementieren Sie hier die Logik zum Erstellen eines PDFs mit Preisen
-            try:
-                # Hier würde die tatsächliche PDF-Erstellung implementiert werden
-                # Zum Beispiel:
-                # self.generate_pdf(include_prices=True)
-                self.page.snack_bar = ft.SnackBar(content=ft.Text("PDF mit Preisen wurde erstellt"))
-                self.page.snack_bar.open = True
-                self.update()
-            except Exception as ex:
-                logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
-                self.show_error("Fehler beim Erstellen des PDFs mit Preisen")
+            invoice_data = self.get_invoice_data()
+            logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
+            filename = f"Rechnung_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
+            logging.info(f"PDF wird erstellt: {filepath}")
+            generate_pdf(invoice_data, filepath, include_prices=True)
+            logging.info("PDF erfolgreich erstellt")
+            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"PDF mit Preisen wurde erstellt: {filepath}"))
+            self.page.snack_bar.open = True
+            self.update()
+        except Exception as ex:
+            logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
+            self.show_error("Fehler beim Erstellen des PDFs mit Preisen")
 
     def create_pdf_without_prices(self, e):
         # Implementieren Sie hier die Logik zum Erstellen eines PDFs ohne Preise
@@ -1054,3 +782,131 @@ class InvoiceForm(ft.UserControl):
             self.edit_row_index = None
             self.update_position_button.visible = False
             self.update()
+
+    def delete_invoice(self, e):
+        # Implementieren Sie hier die Logik zum Löschen der Rechnung
+        logging.info("Löschen der Rechnung wurde angefordert")
+        # Beispiel für eine einfache Implementierung:
+        if self.article_list_header.rows:
+            self.article_list_header.rows.clear()
+            self.article_summaries.clear()
+            self.update_total_price()
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("Rechnung wurde gelöscht"))
+            self.page.snack_bar.open = True
+        else:
+            self.page.snack_bar = ft.SnackBar(content=ft.Text("Keine Rechnung zum Löschen vorhanden"))
+            self.page.snack_bar.open = True
+        self.update()
+
+    def add_article_row(self, e):
+        if float(self.price_field.value or 0) == 0:
+            self.show_error("Der Preis darf nicht Null sein.")
+            return
+
+        new_row = ft.DataRow(
+            cells=[
+                ft.DataCell(ft.Text(self.position_field.value, size=20)),
+                ft.DataCell(ft.Text(self.bauteil_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=20)),
+                ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=20)),
+                ft.DataCell(ft.Text(self.dammdicke_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.taetigkeit_dropdown.value, size=20)),
+                ft.DataCell(ft.Text(self.einheit_field.value, size=20)),
+                ft.DataCell(ft.Text(self.price_field.value, size=20)),
+                ft.DataCell(ft.Text(self.quantity_input.value, size=20)),
+                ft.DataCell(ft.Text(self.zwischensumme_field.value, size=20)),
+                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]), size=20)),
+                ft.DataCell(ft.Row([
+                    ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
+                    ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
+                ])),
+            ]
+        )
+        self.article_list_header.rows.append(new_row)
+        
+        self.article_summaries.append({
+            'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
+            'sonderleistungen': self.selected_sonderleistungen.copy()
+        })
+        
+        self.update_total_price()
+        self.reset_fields()
+        self.update()
+
+    def update_field_visibility(self):
+        logging.info(f"Updating field visibility for category: {self.current_category}")
+        is_aufmass = self.current_category == "Aufmaß"
+        
+        self.dn_dropdown.visible = self.da_dropdown.visible = is_aufmass
+        self.dammdicke_dropdown.visible = is_aufmass
+        self.taetigkeit_dropdown.visible = is_aufmass
+        
+        self.bauteil_dropdown.visible = True
+        self.quantity_input.visible = True
+        self.price_field.visible = True
+        self.zwischensumme_field.visible = True
+        
+        self.update()
+
+    def update_total_price(self):
+        total_price = sum(article['zwischensumme'] for article in self.article_summaries)
+        
+        # Anwenden von Zuschlägen auf den Gesamtpreis
+        for _, faktor in self.selected_zuschlaege:
+            total_price *= faktor
+
+        self.total_price_field.value = f"Gesamtpreis: {total_price:.2f} €"
+        self.update()
+
+    def reset_fields(self):
+        self.position_field.value = ""
+        self.bauteil_dropdown.value = None
+        self.dn_dropdown.value = None
+        self.da_dropdown.value = None
+        self.dammdicke_dropdown.value = None
+        self.taetigkeit_dropdown.value = None
+        self.einheit_field.value = ""
+        self.price_field.value = ""
+        self.quantity_input.value = "1"
+        self.zwischensumme_field.value = ""
+        self.selected_sonderleistungen = []
+        self.selected_zuschlaege = []
+        self.update()
+
+    def get_invoice_data(self):
+        logging.info("Sammle Rechnungsdaten")
+        invoice_data = {
+            'invoice_number': 'TEMP-001',  # Temporäre Nummer für Testzwecke
+            'invoice_date': datetime.now().strftime("%d.%m.%Y"),
+            'customer_number': 'CUST-001',  # Temporäre Nummer für Testzwecke
+            'order_number': 'ORDER-001',  # Temporäre Nummer für Testzwecke
+            'order_date': datetime.now().strftime("%d.%m.%Y"),
+            'delivery_note_number': 'DEL-001',  # Temporäre Nummer für Testzwecke
+            'delivery_date': datetime.now().strftime("%d.%m.%Y"),
+            'articles': [],
+            'net_total': 0,
+            'vat': 0,
+            'total_price': self.total_price_field.value.split(": ")[1]
+        }
+
+        for row in self.article_list_header.rows:
+            article = {
+                'position': row.cells[0].content.value,
+                'artikelbeschreibung': row.cells[1].content.value,
+                'quantity': row.cells[8].content.value,
+                'einheit': row.cells[6].content.value,
+                'price': row.cells[7].content.value,
+                'zwischensumme': row.cells[9].content.value
+            }
+            invoice_data['articles'].append(article)
+            
+            try:
+                net_total = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip())
+                invoice_data['net_total'] += net_total
+            except ValueError:
+                logging.warning(f"Ungültiger Zwischensummenwert: {article['zwischensumme']}")
+
+        invoice_data['vat'] = invoice_data['net_total'] * 0.19
+
+        logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
+        return invoice_data
