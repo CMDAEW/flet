@@ -497,11 +497,21 @@ class InvoiceForm(ft.UserControl):
             self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
         self.update_total_price()
 
+    def reset_checkboxes(self):
+        for checkbox in self.sonderleistungen_container.controls:
+            if isinstance(checkbox, ft.Checkbox):
+                checkbox.value = False
+        self.selected_sonderleistungen.clear()
+        self.update()
+
+        # Nach dem Hinzufügen der Zeile, setzen Sie die Sonderleistungen zurück
+        self.reset_checkboxes()
+
     def update_article_row(self, e):
         if self.edit_mode and self.edit_row_index is not None:
             if float(self.price_field.value or 0) == 0:
                 self.show_error("Der Preis darf nicht Null sein.")
-                return
+
 
             updated_row = ft.DataRow(
                 cells=[
@@ -562,7 +572,7 @@ class InvoiceForm(ft.UserControl):
                 ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
                 ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
-                ft.DataCell(ft.Text("")),  # Platzhalter für die Sonderleistungen
+                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]) if self.selected_sonderleistungen else "-")),
                 ft.DataCell(ft.Text(self.einheit_field.value)),
                 ft.DataCell(ft.Text(self.price_field.value)),
                 ft.DataCell(ft.Text(self.quantity_input.value)),
@@ -571,6 +581,7 @@ class InvoiceForm(ft.UserControl):
                     ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
                     ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
                 ])),
+            
             ]
         )
         self.article_list_header.rows.append(new_row)
@@ -787,9 +798,15 @@ class InvoiceForm(ft.UserControl):
         container.controls.clear()
         for bezeichnung, faktor in faktoren:
             checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
-            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren(e, b, f, art)
+            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren_and_price(e, b, f, art)
             container.controls.append(checkbox)
         self.update()
+
+    def update_selected_faktoren_and_price(self, e, bezeichnung, faktor, art):
+        self.update_selected_faktoren(e, bezeichnung, faktor, art)
+        self.update_price()
+        self.update_total_price()  # Aktualisiere den Gesamtpreis
+        self.update()  # Aktualisiere die Benutzeroberfläche
 
     def update_price(self, e=None):
         logging.info("Starte Preisberechnung")
