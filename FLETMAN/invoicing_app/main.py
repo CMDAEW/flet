@@ -15,10 +15,13 @@ def main(page: ft.Page):
     page.bgcolor = ft.colors.WHITE
     page.theme_mode = ft.ThemeMode.LIGHT
 
-    def show_start_screen():
+    def show_start_screen(e=None):
         page.clean()
         page.add(start_screen)
         page.update()
+
+    def back_to_main_menu(e):
+        show_start_screen()  # Rufen Sie die Funktion auf
 
     def show_aufmass_screen():
         def radio_changed(e):

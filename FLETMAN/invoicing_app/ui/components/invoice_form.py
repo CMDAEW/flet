@@ -82,6 +82,9 @@ class InvoiceForm(ft.UserControl):
                 ft.Container(height=20),
                 self.article_input_row,
                 ft.Container(height=20),
+                self.sonderleistungen_button,  # Button für Sonderleistungen
+                self.sonderleistungen_container,  # Container für Sonderleistungen direkt hier
+                ft.Container(height=20),
                 self.article_list_header,
                 self.total_price_field,
                 ft.Container(height=20),
@@ -100,7 +103,6 @@ class InvoiceForm(ft.UserControl):
                         self.back_to_main_menu_button,
                     ], expand=1),
                 ]),
-                self.sonderleistungen_container,  # Fügen Sie den Sonderleistungen-Container hier hinzu
             ]),
             padding=40,
             expand=True,
@@ -201,7 +203,6 @@ class InvoiceForm(ft.UserControl):
             self.da_dropdown,
             self.dammdicke_dropdown,
             self.taetigkeit_dropdown,
-            self.sonderleistungen_button,
             self.einheit_field,
             self.price_field,
             self.quantity_input,
@@ -468,10 +469,6 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
             self.show_error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
 
-    def back_to_main_menu(self, e):
-        # Implementieren Sie hier die Logik zur Rückkehr zum Hauptmenü
-        self.page.go('/')  # Angenommen, '/' ist die Route für das Hauptmenü
-
     def load_zuschlaege(self):
         zuschlaege = self.get_from_cache_or_db("zuschlaege", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', ("Zuschläge",))
         self.zuschlaege_container.controls.clear()
@@ -553,7 +550,7 @@ class InvoiceForm(ft.UserControl):
                 ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
                 ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
-                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]))),
+                ft.DataCell(ft.Row([ft.Checkbox(label=sl[0], value=False) for sl in self.selected_sonderleistungen])),  # Checkbox für Sonderleistungen
                 ft.DataCell(ft.Text(self.einheit_field.value)),
                 ft.DataCell(ft.Text(self.price_field.value)),
                 ft.DataCell(ft.Text(self.quantity_input.value)),
@@ -868,3 +865,8 @@ class InvoiceForm(ft.UserControl):
         self.zwischensumme_field.value = f"{total_price:.2f}"
         
         self.update()
+        self.update()
+        self.update()
+
+    def back_to_main_menu(self, e):
+        self.page.go('/')  # Angenommen, '/' ist die Route für das Hauptmenü
