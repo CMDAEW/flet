@@ -80,10 +80,7 @@ class InvoiceForm(ft.UserControl):
                 ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
                 invoice_details,
                 ft.Container(height=20),
-                self.article_input_row,
-                ft.Container(height=20),
-                self.sonderleistungen_button,  # Button für Sonderleistungen
-                self.sonderleistungen_container,  # Container für Sonderleistungen direkt hier
+                self.article_input_row_with_container,
                 ft.Container(height=20),
                 self.article_list_header,
                 self.total_price_field,
@@ -142,13 +139,13 @@ class InvoiceForm(ft.UserControl):
 
         # Buttons und Container
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=200)
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege, width=180)
-        
-        # Container für Sonderleistungen, der direkt unter dem Button angezeigt wird
+        # Container für Sonderleistungen
         self.sonderleistungen_container = ft.Container(
             content=ft.Column(controls=[], spacing=10),
             visible=False
         )
+        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege, width=180)
+        
         self.zuschlaege_container = ft.Column(visible=False, spacing=10)
 
         # Update Position Button
@@ -203,6 +200,8 @@ class InvoiceForm(ft.UserControl):
             self.da_dropdown,
             self.dammdicke_dropdown,
             self.taetigkeit_dropdown,
+            self.sonderleistungen_button,  # Button für Sonderleistungen
+            self.sonderleistungen_container,  # Container für Sonderleistungen
             self.einheit_field,
             self.price_field,
             self.quantity_input,
@@ -210,6 +209,12 @@ class InvoiceForm(ft.UserControl):
             ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
             self.update_position_button,
         ], alignment=ft.MainAxisAlignment.START, wrap=True)
+
+        # Fügen Sie eine neue Zeile für den Container hinzu
+        self.article_input_row_with_container = ft.Column([
+            self.article_input_row,
+            self.sonderleistungen_container  # Container für Sonderleistungen in der nächsten Zeile
+        ])
 
         # Ändern Sie die Spaltennamen für die Artikelliste
         self.article_list_header = ft.DataTable(
@@ -244,8 +249,15 @@ class InvoiceForm(ft.UserControl):
         self.zuschlaege_container.visible = not self.zuschlaege_container.visible
         self.update()
 
-    def toggle_sonderleistungen(self, e):
-        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
+    def toggle_sonderleistungen(self, row):
+        # Hier können Sie die Logik implementieren, um die Optionen für Sonderleistungen anzuzeigen
+        # Zum Beispiel:
+        if self.sonderleistungen_container.visible:
+            self.sonderleistungen_container.visible = False
+        else:
+            self.sonderleistungen_container.visible = True
+            # Positionieren Sie den Container unter dem Button
+            # Sie können die Positionierung anpassen, um sicherzustellen, dass es unter dem Button angezeigt wird
         self.update()
 
     def update_selected_faktoren(self, e, bezeichnung, faktor, art):
@@ -550,7 +562,7 @@ class InvoiceForm(ft.UserControl):
                 ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
                 ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
-                ft.DataCell(ft.Row([ft.Checkbox(label=sl[0], value=False) for sl in self.selected_sonderleistungen])),  # Checkbox für Sonderleistungen
+                ft.DataCell(ft.Text("")),  # Platzhalter für die Sonderleistungen
                 ft.DataCell(ft.Text(self.einheit_field.value)),
                 ft.DataCell(ft.Text(self.price_field.value)),
                 ft.DataCell(ft.Text(self.quantity_input.value)),

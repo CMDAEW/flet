@@ -25,19 +25,8 @@ def main(page: ft.Page):
 
     def show_aufmass_screen():
         def radio_changed(e):
-            weiter_button.disabled = not e.control.value
+            zurück_button.disabled = not e.control.value
             page.update()
-
-        def weiter_clicked(e):
-            selected_option = radio_group.value
-            if selected_option == "hinzufugen":
-                show_invoice_form()
-            elif selected_option == "bearbeiten":
-                # Hier Logik für "bearbeiten" einfügen
-                pass
-            elif selected_option == "berichte":
-                # Hier Logik für "Berichte Anzeigen/Drucken" einfügen
-                pass
 
         def show_invoice_form():
             page.clean()
@@ -68,7 +57,7 @@ def main(page: ft.Page):
                 ft.Container(height=20),
                 ft.Row([
                     ft.OutlinedButton("zurück", on_click=lambda _: show_start_screen(), style=ft.ButtonStyle(color=ft.colors.BLUE_700)),
-                    weiter_button := ft.ElevatedButton("weiter", on_click=weiter_clicked, disabled=True, style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                    zurück_button := ft.ElevatedButton("Auswählen", on_click=lambda e: show_invoice_form(), style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700), width=250),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ]),
             padding=40,
