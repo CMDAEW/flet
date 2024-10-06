@@ -581,18 +581,25 @@ class InvoiceForm(ft.UserControl):
                     ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
                     ft.IconButton(icon=ft.icons.DELETE, on_click=lambda _: self.remove_article_row(new_row))
                 ])),
-            
             ]
         )
         self.article_list_header.rows.append(new_row)
-        
+
         self.article_summaries.append({
             'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
             'sonderleistungen': self.selected_sonderleistungen.copy()
         })
-        
+
         self.update_total_price()
-        self.reset_fields()
+        self.reset_fields()  # Reset fields after adding the article
+        self.reset_sonderleistungen()  # Reset the checkboxes for special services
+        self.update()
+
+    def reset_sonderleistungen(self):
+        for checkbox in self.sonderleistungen_container.content.controls:
+            if isinstance(checkbox, ft.Checkbox):
+                checkbox.value = False
+        self.selected_sonderleistungen.clear()
         self.update()
 
     def update_field_visibility(self):
