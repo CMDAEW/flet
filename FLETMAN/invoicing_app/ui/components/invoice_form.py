@@ -679,7 +679,8 @@ class InvoiceForm(ft.UserControl):
             'category': self.current_category,
             'articles': [],
             'zuschlaege': self.selected_zuschlaege,
-            'total_price': float(self.total_price_field.value.split(": ")[1].replace(" €", "").replace(",", "."))
+            'net_total': 0,  # Initialisieren Sie net_total mit 0
+            'total_price': 0  # Initialisieren Sie total_price mit 0
         }
 
         for row in self.article_list_header.rows:
@@ -689,7 +690,7 @@ class InvoiceForm(ft.UserControl):
                 'dn': row.cells[2].content.value,
                 'da': row.cells[3].content.value,
                 'dammdicke': row.cells[4].content.value,
-                'taetigkeit': self.get_taetigkeit_id(row.cells[5].content.value),  # Hier die ID der Tätigkeit holen
+                'taetigkeit': self.get_taetigkeit_id(row.cells[5].content.value),
                 'sonderleistungen': row.cells[6].content.value,
                 'einheit': row.cells[7].content.value,
                 'einheitspreis': row.cells[8].content.value,
@@ -700,9 +701,14 @@ class InvoiceForm(ft.UserControl):
             
             try:
                 zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip())
-                invoice_data['total_price'] += zwischensumme
+                invoice_data['net_total'] += zwischensumme
             except ValueError:
                 logging.warning(f"Ungültiger Zwischensummenwert: {article['zwischensumme']}")
+
+        # Berechnen Sie den Gesamtpreis mit Zuschlägen
+        invoice_data['total_price'] = invoice_data['net_total']
+        for _, faktor in invoice_data['zuschlaege']:
+            invoice_data['total_price'] *= faktor
 
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         return invoice_data
