@@ -105,6 +105,11 @@ class InvoiceForm(ft.UserControl):
             expand=True,
         )
 
+    def show_snack_bar(self, message):
+        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
+        self.page.snack_bar.open = True
+        self.page.update()
+
     def create_ui_elements(self):
         # Definieren Sie einheit_field am Anfang der Methode
         self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
@@ -407,24 +412,32 @@ class InvoiceForm(ft.UserControl):
             invoice_data = self.get_invoice_data()
             logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
 
-            # Speichern der Rechnung in der Datenbank
+            # Speichern der Rechnung in der Datenbank und Erhalten der invoice_id
             invoice_id = self.save_invoice_to_db(invoice_data)
             if invoice_id is None:
                 raise Exception("Fehler beim Speichern der Rechnung in der Datenbank")
 
             filename = f"Rechnung_{invoice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
-            logging.info(f"PDF wird erstellt: {filepath}")
+            logging.info(f"Versuche PDF zu erstellen: {filepath}")
+            
+            # Überprüfen Sie, ob der Ordner existiert
+            if not os.path.exists(os.path.dirname(filepath)):
+                logging.warning(f"Zielordner existiert nicht: {os.path.dirname(filepath)}")
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                logging.info(f"Zielordner erstellt: {os.path.dirname(filepath)}")
+
             generate_pdf(invoice_data, filepath, include_prices=True)
-            logging.info("PDF erfolgreich erstellt")
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"PDF mit Preisen wurde erstellt: {filepath}"))
-            self.page.snack_bar.open = True
-            self.update()
+            
+            if os.path.exists(filepath):
+                logging.info(f"PDF erfolgreich erstellt: {filepath}")
+                self.show_snack_bar(f"PDF mit Preisen wurde erstellt: {filepath}")
+            else:
+                raise FileNotFoundError(f"PDF-Datei wurde nicht erstellt: {filepath}")
+
         except Exception as ex:
-            logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}"))
-            self.page.snack_bar.open = True
-            self.update()
+            logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}", exc_info=True)
+            self.show_snack_bar(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
 
     def save_invoice_to_db(self, invoice_data):
         try:
@@ -468,18 +481,18 @@ class InvoiceForm(ft.UserControl):
             return None
 
     def create_pdf_without_prices(self, e):
-        # Implementieren Sie hier die Logik zum Erstellen eines PDFs ohne Preise
         try:
             invoice_data = self.get_invoice_data()
+            logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
             filename = f"Auftragsbestätigung_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
+            logging.info(f"Versuche PDF zu erstellen: {filepath}")
             generate_pdf(invoice_data, filepath, include_prices=False)
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(f"PDF ohne Preise wurde erstellt: {filepath}"))
-            self.page.snack_bar.open = True
-            self.update()
+            logging.info("PDF erfolgreich erstellt")
+            self.show_snack_bar(f"PDF ohne Preise wurde erstellt: {filepath}")
         except Exception as ex:
-            logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
-            self.show_error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
+            logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}", exc_info=True)
+            self.show_snack_bar(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
 
     def load_zuschlaege(self):
         zuschlaege = self.get_from_cache_or_db("zuschlaege", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', ("Zuschläge",))
