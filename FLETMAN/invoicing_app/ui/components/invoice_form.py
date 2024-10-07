@@ -275,18 +275,17 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def update_selected_faktoren(self, e, bezeichnung, faktor, art):
-        selected_list = self.selected_sonderleistungen if art == "Sonderleistung" else self.selected_zuschlaege
-        if e.control.value:
-            selected_list.append((bezeichnung, faktor))
-        else:
-            selected_list = [item for item in selected_list if item[0] != bezeichnung]
-        
         if art == "Sonderleistung":
-            self.selected_sonderleistungen = selected_list
-        else:
-            self.selected_zuschlaege = selected_list
-        
-        update_price(self)
+            if e.control.value:
+                self.selected_sonderleistungen.append((bezeichnung, float(faktor)))
+            else:
+                self.selected_sonderleistungen = [item for item in self.selected_sonderleistungen if item[0] != bezeichnung]
+        elif art == "Zuschlag":
+            if e.control.value:
+                self.selected_zuschlaege.append((bezeichnung, float(faktor)))
+            else:
+                self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
+        self.update_price()
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
@@ -896,17 +895,14 @@ class InvoiceForm(ft.UserControl):
                 self.show_error("Kein Tätigkeitsfaktor gefunden")
                 return
 
-            price = base_price * taetigkeit_faktor
+            original_price = base_price * taetigkeit_faktor
 
-            # Anwenden von Sonderleistungen
-            for bezeichnung, faktor in self.selected_sonderleistungen:
-                logging.info(f"Anwenden von Sonderleistung: {bezeichnung} mit Faktor {faktor}")
-                price *= faktor
-
-            # Anwenden von Zuschlägen
-            for bezeichnung, faktor in self.selected_zuschlaege:
-                logging.info(f"Anwenden von Zuschlag: {bezeichnung} mit Faktor {faktor}")
-                price *= faktor
+            # Anwenden von Sonderleistungen und Zuschlägen
+            price = original_price
+            for bezeichnung, faktor in self.selected_sonderleistungen + self.selected_zuschlaege:
+                zuschlag = original_price * (float(faktor) - 1)  # Berechnung des Zuschlags
+                price += zuschlag
+                logging.info(f"Anwenden von Zuschlag/Sonderleistung: {bezeichnung} mit Faktor {faktor}, Zuschlag: {zuschlag:.2f}")
 
         elif category == "Material":
             price = get_material_price(self, bauteil)
@@ -923,13 +919,11 @@ class InvoiceForm(ft.UserControl):
 
         total_price = price * quantity
 
-        logging.info(f"Berechneter Preis: {price:.2f}, Gesamtpreis: {total_price:.2f}")
+        logging.info(f"Ursprünglicher Preis: {original_price:.2f}, Berechneter Preis: {price:.2f}, Gesamtpreis: {total_price:.2f}")
 
         self.price_field.value = f"{price:.2f}"
         self.zwischensumme_field.value = f"{total_price:.2f}"
         
-        self.update()
-        self.update()
         self.update()
 
     def back_to_main_menu(self, e):
