@@ -75,10 +75,9 @@ def generate_pdf(invoice_data, filename, include_prices=True):
 
     # Artikelliste
     if include_prices:
-        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Menge", "Einheit", "Einheitspreis", "Gesamtpreis"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Einheit", "Tätigkeit", "Sonderleistungen", "Einheitspreis", "Menge", "Gesamtpreis"]]
     else:
-        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Menge", "Einheit"]]
-    
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Einheit", "Menge"]]
     for article in invoice_data['articles']:
         # Erstellen Sie Paragraphen für Tätigkeit und Sonderleistungen
         taetigkeit_paragraph = Paragraph(article.get('taetigkeit', ''), small_style)
@@ -90,17 +89,25 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             article.get('dn', ''),
             article.get('da', ''),
             article.get('dammdicke', ''),
+            article.get('einheit', ''),
             taetigkeit_paragraph,
             sonderleistungen_paragraph,
-            article.get('quantity', ''),  # Verwenden Sie .get() mit einem Standardwert
-            article.get('einheit', ''),
         ]
         if include_prices:
-            row.extend([article.get('einheitspreis', ''), article.get('zwischensumme', '')])
+            row.extend([
+                article.get('einheitspreis', ''),
+                article.get('quantity', ''),
+                article.get('zwischensumme', '')
+            ])
+        else:
+            row.extend([
+                article.get('einheit', ''),
+                article.get('quantity', '')
+            ])
         data.append(row)
     
     if include_prices:
-        col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 22*mm, 27*mm, 12*mm, 12*mm, 20*mm, 18*mm]
+        col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 15*mm, 27*mm, 27*mm, 20*mm, 12*mm, 18*mm]
     else:
         col_widths = [15*mm, 35*mm, 15*mm, 15*mm, 23*mm, 27*mm, 37*mm, 15*mm, 15*mm]
     

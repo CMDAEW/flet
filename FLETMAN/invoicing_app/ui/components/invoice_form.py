@@ -486,7 +486,24 @@ class InvoiceForm(ft.UserControl):
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
-        logging.debug(f"Rechnungsdaten: {invoice_data}")  # Fügen Sie diese Zeile hinzu, um die gesamten Rechnungsdaten zu loggen
+        logging.debug(f"Rechnungsdaten: {invoice_data}")
+        
+        # Berechnen Sie den Nettobetrag
+        nettobetrag = sum(float(article['zwischensumme']) for article in invoice_data['articles'])
+        
+        # Berechnen Sie die Zuschläge
+        zuschlaege_summe = 0
+        for zuschlag, faktor in invoice_data['zuschlaege']:
+            zuschlag_betrag = nettobetrag * (float(faktor) - 1)
+            zuschlaege_summe += zuschlag_betrag
+        
+        # Berechnen Sie den Gesamtbetrag
+        total_price = nettobetrag + zuschlaege_summe
+        
+        logging.debug(f"Nettobetrag: {nettobetrag}")
+        logging.debug(f"Zuschläge: {zuschlaege_summe}")
+        logging.debug(f"Gesamtbetrag: {total_price}")
+        
         cursor = self.conn.cursor()
         try:
             cursor.execute('''
@@ -505,15 +522,22 @@ class InvoiceForm(ft.UserControl):
                 invoice_data['auftrags_nr'],
                 invoice_data['ausfuehrungsbeginn'],
                 invoice_data['ausfuehrungsende'],
-                invoice_data['total_price'],
+                total_price,
                 ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
                 invoice_data.get('bemerkungen', '')
             ))
             invoice_id = cursor.lastrowid
             
-            # Einfügen in die invoice_items Tabelle
+            # Überprüfen Sie den gespeicherten Wert
+            cursor.execute("SELECT total_amount FROM invoice WHERE id = ?", (invoice_id,))
+            stored_total = cursor.fetchone()[0]
+            logging.debug(f"Gespeicherter Gesamtpreis: {stored_total}")
+            
+            if abs(stored_total - total_price) > 0.01:  # Toleranz für Rundungsfehler
+                logging.error(f"Gespeicherter Gesamtpreis ({stored_total}) weicht vom berechneten Preis ({total_price}) ab!")
+            
+            # Speichern der Artikel
             for article in invoice_data['articles']:
-                logging.debug(f"Artikeldaten: {article}")  # Fügen Sie diese Zeile hinzu, um die Daten jedes Artikels zu loggen
                 cursor.execute('''
                     INSERT INTO invoice_items (invoice_id, position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -527,7 +551,7 @@ class InvoiceForm(ft.UserControl):
                     article.get('taetigkeit', ''),
                     article.get('einheit', ''),
                     article.get('einheitspreis', 0),
-                    article.get('quantity', 0),  # Stellen Sie sicher, dass 'quantity' einen Standardwert hat
+                    article.get('quantity', 0),
                     article.get('zwischensumme', 0),
                     str(article.get('sonderleistungen', ''))
                 ))
@@ -759,28 +783,13 @@ class InvoiceForm(ft.UserControl):
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value if self.invoice_detail_fields['ausfuehrungsende'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsende'].value,
             'category': self.current_category,
             'bemerkung': self.bemerkung_field.value,
-            'articles': [],
             'zuschlaege': self.selected_zuschlaege,
+            'articles': self.article_summaries,
             'net_total': 0,
             'total_price': 0
         }
 
-        for row in self.article_list_header.rows:
-            article = {
-                'position': row.cells[0].content.value,
-                'artikelbeschreibung': row.cells[1].content.value,
-                'dn': row.cells[2].content.value,
-                'da': row.cells[3].content.value,
-                'dammdicke': row.cells[4].content.value,
-                'einheit': row.cells[5].content.value,
-                'taetigkeit': row.cells[6].content.value,
-                'sonderleistungen': row.cells[7].content.value,
-                'einheitspreis': row.cells[8].content.value,
-                'quantity': row.cells[9].content.value,
-                'zwischensumme': row.cells[10].content.value
-            }
-            invoice_data['articles'].append(article)
-            
+        for article in invoice_data['articles']:
             try:
                 zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip())
                 invoice_data['net_total'] += zwischensumme
@@ -788,12 +797,15 @@ class InvoiceForm(ft.UserControl):
                 logging.warning(f"Ungültiger Zwischensummenwert: {article['zwischensumme']}")
 
         # Berechnen Sie den Gesamtpreis mit Zuschlägen
-        invoice_data['total_price'] = invoice_data['net_total']
+        total_price = invoice_data['net_total']
         for _, faktor in invoice_data['zuschlaege']:
-            invoice_data['total_price'] *= faktor
+            total_price *= faktor
+
+        invoice_data['total_price'] = total_price
 
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         logging.debug(f"Gesamte Rechnungsdaten: {invoice_data}")
+        logging.debug(f"Berechneter Gesamtpreis: {total_price}")
         return invoice_data
 
     def get_taetigkeit_id(self, taetigkeit_name):
