@@ -591,22 +591,31 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def add_article_row(self, e):
-        if float(self.price_field.value or 0) == 0:
-            self.show_error("Der Preis darf nicht Null sein.")
+        logging.info("Füge neue Artikelzeile hinzu")
+        
+        # Einfache Validierung
+        if not all([self.bauteil_dropdown.value, self.quantity_input.value, self.price_field.value]):
+            self.show_error("Bitte füllen Sie alle erforderlichen Felder aus.")
             return
 
+        position = self.position_field.value
+        taetigkeit_bezeichnung = self.taetigkeit_dropdown.value
+        taetigkeit_id = self.get_taetigkeit_id(taetigkeit_bezeichnung)
+        
+        sonderleistungen_text = ", ".join([f"{sl[0]} ({sl[1]})" for sl in self.selected_sonderleistungen]) if self.selected_sonderleistungen else ""
+        
         new_row = ft.DataRow(
             cells=[
-                ft.DataCell(ft.Text(self.position_field.value)),
+                ft.DataCell(ft.Text(position)),
                 ft.DataCell(ft.Text(self.bauteil_dropdown.value)),
                 ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
-                ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
-                ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]) if self.selected_sonderleistungen else "-")),
+                ft.DataCell(ft.Text(taetigkeit_bezeichnung)),  # Verwenden Sie die Bezeichnung hier
+                ft.DataCell(ft.Text(sonderleistungen_text)),
+                ft.DataCell(ft.Text(self.quantity_input.value)),
                 ft.DataCell(ft.Text(self.einheit_field.value)),
                 ft.DataCell(ft.Text(self.price_field.value)),
-                ft.DataCell(ft.Text(self.quantity_input.value)),
                 ft.DataCell(ft.Text(self.zwischensumme_field.value)),
                 ft.DataCell(ft.Row([
                     ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
@@ -614,6 +623,7 @@ class InvoiceForm(ft.UserControl):
                 ])),
             ]
         )
+        
         self.article_list_header.rows.append(new_row)
 
         self.article_summaries.append({
@@ -625,6 +635,7 @@ class InvoiceForm(ft.UserControl):
         self.reset_fields()  # Reset fields after adding the article
         self.reset_sonderleistungen()  # Reset the checkboxes for special services
         self.update()
+        logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
     def reset_sonderleistungen(self):
         for checkbox in self.sonderleistungen_container.content.controls:
@@ -705,10 +716,11 @@ class InvoiceForm(ft.UserControl):
             'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value if self.invoice_detail_fields['ausfuehrungsbeginn'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsbeginn'].value,
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value if self.invoice_detail_fields['ausfuehrungsende'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsende'].value,
             'category': self.current_category,
+            'bemerkung': self.bemerkung_field.value,  # Fügen Sie dies hinzu
             'articles': [],
             'zuschlaege': self.selected_zuschlaege,
-            'net_total': 0,  # Initialisieren Sie net_total mit 0
-            'total_price': 0  # Initialisieren Sie total_price mit 0
+            'net_total': 0,
+            'total_price': 0
         }
 
         for row in self.article_list_header.rows:
@@ -718,7 +730,7 @@ class InvoiceForm(ft.UserControl):
                 'dn': row.cells[2].content.value,
                 'da': row.cells[3].content.value,
                 'dammdicke': row.cells[4].content.value,
-                'taetigkeit': self.get_taetigkeit_id(row.cells[5].content.value),
+                'taetigkeit': row.cells[5].content.value,  # Dies sollte jetzt die Bezeichnung sein
                 'sonderleistungen': row.cells[6].content.value,
                 'einheit': row.cells[7].content.value,
                 'einheitspreis': row.cells[8].content.value,

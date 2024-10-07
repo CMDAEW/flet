@@ -64,9 +64,9 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     elements.append(details_table)
     elements.append(Spacer(1, 5*mm))
     
-    # Definieren Sie einen neuen Stil für die Sonderleistungen-Zelle
-    sonderleistungen_style = ParagraphStyle(
-        'Sonderleistungen',
+    # Definieren Sie einen Stil für die Tätigkeits- und Sonderleistungen-Zelle
+    small_style = ParagraphStyle(
+        'Small',
         parent=styles['Normal'],
         fontSize=7,
         leading=8,
@@ -75,14 +75,14 @@ def generate_pdf(invoice_data, filename, include_prices=True):
 
     # Artikelliste
     if include_prices:
-        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Sonderleistungen", "Menge", "Einheit", "Einheitspreis", "Gesamtpreis"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Menge", "Einheit", "Einheitspreis", "Gesamtpreis"]]
     else:
-        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Sonderleistungen", "Menge", "Einheit"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Menge", "Einheit"]]
     
     for article in invoice_data['articles']:
-        # Erstellen Sie einen Paragraph für die Sonderleistungen
-        sonderleistungen_text = article.get('sonderleistungen', '')
-        sonderleistungen_paragraph = Paragraph(sonderleistungen_text, sonderleistungen_style)
+        # Erstellen Sie Paragraphen für Tätigkeit und Sonderleistungen
+        taetigkeit_paragraph = Paragraph(article.get('taetigkeit', ''), small_style)
+        sonderleistungen_paragraph = Paragraph(article.get('sonderleistungen', ''), small_style)
 
         row = [
             article['position'],
@@ -90,8 +90,8 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             article.get('dn', ''),
             article.get('da', ''),
             article.get('dammdicke', ''),
-            article.get('taetigkeit', ''),
-            sonderleistungen_paragraph,  # Verwenden Sie den Paragraph hier
+            taetigkeit_paragraph,
+            sonderleistungen_paragraph,
             article['quantity'],
             article['einheit'],
         ]
@@ -100,9 +100,9 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         data.append(row)
     
     if include_prices:
-        col_widths = [15*mm, 25*mm, 12*mm, 12*mm, 15*mm, 15*mm, 25*mm, 12*mm, 12*mm, 18*mm, 18*mm]
+        col_widths = [15*mm, 25*mm, 12*mm, 12*mm, 15*mm, 22*mm, 27*mm, 12*mm, 12*mm, 18*mm, 18*mm]
     else:
-        col_widths = [15*mm, 30*mm, 15*mm, 15*mm, 20*mm, 20*mm, 35*mm, 15*mm, 15*mm]
+        col_widths = [15*mm, 30*mm, 15*mm, 15*mm, 20*mm, 27*mm, 37*mm, 15*mm, 15*mm]
     
     articles_table = Table(data, colWidths=col_widths, repeatRows=1)
     articles_table.setStyle(TableStyle([
@@ -119,9 +119,17 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
         ('FONTSIZE', (0,1), (-1,-1), 7),
         ('BOTTOMPADDING', (0,1), (-1,-1), 2*mm),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black)
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('WORDWRAP', (0,0), (-1,-1), True),  # Aktiviert Zeilenumbruch für alle Zellen
     ]))
     elements.append(articles_table)
+    
+    # Bemerkung hinzufügen
+    if invoice_data.get('bemerkung'):
+        elements.append(Spacer(1, 5*mm))
+        bemerkung_text = f"Bemerkung: {invoice_data['bemerkung']}"
+        bemerkung_paragraph = Paragraph(bemerkung_text, styles['Normal'])
+        elements.append(bemerkung_paragraph)
     
     # Zuschläge
     elements.append(Spacer(1, 5*mm))
