@@ -73,6 +73,16 @@ class InvoiceForm(ft.UserControl):
         logo = ft.Image(src=logo_path, width=100, height=50)  # Logo-Pfad aus der Konstante
         logo_container = ft.Container(content=logo)
 
+        self.nettobetrag_field = ft.TextField(label="Nettobetrag", read_only=True)
+        self.zuschlaege_field = ft.TextField(label="Zuschläge", read_only=True)
+        self.gesamtbetrag_field = ft.TextField(label="Gesamtbetrag", read_only=True)
+        
+        total_price_row = ft.Row([
+            self.nettobetrag_field,
+            self.zuschlaege_field,
+            self.gesamtbetrag_field
+        ])
+
         # Hauptlayout
         main_content = ft.Column([
             ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),  # Logo in einer Zeile rechts ausrichten
@@ -82,7 +92,7 @@ class InvoiceForm(ft.UserControl):
             self.article_input_row_with_container,
             ft.Container(height=20),
             self.article_list_header,
-            self.total_price_field,
+            total_price_row,
             ft.Container(height=20),
             ft.Row([
                 ft.Column([
@@ -639,14 +649,33 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def update_total_price(self):
-        total_price = sum(article['zwischensumme'] for article in self.article_summaries)
+        logging.info("Starte Aktualisierung des Gesamtpreises")
         
-        # Anwenden von Zuschlägen auf den Gesamtpreis
-        for _, faktor in self.selected_zuschlaege:
-            total_price *= faktor
+        try:
+            nettobetrag = sum(float(row.cells[10].content.value.replace(',', '.').replace('€', '').strip()) for row in self.article_list_header.rows)
+            logging.info(f"Berechneter Nettobetrag: {nettobetrag:.2f}")
+            
+            zuschlaege_summe = 0
+            for bezeichnung, faktor in self.selected_zuschlaege:
+                zuschlag = nettobetrag * (float(faktor) - 1)
+                zuschlaege_summe += zuschlag
+                logging.info(f"Zuschlag '{bezeichnung}': {zuschlag:.2f}")
 
-        self.total_price_field.value = f"Gesamtpreis: {total_price:.2f} €"
-        self.update()
+            gesamtbetrag = nettobetrag + zuschlaege_summe
+            logging.info(f"Berechneter Gesamtbetrag: {gesamtbetrag:.2f}")
+
+            self.nettobetrag_field.value = f"{nettobetrag:.2f} €"
+            self.zuschlaege_field.value = f"{zuschlaege_summe:.2f} €"
+            self.gesamtbetrag_field.value = f"{gesamtbetrag:.2f} €"
+
+            self.nettobetrag_field.update()
+            self.zuschlaege_field.update()
+            self.gesamtbetrag_field.update()
+
+            self.update()
+            logging.info("Gesamtpreis-Aktualisierung abgeschlossen")
+        except Exception as e:
+            logging.error(f"Fehler bei der Aktualisierung des Gesamtpreises: {str(e)}", exc_info=True)
 
     def reset_fields(self):
         self.position_field.value = ""
@@ -869,13 +898,6 @@ class InvoiceForm(ft.UserControl):
             self.zwischensumme_field.value = ""
             return
 
-        # Hole die Positionsnummer
-        positionsnummer = get_positionsnummer(self, bauteil, dammdicke, dn, da, category)
-        if positionsnummer:
-            self.position_field.value = str(positionsnummer)
-        else:
-            self.position_field.value = ""
-
         if category == "Aufmaß":
             if not all([taetigkeit, dammdicke]):
                 logging.warning("Tätigkeit oder Dämmdicke fehlt für Aufmaß")
@@ -895,14 +917,7 @@ class InvoiceForm(ft.UserControl):
                 self.show_error("Kein Tätigkeitsfaktor gefunden")
                 return
 
-            original_price = base_price * taetigkeit_faktor
-
-            # Anwenden von Sonderleistungen und Zuschlägen
-            price = original_price
-            for bezeichnung, faktor in self.selected_sonderleistungen + self.selected_zuschlaege:
-                zuschlag = original_price * (float(faktor) - 1)  # Berechnung des Zuschlags
-                price += zuschlag
-                logging.info(f"Anwenden von Zuschlag/Sonderleistung: {bezeichnung} mit Faktor {faktor}, Zuschlag: {zuschlag:.2f}")
+            price = base_price * taetigkeit_faktor
 
         elif category == "Material":
             price = get_material_price(self, bauteil)
@@ -917,11 +932,19 @@ class InvoiceForm(ft.UserControl):
             self.show_error("Preisberechnung für diese Kategorie nicht implementiert")
             return
 
-        total_price = price * quantity
+        # Sonderleistungen hinzufügen
+        sonderleistungen_aufschlag = 0
+        for sonderleistung, faktor in self.selected_sonderleistungen:
+            aufschlag = price * (float(faktor) - 1)
+            sonderleistungen_aufschlag += aufschlag
+            logging.info(f"Sonderleistung '{sonderleistung}' angewendet, Aufschlag: {aufschlag:.2f}")
 
-        logging.info(f"Ursprünglicher Preis: {original_price:.2f}, Berechneter Preis: {price:.2f}, Gesamtpreis: {total_price:.2f}")
+        price_with_sonderleistungen = price + sonderleistungen_aufschlag
+        total_price = price_with_sonderleistungen * quantity
 
-        self.price_field.value = f"{price:.2f}"
+        logging.info(f"Basispreis: {price:.2f}, Mit Sonderleistungen: {price_with_sonderleistungen:.2f}, Gesamtpreis: {total_price:.2f}")
+
+        self.price_field.value = f"{price_with_sonderleistungen:.2f}"
         self.zwischensumme_field.value = f"{total_price:.2f}"
         
         self.update()

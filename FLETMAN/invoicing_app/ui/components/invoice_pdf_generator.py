@@ -64,6 +64,15 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     elements.append(details_table)
     elements.append(Spacer(1, 5*mm))
     
+    # Definieren Sie einen neuen Stil für die Sonderleistungen-Zelle
+    sonderleistungen_style = ParagraphStyle(
+        'Sonderleistungen',
+        parent=styles['Normal'],
+        fontSize=7,
+        leading=8,
+        alignment=1  # Zentrierte Ausrichtung
+    )
+
     # Artikelliste
     if include_prices:
         data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Sonderleistungen", "Menge", "Einheit", "Einheitspreis", "Gesamtpreis"]]
@@ -71,6 +80,10 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit ID", "Sonderleistungen", "Menge", "Einheit"]]
     
     for article in invoice_data['articles']:
+        # Erstellen Sie einen Paragraph für die Sonderleistungen
+        sonderleistungen_text = article.get('sonderleistungen', '')
+        sonderleistungen_paragraph = Paragraph(sonderleistungen_text, sonderleistungen_style)
+
         row = [
             article['position'],
             article['artikelbeschreibung'],
@@ -78,7 +91,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             article.get('da', ''),
             article.get('dammdicke', ''),
             article.get('taetigkeit', ''),
-            article.get('sonderleistungen', ''),
+            sonderleistungen_paragraph,  # Verwenden Sie den Paragraph hier
             article['quantity'],
             article['einheit'],
         ]
@@ -96,6 +109,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('TEXTCOLOR', (0,0), (-1,0), colors.black),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),  # Vertikale Zentrierung
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,0), 8),
         ('BOTTOMPADDING', (0,0), (-1,0), 3*mm),
@@ -112,9 +126,12 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     # Zuschläge
     elements.append(Spacer(1, 5*mm))
     zuschlaege_data = [["Zuschläge:"]]
+    zuschlaege_summe = 0
+    nettobetrag = invoice_data.get('net_total', 0)
     for zuschlag, faktor in invoice_data.get('zuschlaege', []):
         if include_prices:
-            zuschlag_betrag = invoice_data['net_total'] * (faktor - 1)
+            zuschlag_betrag = nettobetrag * (float(faktor) - 1)
+            zuschlaege_summe += zuschlag_betrag
             zuschlaege_data.append([f"{zuschlag}: {zuschlag_betrag:.2f} €"])
         else:
             zuschlaege_data.append([zuschlag])
@@ -131,9 +148,11 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     if include_prices:
         # Gesamtsumme
         elements.append(Spacer(1, 5*mm))
+        gesamtbetrag = nettobetrag + zuschlaege_summe
         total_price_data = [
-            ["Nettobetrag:", f"{invoice_data.get('net_total', 0):.2f} €"],
-            ["Gesamtbetrag:", f"{invoice_data.get('total_price', 0):.2f} €"]
+            ["Nettobetrag:", f"{nettobetrag:.2f} €"],
+            ["Zuschläge:", f"{zuschlaege_summe:.2f} €"],
+            ["Gesamtbetrag:", f"{gesamtbetrag:.2f} €"]
         ]
         
         total_price_table = Table(total_price_data, colWidths=[140*mm, 40*mm])
