@@ -271,6 +271,7 @@ class InvoiceForm(ft.UserControl):
 
     def toggle_zuschlaege(self, e):
         self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.update_total_price()  # Fügen Sie diese Zeile hinzu
         self.update()
 
     def toggle_sonderleistungen(self, row):
@@ -593,12 +594,47 @@ class InvoiceForm(ft.UserControl):
             self.zuschlaege_container.controls.append(checkbox)
         self.update()
 
+    def update_total_price(self):
+        logging.info("Starte Aktualisierung des Gesamtpreises")
+        
+        try:
+            nettobetrag = sum(float(row.cells[10].content.value.replace(',', '.').replace('€', '').strip()) for row in self.article_list_header.rows)
+            logging.info(f"Berechneter Nettobetrag: {nettobetrag:.2f}")
+            
+            zuschlaege_summe = 0
+            for bezeichnung, faktor in self.selected_zuschlaege:
+                zuschlag = nettobetrag * (float(faktor) - 1)
+                zuschlaege_summe += zuschlag
+                logging.info(f"Zuschlag '{bezeichnung}': {zuschlag:.2f}")
+
+            gesamtbetrag = nettobetrag + zuschlaege_summe
+            logging.info(f"Berechneter Gesamtbetrag: {gesamtbetrag:.2f}")
+
+            self.nettobetrag_field.value = f"{nettobetrag:.2f} €"
+            self.zuschlaege_field.value = f"{zuschlaege_summe:.2f} €"
+            self.gesamtbetrag_field.value = f"{gesamtbetrag:.2f} €"
+
+            self.nettobetrag_field.update()
+            self.zuschlaege_field.update()
+            self.gesamtbetrag_field.update()
+
+            self.update()
+            logging.info("Gesamtpreis-Aktualisierung abgeschlossen")
+        except Exception as e:
+            logging.error(f"Fehler bei der Aktualisierung des Gesamtpreises: {str(e)}", exc_info=True)
+
     def update_selected_zuschlaege(self, e, bezeichnung, faktor):
         if e.control.value:
             self.selected_zuschlaege.append((bezeichnung, faktor))
         else:
             self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
         self.update_total_price()
+        self.update()
+
+    def toggle_zuschlaege(self, e):
+        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
+        self.update_total_price()  # Fügen Sie diese Zeile hinzu
+        self.update()
 
     def reset_checkboxes(self):
         for checkbox in self.sonderleistungen_container.controls:
@@ -784,12 +820,26 @@ class InvoiceForm(ft.UserControl):
             'category': self.current_category,
             'bemerkung': self.bemerkung_field.value,
             'zuschlaege': self.selected_zuschlaege,
-            'articles': self.article_summaries,
+            'articles': [],
             'net_total': 0,
             'total_price': 0
         }
 
-        for article in invoice_data['articles']:
+        for row in self.article_list_header.rows:
+            article = {
+                'position': row.cells[0].content.value,
+                'artikelbeschreibung': row.cells[1].content.value,
+                'dn': row.cells[2].content.value,
+                'da': row.cells[3].content.value,
+                'dammdicke': row.cells[4].content.value,
+                'einheit': row.cells[5].content.value,
+                'taetigkeit': row.cells[6].content.value,
+                'sonderleistungen': row.cells[7].content.value,
+                'einheitspreis': row.cells[8].content.value,
+                'quantity': row.cells[9].content.value,
+                'zwischensumme': row.cells[10].content.value
+            }
+            invoice_data['articles'].append(article)
             try:
                 zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip())
                 invoice_data['net_total'] += zwischensumme
@@ -799,13 +849,11 @@ class InvoiceForm(ft.UserControl):
         # Berechnen Sie den Gesamtpreis mit Zuschlägen
         total_price = invoice_data['net_total']
         for _, faktor in invoice_data['zuschlaege']:
-            total_price *= faktor
+            total_price *= float(faktor)
 
         invoice_data['total_price'] = total_price
 
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
-        logging.debug(f"Gesamte Rechnungsdaten: {invoice_data}")
-        logging.debug(f"Berechneter Gesamtpreis: {total_price}")
         return invoice_data
 
     def get_taetigkeit_id(self, taetigkeit_name):

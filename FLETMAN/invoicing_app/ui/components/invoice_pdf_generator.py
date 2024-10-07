@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 
 def generate_pdf(invoice_data, filename, include_prices=True):
+    logging.info(f"Erhaltene Rechnungsdaten: {invoice_data}")
     logging.info(f"Starte PDF-Generierung: {filename}")
     doc = SimpleDocTemplate(filename, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=20*mm, bottomMargin=20*mm)
     elements = []
@@ -77,9 +78,10 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     if include_prices:
         data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Einheit", "Tätigkeit", "Sonderleistungen", "Einheitspreis", "Menge", "Gesamtpreis"]]
     else:
-        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Tätigkeit", "Sonderleistungen", "Einheit", "Menge"]]
+        data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Einheit", "Tätigkeit", "Sonderleistungen", "Menge"]]
+    
     for article in invoice_data['articles']:
-        # Erstellen Sie Paragraphen für Tätigkeit und Sonderleistungen
+        logging.info(f"Verarbeite Artikel: {article}")
         taetigkeit_paragraph = Paragraph(article.get('taetigkeit', ''), small_style)
         sonderleistungen_paragraph = Paragraph(article.get('sonderleistungen', ''), small_style)
 
@@ -100,11 +102,10 @@ def generate_pdf(invoice_data, filename, include_prices=True):
                 article.get('zwischensumme', '')
             ])
         else:
-            row.extend([
-                article.get('einheit', ''),
-                article.get('quantity', '')
-            ])
+            row.append(article.get('quantity', ''))
         data.append(row)
+
+    logging.info(f"Erstellte Datentabelle: {data}")
     
     if include_prices:
         col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 15*mm, 27*mm, 27*mm, 20*mm, 12*mm, 18*mm]
