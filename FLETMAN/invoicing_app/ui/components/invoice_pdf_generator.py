@@ -9,12 +9,13 @@ import logging
 
 def generate_pdf(invoice_data, filename, include_prices=True):
     logging.info(f"Starte PDF-Generierung: {filename}")
-    doc = SimpleDocTemplate(filename, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    doc = SimpleDocTemplate(filename, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=20*mm, bottomMargin=20*mm)
     elements = []
     
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='Normal_RIGHT', parent=styles['Normal'], alignment=2))
     styles.add(ParagraphStyle(name='Normal_CENTER', parent=styles['Normal'], alignment=1))
+    styles.add(ParagraphStyle(name='Small', parent=styles['Normal'], fontSize=8))
     
     # Pfad zum Logo relativ zum Root-Ordner
     logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
@@ -38,24 +39,27 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     elements.append(header_table)
     elements.append(Spacer(1, 10*mm))
     
-    # Rechnungsdetails
-    invoice_details = [
+    # Rechnungsdetails in zwei Spalten
+    invoice_details_left = [
         ["Kunde:", invoice_data.get('client_name', '')],
         ["Bestell-Nr.:", invoice_data.get('bestell_nr', '')],
         ["Bestelldatum:", invoice_data.get('bestelldatum', '')],
         ["Baustelle:", invoice_data.get('baustelle', '')],
         ["Anlagenteil:", invoice_data.get('anlagenteil', '')],
+    ]
+    invoice_details_right = [
         ["Aufmaß-Nr.:", invoice_data.get('aufmass_nr', '')],
         ["Auftrags-Nr.:", invoice_data.get('auftrags_nr', '')],
         ["Ausführungsbeginn:", invoice_data.get('ausfuehrungsbeginn', '')],
         ["Ausführungsende:", invoice_data.get('ausfuehrungsende', '')],
     ]
-    details_table = Table(invoice_details, colWidths=[60*mm, 130*mm])
+    details_table = Table([
+        [Table(invoice_details_left, colWidths=[40*mm, 50*mm]), Table(invoice_details_right, colWidths=[40*mm, 50*mm])]
+    ], colWidths=[90*mm, 90*mm])
     details_table.setStyle(TableStyle([
-        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-        ('FONTNAME', (1,0), (1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1*mm),
     ]))
     elements.append(details_table)
     elements.append(Spacer(1, 5*mm))
@@ -83,23 +87,23 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         data.append(row)
     
     if include_prices:
-        col_widths = [15*mm, 30*mm, 15*mm, 15*mm, 20*mm, 20*mm, 30*mm, 15*mm, 15*mm, 20*mm, 20*mm]
+        col_widths = [15*mm, 25*mm, 12*mm, 12*mm, 15*mm, 15*mm, 25*mm, 12*mm, 12*mm, 18*mm, 18*mm]
     else:
-        col_widths = [15*mm, 35*mm, 15*mm, 15*mm, 20*mm, 20*mm, 40*mm, 15*mm, 15*mm]
+        col_widths = [15*mm, 30*mm, 15*mm, 15*mm, 20*mm, 20*mm, 35*mm, 15*mm, 15*mm]
     
-    articles_table = Table(data, colWidths=col_widths)
+    articles_table = Table(data, colWidths=col_widths, repeatRows=1)
     articles_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('TEXTCOLOR', (0,0), (-1,0), colors.black),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('FONTSIZE', (0,0), (-1,0), 8),
         ('BOTTOMPADDING', (0,0), (-1,0), 3*mm),
         ('BACKGROUND', (0,1), (-1,-1), colors.white),
         ('TEXTCOLOR', (0,1), (-1,-1), colors.black),
         ('ALIGN', (0,1), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,1), (-1,-1), 10),
+        ('FONTSIZE', (0,1), (-1,-1), 7),
         ('BOTTOMPADDING', (0,1), (-1,-1), 2*mm),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black)
     ]))
@@ -115,11 +119,11 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         else:
             zuschlaege_data.append([zuschlag])
     
-    zuschlaege_table = Table(zuschlaege_data, colWidths=[190*mm])
+    zuschlaege_table = Table(zuschlaege_data, colWidths=[180*mm])
     zuschlaege_table.setStyle(TableStyle([
         ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
         ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
         ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
     ]))
     elements.append(zuschlaege_table)
@@ -132,13 +136,13 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             ["Gesamtbetrag:", f"{invoice_data.get('total_price', 0):.2f} €"]
         ]
         
-        total_price_table = Table(total_price_data, colWidths=[150*mm, 40*mm])
+        total_price_table = Table(total_price_data, colWidths=[140*mm, 40*mm])
         total_price_table.setStyle(TableStyle([
             ('ALIGN', (0,0), (0,-1), 'RIGHT'),
             ('ALIGN', (1,0), (1,-1), 'RIGHT'),
             ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
             ('FONTNAME', (1,0), (1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
             ('BOTTOMPADDING', (0,0), (-1,-1), 2*mm),
             ('LINEABOVE', (0,-1), (-1,-1), 1, colors.black),
         ]))
@@ -153,7 +157,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     Sitz der Gesellschaft: Bremen • Handelsregister: Amtsgericht Bremen HRB 30731 HB
     Steuernummer: 60 145 14407 • USt-ID: DE 813 770 842
     """
-    footer = Paragraph(footer_text, styles['Normal'])
+    footer = Paragraph(footer_text, styles['Small'])
     elements.append(footer)
     
     doc.build(elements)
