@@ -24,9 +24,15 @@ def main(page: ft.Page):
         show_start_screen()  # Rufen Sie die Funktion auf
 
     def show_aufmass_screen():
-        def radio_changed(e):
-            zurück_button.disabled = not e.control.value
-            page.update()
+        def button_clicked(e):
+            if e.control.text == "hinzufügen":
+                show_invoice_form()
+            elif e.control.text == "bearbeiten":
+                # Hier Logik für das Bearbeiten einfügen
+                pass
+            elif e.control.text == "Berichte Anzeigen/Drucken":
+                # Hier Logik für Berichte einfügen
+                pass
 
         def show_invoice_form():
             page.clean()
@@ -34,34 +40,27 @@ def main(page: ft.Page):
             page.add(invoice_form)
             page.update()
 
-        radio_group = ft.RadioGroup(
-            content=ft.Column([
-                ft.Radio(value="hinzufugen", label="hinzufügen", fill_color=ft.colors.BLUE_500),
-                ft.Radio(value="bearbeiten", label="bearbeiten", fill_color=ft.colors.BLUE_500),
-                ft.Radio(value="berichte", label="Berichte Anzeigen/Drucken", fill_color=ft.colors.BLUE_500),
-            ]),
-            on_change=radio_changed
-        )
-
         aufmass_screen = ft.Container(
             content=ft.Column([
                 ft.Text("Aufmaß", size=28, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700),
+                ft.Container(height=50),
+                ft.ElevatedButton("hinzufügen", on_click=button_clicked, width=250, height=60,
+                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
                 ft.Container(height=20),
-                ft.Card(
-                    content=ft.Container(
-                        content=radio_group,
-                        padding=20,
-                    ),
-                    elevation=5,
-                ),
+                ft.ElevatedButton("bearbeiten", on_click=button_clicked, width=250, height=60,
+                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
                 ft.Container(height=20),
-                ft.Row([
-                    ft.OutlinedButton("zurück", on_click=lambda _: show_start_screen(), style=ft.ButtonStyle(color=ft.colors.BLUE_700)),
-                    zurück_button := ft.ElevatedButton("Auswählen", on_click=lambda e: show_invoice_form(), style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700), width=250),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ]),
+                ft.ElevatedButton("Berichte Anzeigen/Drucken", on_click=button_clicked, width=250, height=60,
+                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                ft.Container(height=50),
+                ft.ElevatedButton("zurück", on_click=lambda _: show_start_screen(), width=250, height=60,
+                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             padding=40,
             bgcolor=ft.colors.WHITE,
+            alignment=ft.alignment.center,
         )
         page.clean()
         page.add(aufmass_screen)
