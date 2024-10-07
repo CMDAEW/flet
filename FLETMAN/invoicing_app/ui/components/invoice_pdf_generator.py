@@ -92,17 +92,17 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             article.get('dammdicke', ''),
             taetigkeit_paragraph,
             sonderleistungen_paragraph,
-            article['quantity'],
-            article['einheit'],
+            article.get('quantity', ''),  # Verwenden Sie .get() mit einem Standardwert
+            article.get('einheit', ''),
         ]
         if include_prices:
-            row.extend([article['einheitspreis'], article['zwischensumme']])
+            row.extend([article.get('einheitspreis', ''), article.get('zwischensumme', '')])
         data.append(row)
     
     if include_prices:
-        col_widths = [15*mm, 25*mm, 12*mm, 12*mm, 15*mm, 22*mm, 27*mm, 12*mm, 12*mm, 18*mm, 18*mm]
+        col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 22*mm, 27*mm, 12*mm, 12*mm, 20*mm, 18*mm]
     else:
-        col_widths = [15*mm, 30*mm, 15*mm, 15*mm, 20*mm, 27*mm, 37*mm, 15*mm, 15*mm]
+        col_widths = [15*mm, 35*mm, 15*mm, 15*mm, 23*mm, 27*mm, 37*mm, 15*mm, 15*mm]
     
     articles_table = Table(data, colWidths=col_widths, repeatRows=1)
     articles_table.setStyle(TableStyle([

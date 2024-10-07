@@ -248,9 +248,9 @@ class InvoiceForm(ft.UserControl):
                 ft.DataColumn(ft.Text("DN")),
                 ft.DataColumn(ft.Text("DA")),
                 ft.DataColumn(ft.Text("Dämmdicke")),
+                ft.DataColumn(ft.Text("Einheit")),
                 ft.DataColumn(ft.Text("Tätigkeit")),
                 ft.DataColumn(ft.Text("Sonderleistungen")),
-                ft.DataColumn(ft.Text("Einheit")),
                 ft.DataColumn(ft.Text("Preis")),
                 ft.DataColumn(ft.Text("Menge")),
                 ft.DataColumn(ft.Text("Zwischensumme")),
@@ -296,6 +296,32 @@ class InvoiceForm(ft.UserControl):
             else:
                 self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
         self.update_price()
+
+    def clear_input_fields(self):
+        felder_zum_zuruecksetzen = [
+            self.position_field,
+            self.bauteil_dropdown,
+            self.dn_dropdown,
+            self.da_dropdown,
+            self.dammdicke_dropdown,
+            self.einheit_field,
+            self.taetigkeit_dropdown,
+            self.quantity_input,
+            self.price_field,
+            self.zwischensumme_field
+        ]
+        
+        for feld in felder_zum_zuruecksetzen:
+            feld.value = None if isinstance(feld, ft.Dropdown) else ""
+        
+        # Zurücksetzen der Sonderleistungen
+        for checkbox in self.sonderleistungen_container.content.controls:
+            if isinstance(checkbox, ft.Checkbox):
+                checkbox.value = False
+        
+        self.selected_sonderleistungen = []
+        
+        self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
@@ -374,8 +400,8 @@ class InvoiceForm(ft.UserControl):
         self.dn_dropdown.value = row.cells[2].content.value
         self.da_dropdown.value = row.cells[3].content.value
         self.dammdicke_dropdown.value = row.cells[4].content.value
-        self.taetigkeit_dropdown.value = row.cells[5].content.value
-        self.einheit_field.value = row.cells[7].content.value
+        self.einheit_field.value = row.cells[5].content.value
+        self.taetigkeit_dropdown.value = row.cells[6].content.value
         self.price_field.value = row.cells[8].content.value
         self.quantity_input.value = row.cells[9].content.value
         self.zwischensumme_field.value = row.cells[10].content.value
@@ -385,9 +411,9 @@ class InvoiceForm(ft.UserControl):
             checkbox.value = False
         
         # Set selected sonderleistungen
-        sonderleistungen = row.cells[6].content.value.split(", ")
+        sonderleistungen = row.cells[7].content.value.split(", ")
         for checkbox in self.sonderleistungen_container.content.controls:
-            if checkbox.label in sonderleistungen:
+            if checkbox.label.split(' (')[0] in sonderleistungen:
                 checkbox.value = True
         
         self.update_position_button.visible = True
@@ -428,6 +454,7 @@ class InvoiceForm(ft.UserControl):
         logging.info("Starte PDF-Erstellung mit Preisen")
         try:
             invoice_data = self.get_invoice_data()
+            invoice_data['bemerkungen'] = self.bemerkung_field.value  # Fügen Sie die Bemerkungen hinzu
             logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
 
             # Speichern der Rechnung in der Datenbank und Erhalten der invoice_id
@@ -458,32 +485,51 @@ class InvoiceForm(ft.UserControl):
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
 
     def save_invoice_to_db(self, invoice_data):
+        logging.info("Speichere Rechnung in der Datenbank")
+        logging.debug(f"Rechnungsdaten: {invoice_data}")  # Fügen Sie diese Zeile hinzu, um die gesamten Rechnungsdaten zu loggen
+        cursor = self.conn.cursor()
         try:
-            cursor = self.conn.cursor()
-            
-            # Einfügen in die invoice Tabelle
             cursor.execute('''
-                INSERT INTO invoice (client_name, bestell_nr, bestelldatum, baustelle, anlagenteil, 
-                aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende, total_amount, zuschlaege)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO invoice (
+                client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
+                aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende,
+                total_amount, zuschlaege, bemerkungen
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                invoice_data['client_name'], invoice_data['bestell_nr'], invoice_data['bestelldatum'],
-                invoice_data['baustelle'], invoice_data['anlagenteil'], invoice_data['aufmass_nr'],
-                invoice_data['auftrags_nr'], invoice_data['ausfuehrungsbeginn'], invoice_data['ausfuehrungsende'],
-                invoice_data['total_price'], str(invoice_data.get('zuschlaege', []))
+                invoice_data['client_name'],
+                invoice_data['bestell_nr'],
+                invoice_data['bestelldatum'],
+                invoice_data['baustelle'],
+                invoice_data['anlagenteil'],
+                invoice_data['aufmass_nr'],
+                invoice_data['auftrags_nr'],
+                invoice_data['ausfuehrungsbeginn'],
+                invoice_data['ausfuehrungsende'],
+                invoice_data['total_price'],
+                ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
+                invoice_data.get('bemerkungen', '')
             ))
-            
             invoice_id = cursor.lastrowid
             
             # Einfügen in die invoice_items Tabelle
             for article in invoice_data['articles']:
+                logging.debug(f"Artikeldaten: {article}")  # Fügen Sie diese Zeile hinzu, um die Daten jedes Artikels zu loggen
                 cursor.execute('''
                     INSERT INTO invoice_items (invoice_id, position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    invoice_id, article['position'], article['artikelbeschreibung'], article.get('dn'), article.get('da'),
-                    article.get('dammdicke'), article.get('taetigkeit'), article['einheit'], article['einheitspreis'],
-                    article['quantity'], article['zwischensumme'], str(article.get('sonderleistungen', []))
+                    invoice_id,
+                    article['position'],
+                    article['artikelbeschreibung'],
+                    article.get('dn', ''),
+                    article.get('da', ''),
+                    article.get('dammdicke', ''),
+                    article.get('taetigkeit', ''),
+                    article.get('einheit', ''),
+                    article.get('einheitspreis', 0),
+                    article.get('quantity', 0),  # Stellen Sie sicher, dass 'quantity' einen Standardwert hat
+                    article.get('zwischensumme', 0),
+                    str(article.get('sonderleistungen', ''))
                 ))
             
             self.conn.commit()
@@ -497,6 +543,8 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
             self.conn.rollback()
             return None
+        finally:
+            cursor.close()
 
     def create_pdf_without_prices(self, e):
         try:
@@ -542,7 +590,10 @@ class InvoiceForm(ft.UserControl):
         if self.edit_mode and self.edit_row_index is not None:
             if float(self.price_field.value or 0) == 0:
                 self.show_error("Der Preis darf nicht Null sein.")
+                return
 
+            # Entfernen der Klammern bei den Sonderleistungen
+            sonderleistungen_text = ", ".join([sl[0].split(' (')[0] for sl in self.selected_sonderleistungen])
 
             updated_row = ft.DataRow(
                 cells=[
@@ -551,9 +602,9 @@ class InvoiceForm(ft.UserControl):
                     ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "")),
                     ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                     ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
-                    ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
-                    ft.DataCell(ft.Text(", ".join([sl[0] for sl in self.selected_sonderleistungen]))),
                     ft.DataCell(ft.Text(self.einheit_field.value)),
+                    ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
+                    ft.DataCell(ft.Text(sonderleistungen_text)),
                     ft.DataCell(ft.Text(self.price_field.value)),
                     ft.DataCell(ft.Text(self.quantity_input.value)),
                     ft.DataCell(ft.Text(self.zwischensumme_field.value)),
@@ -563,17 +614,16 @@ class InvoiceForm(ft.UserControl):
                     ])),
                 ]
             )
+            
             self.article_list_header.rows[self.edit_row_index] = updated_row
-            self.article_summaries[self.edit_row_index] = {
-                'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
-                'sonderleistungen': self.selected_sonderleistungen.copy()
-            }
-            self.update_total_price()
-            self.reset_fields()
             self.edit_mode = False
             self.edit_row_index = None
             self.update_position_button.visible = False
+            self.clear_input_fields()
+            self.update_total_price()
             self.update()
+        else:
+            self.show_error("Keine Zeile zum Aktualisieren ausgewählt.")
 
     def delete_invoice(self, e):
         # Implementieren Sie hier die Logik zum Löschen der Rechnung
@@ -599,10 +649,9 @@ class InvoiceForm(ft.UserControl):
             return
 
         position = self.position_field.value
-        taetigkeit_bezeichnung = self.taetigkeit_dropdown.value
-        taetigkeit_id = self.get_taetigkeit_id(taetigkeit_bezeichnung)
         
-        sonderleistungen_text = ", ".join([f"{sl[0]} ({sl[1]})" for sl in self.selected_sonderleistungen]) if self.selected_sonderleistungen else ""
+        # Entfernen der Klammern bei den Sonderleistungen
+        sonderleistungen_text = ", ".join([sl[0].split(' (')[0] for sl in self.selected_sonderleistungen])
         
         new_row = ft.DataRow(
             cells=[
@@ -611,11 +660,11 @@ class InvoiceForm(ft.UserControl):
                 ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "")),
                 ft.DataCell(ft.Text(self.dammdicke_dropdown.value)),
-                ft.DataCell(ft.Text(taetigkeit_bezeichnung)),  # Verwenden Sie die Bezeichnung hier
-                ft.DataCell(ft.Text(sonderleistungen_text)),
-                ft.DataCell(ft.Text(self.quantity_input.value)),
                 ft.DataCell(ft.Text(self.einheit_field.value)),
+                ft.DataCell(ft.Text(self.taetigkeit_dropdown.value)),
+                ft.DataCell(ft.Text(sonderleistungen_text)),
                 ft.DataCell(ft.Text(self.price_field.value)),
+                ft.DataCell(ft.Text(self.quantity_input.value)),
                 ft.DataCell(ft.Text(self.zwischensumme_field.value)),
                 ft.DataCell(ft.Row([
                     ft.IconButton(icon=ft.icons.EDIT, on_click=lambda _: self.edit_article_row(new_row)),
@@ -625,15 +674,8 @@ class InvoiceForm(ft.UserControl):
         )
         
         self.article_list_header.rows.append(new_row)
-
-        self.article_summaries.append({
-            'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
-            'sonderleistungen': self.selected_sonderleistungen.copy()
-        })
-
         self.update_total_price()
-        self.reset_fields()  # Reset fields after adding the article
-        self.reset_sonderleistungen()  # Reset the checkboxes for special services
+        self.clear_input_fields()
         self.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
@@ -716,7 +758,7 @@ class InvoiceForm(ft.UserControl):
             'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value if self.invoice_detail_fields['ausfuehrungsbeginn'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsbeginn'].value,
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value if self.invoice_detail_fields['ausfuehrungsende'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsende'].value,
             'category': self.current_category,
-            'bemerkung': self.bemerkung_field.value,  # Fügen Sie dies hinzu
+            'bemerkung': self.bemerkung_field.value,
             'articles': [],
             'zuschlaege': self.selected_zuschlaege,
             'net_total': 0,
@@ -730,9 +772,9 @@ class InvoiceForm(ft.UserControl):
                 'dn': row.cells[2].content.value,
                 'da': row.cells[3].content.value,
                 'dammdicke': row.cells[4].content.value,
-                'taetigkeit': row.cells[5].content.value,  # Dies sollte jetzt die Bezeichnung sein
-                'sonderleistungen': row.cells[6].content.value,
-                'einheit': row.cells[7].content.value,
+                'einheit': row.cells[5].content.value,
+                'taetigkeit': row.cells[6].content.value,
+                'sonderleistungen': row.cells[7].content.value,
                 'einheitspreis': row.cells[8].content.value,
                 'quantity': row.cells[9].content.value,
                 'zwischensumme': row.cells[10].content.value
@@ -751,6 +793,7 @@ class InvoiceForm(ft.UserControl):
             invoice_data['total_price'] *= faktor
 
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
+        logging.debug(f"Gesamte Rechnungsdaten: {invoice_data}")
         return invoice_data
 
     def get_taetigkeit_id(self, taetigkeit_name):

@@ -10,7 +10,7 @@ def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create invoice table
+    # Create invoice table with new 'bemerkungen' column
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invoice (
         id INTEGER PRIMARY KEY,
@@ -24,7 +24,8 @@ def initialize_database():
         ausfuehrungsbeginn TEXT,
         ausfuehrungsende TEXT,
         total_amount REAL,
-        zuschlaege TEXT
+        zuschlaege TEXT,
+        bemerkungen TEXT  
     )
     ''')
 
