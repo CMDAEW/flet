@@ -14,6 +14,7 @@ def main(page: ft.Page):
     page.window_maximized = True
     page.bgcolor = ft.colors.WHITE
     page.theme_mode = ft.ThemeMode.LIGHT
+    page.scroll = "auto"  # Aktiviert das Scrollen für die gesamte Seite
 
     def show_start_screen(e=None):
         page.clean()
@@ -37,7 +38,7 @@ def main(page: ft.Page):
         def show_invoice_form():
             page.clean()
             invoice_form = InvoiceForm(page)
-            page.add(invoice_form)
+            page.add(ft.Container(content=invoice_form, expand=True))
             page.update()
 
         aufmass_screen = ft.Container(

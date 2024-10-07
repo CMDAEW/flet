@@ -74,36 +74,45 @@ class InvoiceForm(ft.UserControl):
         logo_container = ft.Container(content=logo)
 
         # Hauptlayout
-        return ft.Container(
-            content=ft.Column([
-                ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),  # Logo in einer Zeile rechts ausrichten
-                ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
-                invoice_details,
-                ft.Container(height=20),
-                self.article_input_row_with_container,
-                ft.Container(height=20),
-                self.article_list_header,
-                self.total_price_field,
-                ft.Container(height=20),
-                ft.Row([
-                    ft.Column([
-                        self.bemerkung_field,
-                    ], expand=1),
-                    ft.Column([
-                        self.zuschlaege_button,
-                        self.zuschlaege_container,
-                        ft.Container(height=10),
-                        self.create_pdf_with_prices_button,
-                        ft.Container(height=10),
-                        self.create_pdf_without_prices_button,
-                        ft.Container(height=10),
-                        self.back_to_main_menu_button,
-                    ], expand=1),
-                ]),
+        main_content = ft.Column([
+            ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),  # Logo in einer Zeile rechts ausrichten
+            ft.Row([self.delete_invoice_button], alignment=ft.MainAxisAlignment.END),
+            invoice_details,
+            ft.Container(height=20),
+            self.article_input_row_with_container,
+            ft.Container(height=20),
+            self.article_list_header,
+            self.total_price_field,
+            ft.Container(height=20),
+            ft.Row([
+                ft.Column([
+                    self.bemerkung_field,
+                ], expand=1),
+                ft.Column([
+                    self.zuschlaege_button,
+                    self.zuschlaege_container,
+                    ft.Container(height=10),
+                    self.create_pdf_with_prices_button,
+                    ft.Container(height=10),
+                    self.create_pdf_without_prices_button,
+                    ft.Container(height=10),
+                    self.back_to_main_menu_button,
+                ], expand=1),
             ]),
-            padding=40,
+        ])
+
+        # Wrap the main content in a ListView
+        return ft.Container(
+            content=ft.ListView(
+                [main_content],
+                expand=1,
+                spacing=10,
+                padding=20,
+            ),
+            padding=20,
             expand=True,
         )
+
 
     def show_snack_bar(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
