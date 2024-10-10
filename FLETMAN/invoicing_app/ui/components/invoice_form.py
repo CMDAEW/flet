@@ -63,10 +63,9 @@ class InvoiceForm(ft.UserControl):
             ]),
             ft.Row([
                 ft.Column([self.invoice_detail_fields[field], self.new_entry_fields[field]])
-                for field in ['auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende']
-            ]),
+                for field in ['auftrags_nr', 'ausfuehrungsbeginn']
+            ] + [ft.Column([self.invoice_detail_fields['ausfuehrungsende'], self.ausfuehrungsende_button])]),
         ])
-
         # Logo hinzufügen
         logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
                              'assets', 'logos', 'KAE_Logo_RGB_300dpi2.jpg')
@@ -185,9 +184,23 @@ class InvoiceForm(ft.UserControl):
             'aufmass_nr': ft.Dropdown(label="Aufmaß-Nr.", on_change=lambda e: self.toggle_new_entry(e, "aufmass_nr")),
             'auftrags_nr': ft.Dropdown(label="Auftrags-Nr.", on_change=lambda e: self.toggle_new_entry(e, "auftrags_nr")),
             'ausfuehrungsbeginn': ft.Dropdown(label="Ausführungsbeginn", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsbeginn")),
-            'ausfuehrungsende': ft.Dropdown(label="Ausführungsende", on_change=lambda e: self.toggle_new_entry(e, "ausfuehrungsende")),
+            'ausfuehrungsende': ft.TextField(label="Ausführungsende", read_only=True)
         }
         self.new_entry_fields = {key: ft.TextField(label=f"Neuer {value.label}", visible=False) for key, value in self.invoice_detail_fields.items()}
+
+        # Erstellen Sie den DatePicker
+        self.ausfuehrungsende_picker = ft.DatePicker(
+            on_change=self.on_ausfuehrungsende_change,
+            first_date=datetime(2020, 1, 1),
+            last_date=datetime(2030, 12, 31)
+        )
+        self.page.overlay.append(self.ausfuehrungsende_picker)
+
+        # Fügen Sie einen Button hinzu, um den DatePicker zu öffnen
+        self.ausfuehrungsende_button = ft.ElevatedButton(
+            "Ausführungsende wählen",
+            on_click=lambda _: self.ausfuehrungsende_picker.pick_date()
+        )
 
         self.article_list = ft.Column()
 
@@ -484,6 +497,17 @@ class InvoiceForm(ft.UserControl):
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
+
+    def on_ausfuehrungsende_change(self, e):
+        if e.control.value:
+            date_obj = e.control.value
+            date_str = date_obj.strftime("%d.%m.%Y")
+            self.invoice_detail_fields['ausfuehrungsende'].value = date_str
+            self.ausfuehrungsende_button.text = f"Ausführungsende: {date_str}"
+        else:
+            self.invoice_detail_fields['ausfuehrungsende'].value = ""
+            self.ausfuehrungsende_button.text = "Ausführungsende wählen"
+        self.update()
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
