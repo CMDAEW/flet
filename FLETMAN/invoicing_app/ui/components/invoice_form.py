@@ -734,10 +734,22 @@ class InvoiceForm(ft.UserControl):
         )
         
         self.article_list_header.rows.append(new_row)
+        
+        summary_data = {
+            'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
+            'sonderleistungen': self.selected_sonderleistungen.copy()
+        }
+        self.article_summaries.append(summary_data)
+        
         self.update_total_price()
         self.clear_input_fields()
         self.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
+
+    def check_consistency(self):
+        if len(self.article_list_header.rows) != len(self.article_summaries):
+            logging.error(f"Inkonsistenz entdeckt: {len(self.article_list_header.rows)} Zeilen, aber {len(self.article_summaries)} Zusammenfassungen")
+            # Hier könnten Sie auch Korrekturmaßnahmen implementieren
 
     def reset_sonderleistungen(self):
         for checkbox in self.sonderleistungen_container.content.controls:
@@ -961,11 +973,31 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def remove_article_row(self, row):
-        index = self.article_list_header.rows.index(row)
-        self.article_list_header.rows.remove(row)
-        del self.article_summaries[index]
-        self.update_total_price()
-        self.update()
+        logging.info(f"Versuche, Zeile zu entfernen: {row}")
+        logging.info(f"Anzahl der Zeilen vor dem Entfernen: {len(self.article_list_header.rows)}")
+        logging.info(f"Anzahl der Zusammenfassungen vor dem Entfernen: {len(self.article_summaries)}")
+        
+        if row in self.article_list_header.rows:
+            index = self.article_list_header.rows.index(row)
+            logging.info(f"Gefundener Index der zu entfernenden Zeile: {index}")
+            
+            self.article_list_header.rows.remove(row)
+            logging.info(f"Zeile aus article_list_header entfernt. Neue Anzahl: {len(self.article_list_header.rows)}")
+            
+            if 0 <= index < len(self.article_summaries):
+                del self.article_summaries[index]
+                logging.info(f"Zusammenfassung entfernt. Neue Anzahl: {len(self.article_summaries)}")
+            else:
+                logging.warning(f"Index {index} außerhalb des Bereichs von article_summaries")
+            
+            self.update_total_price()
+            self.update()
+            logging.info("Zeile erfolgreich entfernt und UI aktualisiert")
+        else:
+            logging.warning("Versuchte Zeile zu entfernen, die nicht in der Tabelle existiert")
+        
+        logging.info(f"Anzahl der Zeilen nach dem Entfernen: {len(self.article_list_header.rows)}")
+        logging.info(f"Anzahl der Zusammenfassungen nach dem Entfernen: {len(self.article_summaries)}")
 
     def load_faktoren(self, art):
         faktoren = self.get_from_cache_or_db(f"faktoren_{art}", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
@@ -1060,6 +1092,16 @@ class InvoiceForm(ft.UserControl):
         self.zwischensumme_field.value = f"{total_price:.2f}"
         
         self.update()
+
+    def apply_zuschlaege(self, nettobetrag):
+        zuschlaege_summe = 0
+        for bezeichnung, faktor in self.selected_zuschlaege:
+            zuschlag = nettobetrag * (float(faktor) - 1)
+            zuschlaege_summe += zuschlag
+            logging.info(f"Zuschlag '{bezeichnung}': {zuschlag:.2f}")
+        
+        gesamtbetrag = nettobetrag + zuschlaege_summe
+        return gesamtbetrag
 
     def back_to_main_menu(self, e):
         self.page.go('/')  # Angenommen, '/' ist die Route für das Hauptmenü
