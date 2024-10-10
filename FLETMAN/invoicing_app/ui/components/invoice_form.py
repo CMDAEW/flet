@@ -768,13 +768,10 @@ class InvoiceForm(ft.UserControl):
             nettobetrag = sum(float(row.cells[10].content.value.replace(',', '.').replace('€', '').strip()) for row in self.article_list_header.rows)
             logging.info(f"Berechneter Nettobetrag: {nettobetrag:.2f}")
             
-            zuschlaege_summe = 0
-            for bezeichnung, faktor in self.selected_zuschlaege:
-                zuschlag = nettobetrag * (float(faktor) - 1)
-                zuschlaege_summe += zuschlag
-                logging.info(f"Zuschlag '{bezeichnung}': {zuschlag:.2f}")
-
-            gesamtbetrag = nettobetrag + zuschlaege_summe
+            # Anwenden der Zuschläge auf den Gesamtbetrag
+            gesamtbetrag = self.apply_zuschlaege(nettobetrag)
+            zuschlaege_summe = gesamtbetrag - nettobetrag
+            logging.info(f"Zuschläge Summe: {zuschlaege_summe:.2f}")
             logging.info(f"Berechneter Gesamtbetrag: {gesamtbetrag:.2f}")
 
             self.nettobetrag_field.value = f"{nettobetrag:.2f} €"

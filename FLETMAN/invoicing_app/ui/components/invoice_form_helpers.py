@@ -236,10 +236,6 @@ def update_price(self, e=None):
         for _, faktor in self.selected_sonderleistungen:
             price *= faktor
 
-        # Anwenden von Zuschlägen
-        for _, faktor in self.selected_zuschlaege:
-            price *= faktor
-
     elif category == "Material":
         price = get_material_price(self, bauteil)
         if price is None:
@@ -275,3 +271,10 @@ def load_lohn_items(self):
 def load_festpreis_items(self):
     # Implementieren Sie hier die Logik zum Laden der Festpreis-Artikel
     pass
+
+# Neue Funktion zur Anwendung der Zuschläge auf den Gesamtbetrag
+# Neue Funktion zur Anwendung der Zuschläge auf den Gesamtbetrag
+def apply_zuschlaege(self, total_amount):
+    for _, faktor in self.selected_zuschlaege:
+        total_amount *= faktor
+    return total_amount
