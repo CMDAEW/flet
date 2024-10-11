@@ -15,6 +15,17 @@ def main(page: ft.Page):
     page.bgcolor = ft.colors.WHITE
     page.theme_mode = ft.ThemeMode.LIGHT
     page.scroll = "auto"  # Aktiviert das Scrollen für die gesamte Seite
+    page.scale = 1.0  # Initialer Zoom-Faktor
+
+    def on_keyboard(e: ft.KeyboardEvent):
+        if e.key == "+" and e.ctrl:
+            page.scale += 0.1
+            page.update()
+        elif e.key == "-" and e.ctrl:
+            page.scale = max(0.5, page.scale - 0.1)  # Verhindert zu starkes Verkleinern
+            page.update()
+
+    page.on_keyboard_event = on_keyboard
 
     def show_start_screen(e=None):
         page.clean()

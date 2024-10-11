@@ -155,9 +155,9 @@ class InvoiceForm(ft.UserControl):
             self.gesamtbetrag_field
         ])
 
-        # Hauptlayout
+        # Hauptlayout in einer ScrollableColumn
         main_content = ft.Column([
-            ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),  # Logo in einer Zeile rechts ausrichten
+            ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),
             invoice_details,
             ft.Container(height=20),
             self.article_input_row_with_container,
@@ -180,18 +180,13 @@ class InvoiceForm(ft.UserControl):
                     self.back_to_main_menu_button,
                 ], expand=1),
             ]),
-        ])
+        ], scroll=ft.ScrollMode.AUTO, expand=True)
 
-        # Wrap the main content in a ListView
+        # Wrap the main content in a Container that expands to fill the available space
         return ft.Container(
-            content=ft.ListView(
-                [main_content],
-                expand=1,
-                spacing=10,
-                padding=20,
-            ),
-            padding=20,
+            content=main_content,
             expand=True,
+            padding=20,
         )
 
 
