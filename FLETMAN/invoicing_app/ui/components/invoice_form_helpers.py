@@ -165,6 +165,15 @@ def get_positionsnummer(self, bauteil, dammdicke, dn=None, da=None, category="Au
     cursor = self.conn.cursor()
     try:
         if category == "Aufmaß":
+            # Hole zuerst die Tätigkeits-ID
+            taetigkeit = self.taetigkeit_dropdown.value
+            cursor.execute('SELECT id FROM Faktoren WHERE Art = "Tätigkeit" AND Bezeichnung = ?', (taetigkeit,))
+            taetigkeit_id = cursor.fetchone()
+            if not taetigkeit_id:
+                return None
+            taetigkeit_id = taetigkeit_id[0]
+
+            # Dann hole die Bauteilnummer
             query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = ? AND Size = ?"
             params = [bauteil, dammdicke]
             
@@ -177,13 +186,20 @@ def get_positionsnummer(self, bauteil, dammdicke, dn=None, da=None, category="Au
                     params.append(da)
             
             cursor.execute(query + " LIMIT 1", params)
+            bauteil_nummer = cursor.fetchone()
+            
+            if bauteil_nummer:
+                # Kombiniere Tätigkeits-ID und Bauteilnummer
+                return f"{taetigkeit_id}.{bauteil_nummer[0]}"
+            else:
+                return None
+
         elif category == "Material":
             cursor.execute("SELECT Positionsnummer FROM Materialpreise WHERE Benennung = ? LIMIT 1", (bauteil,))
+            result = cursor.fetchone()
+            return result[0] if result else None
         else:
             return None
-
-        result = cursor.fetchone()
-        return result[0] if result else None
     finally:
         cursor.close()
 
