@@ -170,35 +170,58 @@ def get_positionsnummer(self, bauteil, dammdicke, dn=None, da=None, category="Au
             cursor.execute('SELECT id FROM Faktoren WHERE Art = "Tätigkeit" AND Bezeichnung = ?', (taetigkeit,))
             taetigkeit_id = cursor.fetchone()
             if not taetigkeit_id:
+                logging.warning(f"Keine Tätigkeits-ID gefunden für: {taetigkeit}")
                 return None
             taetigkeit_id = taetigkeit_id[0]
 
-            # Dann hole die Bauteilnummer
-            query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = ? AND Size = ?"
-            params = [bauteil, dammdicke]
-            
-            if self.is_rohrleitung_or_formteil(bauteil):
-                if dn is not None:
-                    query += " AND DN = ?"
-                    params.append(dn)
-                if da is not None:
-                    query += " AND DA = ?"
-                    params.append(da)
-            
-            cursor.execute(query + " LIMIT 1", params)
-            bauteil_nummer = cursor.fetchone()
-            
-            if bauteil_nummer:
-                # Kombiniere Tätigkeits-ID und Bauteilnummer
-                return f"{taetigkeit_id}.{bauteil_nummer[0]}"
+            if self.is_formteil(bauteil):
+                # Logik für Formteile
+                cursor.execute('SELECT id FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
+                formteil_id = cursor.fetchone()
+                if not formteil_id:
+                    logging.warning(f"Keine Formteil-ID gefunden für: {bauteil}")
+                    return None
+                formteil_id = formteil_id[0]
+
+                cursor.execute("SELECT Positionsnummer FROM price_list WHERE Bauteil = 'Rohrleitung' AND Size = ? AND DN = ? AND DA = ? LIMIT 1", (dammdicke, dn, da))
+                rohrleitung_nummer = cursor.fetchone()
+                if not rohrleitung_nummer:
+                    logging.warning(f"Keine Rohrleitung-Nummer gefunden für: Dämmdicke={dammdicke}, DN={dn}, DA={da}")
+                    return None
+                rohrleitung_nummer = rohrleitung_nummer[0]
+
+                return f"{taetigkeit_id}.{formteil_id}.{rohrleitung_nummer}"
+
+            elif self.is_rohrleitung(bauteil):
+                # Logik für Rohrleitungen
+                query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = 'Rohrleitung' AND Size = ? AND DN = ? AND DA = ? LIMIT 1"
+                cursor.execute(query, (dammdicke, dn, da))
+                bauteil_nummer = cursor.fetchone()
+                
+                if bauteil_nummer:
+                    return f"{taetigkeit_id}.{bauteil_nummer[0]}"
+                else:
+                    logging.warning(f"Keine Rohrleitung-Nummer gefunden für: Dämmdicke={dammdicke}, DN={dn}, DA={da}")
+                    return None
+
             else:
-                return None
+                # Logik für andere Bauteile
+                query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = ? AND Size = ? LIMIT 1"
+                cursor.execute(query, (bauteil, dammdicke))
+                bauteil_nummer = cursor.fetchone()
+                
+                if bauteil_nummer:
+                    return f"{taetigkeit_id}.{bauteil_nummer[0]}"
+                else:
+                    logging.warning(f"Keine Bauteil-Nummer gefunden für: Bauteil={bauteil}, Dämmdicke={dammdicke}")
+                    return None
 
         elif category == "Material":
             cursor.execute("SELECT Positionsnummer FROM Materialpreise WHERE Benennung = ? LIMIT 1", (bauteil,))
             result = cursor.fetchone()
             return result[0] if result else None
         else:
+            logging.warning(f"Unbekannte Kategorie: {category}")
             return None
     finally:
         cursor.close()

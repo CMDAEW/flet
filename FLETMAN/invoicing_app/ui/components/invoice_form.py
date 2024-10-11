@@ -454,10 +454,13 @@ class InvoiceForm(ft.UserControl):
     def is_formteil(self, bauteil):
         cursor = self.conn.cursor()
         try:
-            cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
+            cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ? LIMIT 1', (bauteil,))
             return cursor.fetchone() is not None
         finally:
             cursor.close()
+
+    def is_rohrleitung(self, bauteil):
+        return bauteil.lower() == "rohrleitung"
 
     def auto_fill_rohrleitung_or_formteil(self, bauteil):
         cursor = self.conn.cursor()
