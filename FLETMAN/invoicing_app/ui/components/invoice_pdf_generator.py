@@ -77,8 +77,10 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     # Artikelliste
     if include_prices:
         data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Einheit", "Tätigkeit", "Sonderleistungen", "Einheitspreis", "Menge", "Gesamtpreis"]]
+        col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 15*mm, 27*mm, 27*mm, 20*mm, 12*mm, 18*mm]
     else:
         data = [["Pos.", "Artikelbezeichnung", "DN", "DA", "Dämmdicke", "Einheit", "Tätigkeit", "Sonderleistungen", "Menge"]]
+        col_widths = [15*mm, 35*mm, 15*mm, 15*mm, 20*mm, 15*mm, 30*mm, 30*mm, 15*mm]
     
     for article in invoice_data['articles']:
         logging.info(f"Verarbeite Artikel: {article}")
@@ -106,11 +108,6 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         data.append(row)
 
     logging.info(f"Erstellte Datentabelle: {data}")
-    
-    if include_prices:
-        col_widths = [15*mm, 30*mm, 12*mm, 12*mm, 18*mm, 15*mm, 27*mm, 27*mm, 20*mm, 12*mm, 18*mm]
-    else:
-        col_widths = [15*mm, 35*mm, 15*mm, 15*mm, 23*mm, 27*mm, 37*mm, 15*mm, 15*mm]
     
     articles_table = Table(data, colWidths=col_widths, repeatRows=1)
     articles_table.setStyle(TableStyle([
