@@ -49,66 +49,6 @@ class InvoiceForm(ft.UserControl):
         self.update_price()  # Initialisieren Sie die Preisberechnung
         logging.info("InvoiceForm initialization complete")
 
-    def create_ui_elements(self):
-        # ... andere UI-Elemente ...
-
-        self.invoice_detail_fields = {
-            'client_name': ft.Dropdown(label="Kunde"),
-            'bestell_nr': ft.Dropdown(label="Bestellnummer"),
-            'bestelldatum': ft.TextField(label="Bestelldatum", read_only=True),
-            'baustelle': ft.TextField(label="Baustelle"),
-            'anlagenteil': ft.TextField(label="Anlagenteil"),
-            'aufmass_nr': ft.TextField(label="Aufmaß-Nr."),
-            'auftrags_nr': ft.TextField(label="Auftrags-Nr."),
-            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn", read_only=True),
-            'ausfuehrungsende': ft.TextField(label="Ausführungsende", read_only=True)
-        }
-
-        self.new_entry_fields = {
-            key: ft.TextField(label=f"Neuer {value.label}", visible=False)
-            for key, value in self.invoice_detail_fields.items()
-        }
-
-        # Erstellen Sie die DatePicker
-        self.bestelldatum_picker = ft.DatePicker(
-            on_change=self.on_bestelldatum_change,
-            first_date=datetime(2020, 1, 1),
-            last_date=datetime(2030, 12, 31)
-        )
-        self.ausfuehrungsbeginn_picker = ft.DatePicker(
-            on_change=self.on_ausfuehrungsbeginn_change,
-            first_date=datetime(2020, 1, 1),
-            last_date=datetime(2030, 12, 31)
-        )
-        self.ausfuehrungsende_picker = ft.DatePicker(
-            on_change=self.on_ausfuehrungsende_change,
-            first_date=datetime(2020, 1, 1),
-            last_date=datetime(2030, 12, 31)
-        )
-
-        self.page.overlay.extend([
-            self.bestelldatum_picker,
-            self.ausfuehrungsbeginn_picker,
-            self.ausfuehrungsende_picker
-        ])
-        self.page.update()
-
-        # Fügen Sie Buttons hinzu, um die DatePicker zu öffnen
-        self.bestelldatum_button = ft.ElevatedButton(
-            "Bestelldatum wählen",
-            on_click=lambda _: self.bestelldatum_picker.pick_date()
-        )
-        self.ausfuehrungsbeginn_button = ft.ElevatedButton(
-            "Ausführungsbeginn wählen",
-            on_click=lambda _: self.ausfuehrungsbeginn_picker.pick_date()
-        )
-        self.ausfuehrungsende_button = ft.ElevatedButton(
-            "Ausführungsende wählen",
-            on_click=lambda _: self.ausfuehrungsende_picker.pick_date()
-        )
-
-        # ... Rest der Methode bleibt unverändert ...
-
     def on_bestelldatum_change(self, e):
         self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
 
@@ -261,13 +201,13 @@ class InvoiceForm(ft.UserControl):
         self.invoice_detail_fields = {
             'client_name': ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name")),
             'bestell_nr': ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr")),
-            'bestelldatum': ft.TextField(label="Bestelldatum", read_only=True),
+            'bestelldatum': ft.TextField(label="Bestelldatum", visible=False),
             'baustelle': ft.Dropdown(label="Baustelle", on_change=lambda e: self.toggle_new_entry(e, "baustelle")),
             'anlagenteil': ft.Dropdown(label="Anlagenteil", on_change=lambda e: self.toggle_new_entry(e, "anlagenteil")),
             'aufmass_nr': ft.Dropdown(label="Aufmaß-Nr.", on_change=lambda e: self.toggle_new_entry(e, "aufmass_nr")),
             'auftrags_nr': ft.Dropdown(label="Auftrags-Nr.", on_change=lambda e: self.toggle_new_entry(e, "auftrags_nr")),
-            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn", read_only=True),
-            'ausfuehrungsende': ft.TextField(label="Ausführungsende", read_only=True)
+            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn", visible=False),
+            'ausfuehrungsende': ft.TextField(label="Ausführungsende", visible=False)
         }
         self.new_entry_fields = {key: ft.TextField(label=f"Neuer {value.label}", visible=False) for key, value in self.invoice_detail_fields.items()}
 
