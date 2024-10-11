@@ -60,6 +60,46 @@ class InvoiceForm(ft.UserControl):
             disabled=True
         )
 
+    def create_ui_elements(self):
+        # ... existing code ...
+        self.invoice_detail_fields = {
+            'client_name': ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name")),
+            'bestell_nr': ft.TextField(
+                label="Bestell-Nr.",
+                on_change=lambda e: self.validate_number_field(e, "bestell_nr")
+            ),
+            'bestelldatum': ft.TextField(label="Bestelldatum"),
+            'baustelle': ft.Dropdown(label="Baustelle", on_change=lambda e: self.toggle_new_entry(e, "baustelle")),
+            'anlagenteil': ft.Dropdown(label="Anlagenteil", on_change=lambda e: self.toggle_new_entry(e, "anlagenteil")),
+            'aufmass_nr': ft.TextField(label="Aufmaß-Nr.", read_only=True, value=self.next_aufmass_nr),
+            'auftrags_nr': ft.TextField(
+                label="Auftrags-Nr.",
+                on_change=lambda e: self.validate_number_field(e, "auftrags_nr")
+            ),
+            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn"),
+            'ausfuehrungsende': ft.TextField(label="Ausführungsende")
+        }
+        self.new_entry_fields = {
+            key: ft.TextField(
+                label=f"Neuer {value.label}",
+                visible=False,
+                on_change=lambda e, k=key: self.validate_number_field(e, k) if k in ["bestell_nr", "auftrags_nr"] else None
+            ) 
+            for key, value in self.invoice_detail_fields.items() 
+            if key != 'aufmass_nr' and isinstance(value, (ft.Dropdown, ft.TextField))
+        }
+        # ... rest of the method ...
+
+    def validate_number_field(self, e, field_name):
+        value = e.control.value
+        pattern = r'^[0-9-]*$'
+        if not re.match(pattern, value):
+            e.control.error_text = "Nur Zahlen und Bindestriche erlaubt"
+            self.update()
+        else:
+            e.control.error_text = None
+            self.update()
+
     def get_next_aufmass_nr(self):
         cursor = self.conn.cursor()
         try:
@@ -96,7 +136,7 @@ class InvoiceForm(ft.UserControl):
             ft.Row([
                 ft.Column([self.invoice_detail_fields['client_name'], self.new_entry_fields['client_name'] if 'client_name' in self.new_entry_fields else ft.Container()]),
                 ft.Column([self.invoice_detail_fields['bestell_nr'], self.new_entry_fields['bestell_nr'] if 'bestell_nr' in self.new_entry_fields else ft.Container()]),
-                ft.Column([self.invoice_detail_fields['bestelldatum'], self.bestelldatum_button])
+                ft.Column([self.invoice_detail_fields['bestelldatum'], self.bestelldatum_button],)
             ]),
             ft.Row([
                 ft.Column([self.invoice_detail_fields['baustelle'], self.new_entry_fields['baustelle'] if 'baustelle' in self.new_entry_fields else ft.Container()]),
@@ -220,19 +260,29 @@ class InvoiceForm(ft.UserControl):
         # Kopfdaten-Felder
         self.invoice_detail_fields = {
             'client_name': ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name")),
-            'bestell_nr': ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr")),
-            'bestelldatum': ft.TextField(label="Bestelldatum",visible=False),
+            'bestell_nr': ft.TextField(
+                label="Bestell-Nr.",
+                on_change=lambda e: self.validate_number_field(e, "bestell_nr")
+            ),
+            'bestelldatum': ft.TextField(label="Bestelldatum", visible=False),
             'baustelle': ft.Dropdown(label="Baustelle", on_change=lambda e: self.toggle_new_entry(e, "baustelle")),
             'anlagenteil': ft.Dropdown(label="Anlagenteil", on_change=lambda e: self.toggle_new_entry(e, "anlagenteil")),
             'aufmass_nr': ft.TextField(label="Aufmaß-Nr.", read_only=True, value=self.next_aufmass_nr),
-            'auftrags_nr': ft.Dropdown(label="Auftrags-Nr.", on_change=lambda e: self.toggle_new_entry(e, "auftrags_nr")),
-            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn",visible=False),
-            'ausfuehrungsende': ft.TextField(label="Ausführungsende",visible=False)
+            'auftrags_nr': ft.TextField(
+                label="Auftrags-Nr.",
+                on_change=lambda e: self.validate_number_field(e, "auftrags_nr")
+            ),
+            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn", visible=False),
+            'ausfuehrungsende': ft.TextField(label="Ausführungsende", visible=False)
         }
         self.new_entry_fields = {
-            key: ft.TextField(label=f"Neuer {value.label}", visible=False) 
+            key: ft.TextField(
+                label=f"Neuer {value.label}",
+                visible=False,
+                on_change=lambda e, k=key: self.validate_number_field(e, k) if k in ["bestell_nr", "auftrags_nr"] else None
+            ) 
             for key, value in self.invoice_detail_fields.items() 
-            if key != 'aufmass_nr' and isinstance(value, ft.Dropdown)
+            if key != 'aufmass_nr' and isinstance(value, (ft.Dropdown, ft.TextField))
         }
 
         # Erstellen Sie die DatePicker
@@ -346,6 +396,16 @@ class InvoiceForm(ft.UserControl):
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
         )
+
+    def validate_number_field(self, e, field_name):
+        value = e.control.value
+        pattern = r'^[0-9-]*$'
+        if not re.match(pattern, value):
+            e.control.error_text = "Nur Zahlen und Bindestriche erlaubt"
+            self.update()
+        else:
+            e.control.error_text = None
+            self.update()
 
     def get_from_cache_or_db(self, key, query, params=None):
         if key not in self.cache:
