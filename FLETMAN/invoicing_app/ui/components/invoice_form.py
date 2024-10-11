@@ -498,10 +498,12 @@ class InvoiceForm(ft.UserControl):
 
     def on_sonderleistung_change(self, e):
         checkbox = e.control
+        sonderleistung = checkbox.label
+        faktor = self.get_sonderleistung_faktor(sonderleistung)  # Diese Methode müssen wir noch implementieren
         if checkbox.value:
-            self.selected_sonderleistungen.append(checkbox.label)
+            self.selected_sonderleistungen.append((sonderleistung, faktor))
         else:
-            self.selected_sonderleistungen.remove(checkbox.label)
+            self.selected_sonderleistungen = [item for item in self.selected_sonderleistungen if item[0] != sonderleistung]
         self.update_price()
         self.page.update()
 
@@ -636,12 +638,12 @@ class InvoiceForm(ft.UserControl):
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
 
-    def get_sonderleistung_faktor(self, bezeichnung):
+    def get_sonderleistung_faktor(self, sonderleistung):
         cursor = self.conn.cursor()
         try:
-            cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung" AND Bezeichnung = ?', (bezeichnung,))
+            cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung" AND Bezeichnung = ?', (sonderleistung,))
             result = cursor.fetchone()
-            return result[0] if result else 1.0
+            return float(result[0]) if result else 1.0
         finally:
             cursor.close()
 
