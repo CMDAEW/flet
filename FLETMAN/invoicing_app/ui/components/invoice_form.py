@@ -786,15 +786,34 @@ class InvoiceForm(ft.UserControl):
             cursor.close()
 
     def create_pdf_without_prices(self, e):
+        logging.info("Starte PDF-Erstellung ohne Preise")
+        is_valid, error_message = self.validate_invoice_details()
+        if not is_valid:
+            self.show_snack_bar(error_message)
+            return
+
         try:
             invoice_data = self.get_invoice_data()
+            invoice_data['bemerkungen'] = self.bemerkung_field.value
             logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
-            filename = f"Auftragsbestätigung_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            
+            filename = f"Auftragsbestätigung_{self.next_aufmass_nr}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
             logging.info(f"Versuche PDF zu erstellen: {filepath}")
+            
+            if not os.path.exists(os.path.dirname(filepath)):
+                logging.warning(f"Zielordner existiert nicht: {os.path.dirname(filepath)}")
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                logging.info(f"Zielordner erstellt: {os.path.dirname(filepath)}")
+
             generate_pdf(invoice_data, filepath, include_prices=False)
-            logging.info("PDF erfolgreich erstellt")
-            self.show_snack_bar(f"PDF ohne Preise wurde erstellt: {filepath}")
+            
+            if os.path.exists(filepath):
+                logging.info(f"PDF erfolgreich erstellt: {filepath}")
+                self.show_snack_bar(f"PDF ohne Preise wurde erstellt: {filepath}")
+            else:
+                raise FileNotFoundError(f"PDF-Datei wurde nicht erstellt: {filepath}")
+
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
