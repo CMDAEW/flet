@@ -429,21 +429,27 @@ class InvoiceForm(ft.UserControl):
             self.dn_dropdown,
             self.da_dropdown,
             self.dammdicke_dropdown,
-            self.einheit_field,
             self.taetigkeit_dropdown,
-            self.quantity_input,
+            self.einheit_field,
             self.price_field,
-            self.zwischensumme_field
+            self.zwischensumme_field,
         ]
         
         for feld in felder_zum_zuruecksetzen:
-            feld.value = None if isinstance(feld, ft.Dropdown) else ""
+            if isinstance(feld, ft.Dropdown):
+                feld.value = None
+            else:
+                feld.value = ""
+        
+        # Setze das Mengenfeld auf "1"
+        self.quantity_input.value = "1"
+        
+        self.dn_dropdown.visible = False
+        self.da_dropdown.visible = False
         
         # Zurücksetzen der Sonderleistungen
         for checkbox in self.sonderleistungen_container.content.controls:
-            if isinstance(checkbox, ft.Checkbox):
-                checkbox.value = False
-        
+            checkbox.value = False
         self.selected_sonderleistungen = []
         
         self.update()
@@ -1016,8 +1022,8 @@ class InvoiceForm(ft.UserControl):
         self.article_summaries.append(summary_data)
         
         self.update_total_price()
-        self.clear_input_fields()
-        self.update_pdf_buttons()  # Neue Methode aufrufen
+        self.clear_input_fields()  # Hier wird die Methode aufgerufen
+        self.update_pdf_buttons()
         self.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
