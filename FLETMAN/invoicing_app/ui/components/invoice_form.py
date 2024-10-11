@@ -38,6 +38,7 @@ class InvoiceForm(ft.UserControl):
         self.edit_mode = False
         self.edit_row_index = None
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
+        self.article_count = 0
         
         logging.info("Creating UI elements")
         self.new_entry_fields = {}
@@ -48,6 +49,17 @@ class InvoiceForm(ft.UserControl):
         load_items(self, self.current_category)  # Laden Sie die Items basierend auf der Standardkategorie
         self.update_price()  # Initialisieren Sie die Preisberechnung
         logging.info("InvoiceForm initialization complete")
+
+        self.create_pdf_with_prices_button = ft.ElevatedButton(
+            "PDF mit Preisen erstellen",
+            on_click=self.create_pdf_with_prices,
+            disabled=True
+        )
+        self.create_pdf_without_prices_button = ft.ElevatedButton(
+            "PDF ohne Preise erstellen",
+            on_click=self.create_pdf_without_prices,
+            disabled=True
+        )
 
     def on_bestelldatum_change(self, e):
         self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
@@ -259,11 +271,13 @@ class InvoiceForm(ft.UserControl):
         )
         self.create_pdf_with_prices_button = ft.ElevatedButton(
             "PDF mit Preisen erstellen",
-            on_click=self.create_pdf_with_prices
+            on_click=self.create_pdf_with_prices,
+            disabled=True
         )
         self.create_pdf_without_prices_button = ft.ElevatedButton(
             "PDF ohne Preise erstellen",
-            on_click=self.create_pdf_without_prices
+            on_click=self.create_pdf_without_prices,
+            disabled=True
         )
         self.back_to_main_menu_button = ft.ElevatedButton(
             "Zurück zum Hauptmenü",
@@ -803,6 +817,7 @@ class InvoiceForm(ft.UserControl):
         
         self.update_total_price()
         self.clear_input_fields()
+        self.update_pdf_buttons()  # Neue Methode aufrufen
         self.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
@@ -1051,6 +1066,7 @@ class InvoiceForm(ft.UserControl):
                 logging.warning(f"Index {index} außerhalb des Bereichs von article_summaries")
             
             self.update_total_price()
+            self.update_pdf_buttons()  # Neue Methode aufrufen
             self.update()
             logging.info("Zeile erfolgreich entfernt und UI aktualisiert")
         else:
@@ -1058,6 +1074,13 @@ class InvoiceForm(ft.UserControl):
         
         logging.info(f"Anzahl der Zeilen nach dem Entfernen: {len(self.article_list_header.rows)}")
         logging.info(f"Anzahl der Zusammenfassungen nach dem Entfernen: {len(self.article_summaries)}")
+
+    def update_pdf_buttons(self):
+        has_articles = len(self.article_list_header.rows) > 0
+        logging.info(f"Updating PDF buttons. Has articles: {has_articles}")
+        self.create_pdf_with_prices_button.disabled = not has_articles
+        self.create_pdf_without_prices_button.disabled = not has_articles
+        self.update()
 
     def load_faktoren(self, art):
         faktoren = self.get_from_cache_or_db(f"faktoren_{art}", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
