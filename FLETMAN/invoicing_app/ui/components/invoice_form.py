@@ -20,7 +20,7 @@ class InvoiceForm(ft.UserControl):
         logging.info("Initializing InvoiceForm")
         self.page = page
         self.conn = get_db_connection()
-        self.main_page = page  # Speichern Sie die Hauptseite für die Rückkehr zum Hauptmenü
+        self.next_aufmass_nr = self.get_next_aufmass_nr()
         
         # Überprüfen Sie den Datenbankinhalt
         cursor = self.conn.cursor()
@@ -41,7 +41,6 @@ class InvoiceForm(ft.UserControl):
         self.article_count = 0
         
         logging.info("Creating UI elements")
-        self.new_entry_fields = {}
         self.create_ui_elements()
         self.load_invoice_options()
         logging.info("Loading data")
@@ -60,6 +59,15 @@ class InvoiceForm(ft.UserControl):
             on_click=self.create_pdf_without_prices,
             disabled=True
         )
+
+    def get_next_aufmass_nr(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT MAX(id) FROM invoice")
+            max_id = cursor.fetchone()[0]
+            return str(max_id + 1) if max_id else "1"
+        finally:
+            cursor.close()
 
     def on_bestelldatum_change(self, e):
         self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
@@ -86,17 +94,17 @@ class InvoiceForm(ft.UserControl):
         # Kopfdaten-Layout in 3x3 Feldern
         invoice_details = ft.Column([
             ft.Row([
-                ft.Column([self.invoice_detail_fields['client_name'], self.new_entry_fields['client_name']]),
-                ft.Column([self.invoice_detail_fields['bestell_nr'], self.new_entry_fields['bestell_nr']]),
+                ft.Column([self.invoice_detail_fields['client_name'], self.new_entry_fields['client_name'] if 'client_name' in self.new_entry_fields else ft.Container()]),
+                ft.Column([self.invoice_detail_fields['bestell_nr'], self.new_entry_fields['bestell_nr'] if 'bestell_nr' in self.new_entry_fields else ft.Container()]),
                 ft.Column([self.invoice_detail_fields['bestelldatum'], self.bestelldatum_button])
             ]),
             ft.Row([
-                ft.Column([self.invoice_detail_fields['baustelle'], self.new_entry_fields['baustelle']]),
-                ft.Column([self.invoice_detail_fields['anlagenteil'], self.new_entry_fields['anlagenteil']]),
-                ft.Column([self.invoice_detail_fields['aufmass_nr'], self.new_entry_fields['aufmass_nr']])
+                ft.Column([self.invoice_detail_fields['baustelle'], self.new_entry_fields['baustelle'] if 'baustelle' in self.new_entry_fields else ft.Container()]),
+                ft.Column([self.invoice_detail_fields['anlagenteil'], self.new_entry_fields['anlagenteil'] if 'anlagenteil' in self.new_entry_fields else ft.Container()]),
+                ft.Column([self.invoice_detail_fields['aufmass_nr']])
             ]),
             ft.Row([
-                ft.Column([self.invoice_detail_fields['auftrags_nr'], self.new_entry_fields['auftrags_nr']]),
+                ft.Column([self.invoice_detail_fields['auftrags_nr'], self.new_entry_fields['auftrags_nr'] if 'auftrags_nr' in self.new_entry_fields else ft.Container()]),
                 ft.Column([self.invoice_detail_fields['ausfuehrungsbeginn'], self.ausfuehrungsbeginn_button]),
                 ft.Column([self.invoice_detail_fields['ausfuehrungsende'], self.ausfuehrungsende_button])
             ]),
@@ -213,15 +221,19 @@ class InvoiceForm(ft.UserControl):
         self.invoice_detail_fields = {
             'client_name': ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name")),
             'bestell_nr': ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr")),
-            'bestelldatum': ft.TextField(label="Bestelldatum", visible=False),
+            'bestelldatum': ft.TextField(label="Bestelldatum",visible=False),
             'baustelle': ft.Dropdown(label="Baustelle", on_change=lambda e: self.toggle_new_entry(e, "baustelle")),
             'anlagenteil': ft.Dropdown(label="Anlagenteil", on_change=lambda e: self.toggle_new_entry(e, "anlagenteil")),
-            'aufmass_nr': ft.Dropdown(label="Aufmaß-Nr.", on_change=lambda e: self.toggle_new_entry(e, "aufmass_nr")),
+            'aufmass_nr': ft.TextField(label="Aufmaß-Nr.", read_only=True, value=self.next_aufmass_nr),
             'auftrags_nr': ft.Dropdown(label="Auftrags-Nr.", on_change=lambda e: self.toggle_new_entry(e, "auftrags_nr")),
-            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn", visible=False),
-            'ausfuehrungsende': ft.TextField(label="Ausführungsende", visible=False)
+            'ausfuehrungsbeginn': ft.TextField(label="Ausführungsbeginn",visible=False),
+            'ausfuehrungsende': ft.TextField(label="Ausführungsende",visible=False)
         }
-        self.new_entry_fields = {key: ft.TextField(label=f"Neuer {value.label}", visible=False) for key, value in self.invoice_detail_fields.items()}
+        self.new_entry_fields = {
+            key: ft.TextField(label=f"Neuer {value.label}", visible=False) 
+            for key, value in self.invoice_detail_fields.items() 
+            if key != 'aufmass_nr' and isinstance(value, ft.Dropdown)
+        }
 
         # Erstellen Sie die DatePicker
         self.bestelldatum_picker = ft.DatePicker(
@@ -525,14 +537,33 @@ class InvoiceForm(ft.UserControl):
         self.update_field_visibility()
         self.update()
 
+    def validate_invoice_details(self):
+        required_fields = [
+            'client_name', 'bestell_nr', 'bestelldatum', 'baustelle', 'anlagenteil',
+            'auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende'
+        ]
+        
+        for field in required_fields:
+            value = self.invoice_detail_fields[field].value
+            if value is None or value == "" or value == "Neuer Eintrag":
+                if self.new_entry_fields.get(field) and self.new_entry_fields[field].visible and self.new_entry_fields[field].value:
+                    continue  # Wenn das neue Eingabefeld sichtbar und ausgefüllt ist, ist es okay
+                return False, f"Bitte füllen Sie das Feld '{self.invoice_detail_fields[field].label}' aus."
+        
+        return True, ""
+
     def create_pdf_with_prices(self, e):
         logging.info("Starte PDF-Erstellung mit Preisen")
+        is_valid, error_message = self.validate_invoice_details()
+        if not is_valid:
+            self.show_snack_bar(error_message)
+            return
+
         try:
             invoice_data = self.get_invoice_data()
-            invoice_data['bemerkungen'] = self.bemerkung_field.value  # Fügen Sie die Bemerkungen hinzu
+            invoice_data['bemerkungen'] = self.bemerkung_field.value
             logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
 
-            # Speichern der Rechnung in der Datenbank und Erhalten der invoice_id
             invoice_id = self.save_invoice_to_db(invoice_data)
             if invoice_id is None:
                 raise Exception("Fehler beim Speichern der Rechnung in der Datenbank")
@@ -541,7 +572,6 @@ class InvoiceForm(ft.UserControl):
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
             logging.info(f"Versuche PDF zu erstellen: {filepath}")
             
-            # Überprüfen Sie, ob der Ordner existiert
             if not os.path.exists(os.path.dirname(filepath)):
                 logging.warning(f"Zielordner existiert nicht: {os.path.dirname(filepath)}")
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -558,6 +588,26 @@ class InvoiceForm(ft.UserControl):
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs mit Preisen: {str(ex)}")
+
+    def create_pdf_without_prices(self, e):
+        logging.info("Starte PDF-Erstellung ohne Preise")
+        is_valid, error_message = self.validate_invoice_details()
+        if not is_valid:
+            self.show_snack_bar(error_message)
+            return
+
+        try:
+            invoice_data = self.get_invoice_data()
+            logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
+            filename = f"Auftragsbestätigung_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
+            logging.info(f"Versuche PDF zu erstellen: {filepath}")
+            generate_pdf(invoice_data, filepath, include_prices=False)
+            logging.info("PDF erfolgreich erstellt")
+            self.show_snack_bar(f"PDF ohne Preise wurde erstellt: {filepath}")
+        except Exception as ex:
+            logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}", exc_info=True)
+            self.show_snack_bar(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
@@ -637,11 +687,101 @@ class InvoiceForm(ft.UserControl):
         except sqlite3.Error as e:
             logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
             self.conn.rollback()
-            return None
+            raise Exception(f"Datenbankfehler: {str(e)}")
         except Exception as e:
             logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
             self.conn.rollback()
-            return None
+            raise
+        finally:
+            cursor.close()
+
+    def save_invoice_to_db(self, invoice_data):
+        logging.info("Speichere Rechnung in der Datenbank")
+        logging.debug(f"Rechnungsdaten: {invoice_data}")
+        
+        # Berechnen Sie den Nettobetrag
+        nettobetrag = sum(float(article['zwischensumme']) for article in invoice_data['articles'])
+        
+        # Berechnen Sie die Zuschläge
+        zuschlaege_summe = 0
+        for zuschlag, faktor in invoice_data['zuschlaege']:
+            zuschlag_betrag = nettobetrag * (float(faktor) - 1)
+            zuschlaege_summe += zuschlag_betrag
+        
+        # Berechnen Sie den Gesamtbetrag
+        total_price = nettobetrag + zuschlaege_summe
+        
+        logging.debug(f"Nettobetrag: {nettobetrag}")
+        logging.debug(f"Zuschläge: {zuschlaege_summe}")
+        logging.debug(f"Gesamtbetrag: {total_price}")
+        
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('''
+            INSERT INTO invoice (
+                client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
+                aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende,
+                total_amount, zuschlaege, bemerkungen
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                invoice_data['client_name'],
+                invoice_data['bestell_nr'],
+                invoice_data['bestelldatum'],
+                invoice_data['baustelle'],
+                invoice_data['anlagenteil'],
+                self.next_aufmass_nr,  # Use the pre-calculated Aufmaß-Nr.
+                invoice_data['auftrags_nr'],
+                invoice_data['ausfuehrungsbeginn'],
+                invoice_data['ausfuehrungsende'],
+                total_price,
+                ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
+                invoice_data.get('bemerkungen', '')
+            ))
+            invoice_id = cursor.lastrowid
+            
+            # Update the next_aufmass_nr for the next invoice
+            self.next_aufmass_nr = str(int(self.next_aufmass_nr) + 1)
+            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+            
+            # Überprüfen Sie den gespeicherten Wert
+            cursor.execute("SELECT total_amount FROM invoice WHERE id = ?", (invoice_id,))
+            stored_total = cursor.fetchone()[0]
+            logging.debug(f"Gespeicherter Gesamtpreis: {stored_total}")
+            
+            if abs(stored_total - total_price) > 0.01:  # Toleranz für Rundungsfehler
+                logging.error(f"Gespeicherter Gesamtpreis ({stored_total}) weicht vom berechneten Preis ({total_price}) ab!")
+            
+            # Speichern der Artikel
+            for article in invoice_data['articles']:
+                cursor.execute('''
+                    INSERT INTO invoice_items (invoice_id, position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    invoice_id,
+                    article['position'],
+                    article['artikelbeschreibung'],
+                    article.get('dn', ''),
+                    article.get('da', ''),
+                    article.get('dammdicke', ''),
+                    article.get('taetigkeit', ''),
+                    article.get('einheit', ''),
+                    article.get('einheitspreis', 0),
+                    article.get('quantity', 0),
+                    article.get('zwischensumme', 0),
+                    str(article.get('sonderleistungen', ''))
+                ))
+            
+            self.conn.commit()
+            logging.info(f"Rechnung mit ID {invoice_id} erfolgreich in der Datenbank gespeichert")
+            return invoice_id
+        except sqlite3.Error as e:
+            logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
+            self.conn.rollback()
+            raise Exception(f"Datenbankfehler: {str(e)}")
+        except Exception as e:
+            logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
+            self.conn.rollback()
+            raise
         finally:
             cursor.close()
 
@@ -897,7 +1037,7 @@ class InvoiceForm(ft.UserControl):
             'bestelldatum': self.invoice_detail_fields['bestelldatum'].value if self.invoice_detail_fields['bestelldatum'].value != "Neuer Eintrag" else self.new_entry_fields['bestelldatum'].value,
             'baustelle': self.invoice_detail_fields['baustelle'].value if self.invoice_detail_fields['baustelle'].value != "Neuer Eintrag" else self.new_entry_fields['baustelle'].value,
             'anlagenteil': self.invoice_detail_fields['anlagenteil'].value if self.invoice_detail_fields['anlagenteil'].value != "Neuer Eintrag" else self.new_entry_fields['anlagenteil'].value,
-            'aufmass_nr': self.invoice_detail_fields['aufmass_nr'].value if self.invoice_detail_fields['aufmass_nr'].value != "Neuer Eintrag" else self.new_entry_fields['aufmass_nr'].value,
+            'aufmass_nr': self.next_aufmass_nr,  # Use the pre-calculated Aufmaß-Nr.
             'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value if self.invoice_detail_fields['auftrags_nr'].value != "Neuer Eintrag" else self.new_entry_fields['auftrags_nr'].value,
             'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value if self.invoice_detail_fields['ausfuehrungsbeginn'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsbeginn'].value,
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value if self.invoice_detail_fields['ausfuehrungsende'].value != "Neuer Eintrag" else self.new_entry_fields['ausfuehrungsende'].value,
