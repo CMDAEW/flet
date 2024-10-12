@@ -14,26 +14,50 @@ def main(page: ft.Page):
     page.window_maximized = True
     page.bgcolor = ft.colors.WHITE
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.scroll = "auto"  # Aktiviert das Scrollen für die gesamte Seite
-    page.scale = 1.0  # Initialer Zoom-Faktor
+    page.padding = 0
+    page.spacing = 0
 
-    def on_keyboard(e: ft.KeyboardEvent):
-        if e.key == "+" and e.ctrl:
-            page.scale += 0.1
-            page.update()
-        elif e.key == "-" and e.ctrl:
-            page.scale = max(0.5, page.scale - 0.1)  # Verhindert zu starkes Verkleinern
-            page.update()
+    # Zoom-Steuerung
+    zoom_level = 1.0
 
-    page.on_keyboard_event = on_keyboard
+    def zoom_in(e):
+        nonlocal zoom_level
+        zoom_level = min(2.0, zoom_level + 0.1)
+        update_zoom()
+
+    def zoom_out(e):
+        nonlocal zoom_level
+        zoom_level = max(0.5, zoom_level - 0.1)
+        update_zoom()
+
+    def update_zoom():
+        content_column.scale = zoom_level
+        page.update()
+
+    zoom_controls = ft.Row([
+        ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
+        ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
+    ], alignment=ft.MainAxisAlignment.END)
+
+    # Scrollbarer Inhaltsbereich
+    content_column = ft.Column([], expand=True, scroll=ft.ScrollMode.ALWAYS)
+
+    # Hauptcontainer
+    main_container = ft.Container(
+        content=ft.Column([
+            zoom_controls,
+            content_column
+        ], expand=True),
+        expand=True,
+    )
 
     def show_start_screen(e=None):
-        page.clean()
-        page.add(start_screen)
+        content_column.controls.clear()
+        content_column.controls.append(start_screen)
         page.update()
 
     def back_to_main_menu(e):
-        show_start_screen()  # Rufen Sie die Funktion auf
+        show_start_screen()
 
     def show_aufmass_screen():
         def button_clicked(e):
@@ -47,9 +71,9 @@ def main(page: ft.Page):
                 pass
 
         def show_invoice_form():
-            page.clean()
+            content_column.controls.clear()
             invoice_form = InvoiceForm(page)
-            page.add(ft.Container(content=invoice_form, expand=True))
+            content_column.controls.append(ft.Container(content=invoice_form, expand=True))
             page.update()
 
         aufmass_screen = ft.Container(
@@ -74,8 +98,8 @@ def main(page: ft.Page):
             bgcolor=ft.colors.WHITE,
             alignment=ft.alignment.center,
         )
-        page.clean()
-        page.add(aufmass_screen)
+        content_column.controls.clear()
+        content_column.controls.append(aufmass_screen)
         page.update()
 
     def button_clicked(e):
@@ -110,6 +134,7 @@ def main(page: ft.Page):
         bgcolor=ft.colors.WHITE,
     )
 
+    page.add(main_container)
     page.go = show_start_screen  # Setzen Sie die Standardroute '/' auf show_start_screen
 
     show_start_screen()  # Zeigen Sie den Startbildschirm initial an
