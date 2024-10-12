@@ -9,7 +9,7 @@ def load_aufmass_items(self):
         cursor.execute('''
             SELECT 
                 CASE 
-                    WHEN Size LIKE '%-%' THEN 'Kleinkram'
+                    WHEN Size LIKE '%-%' THEN 'Kleinteile'
                     ELSE 'Bauteile'
                 END AS Gruppe,
                 Bauteil
@@ -19,7 +19,7 @@ def load_aufmass_items(self):
                 Bauteil != 'Rohrleitung'
         ''')
         
-        grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
+        grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinteile': set()}
         for gruppe, bauteil in cursor.fetchall():
             grouped_items[gruppe].add(bauteil)
 
@@ -42,8 +42,8 @@ def load_aufmass_items(self):
         options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
         options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
         
-        options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
-        options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
+        options.append(ft.dropdown.Option("--- Kleinteile ---", disabled=True))
+        options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinteile'])])
 
         self.bauteil_dropdown.options = options
         self.bauteil_dropdown.value = None

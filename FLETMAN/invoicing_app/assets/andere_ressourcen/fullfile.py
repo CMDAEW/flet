@@ -144,7 +144,7 @@ class InvoiceForm(ft.UserControl):
                 SELECT 
                     CASE 
                         WHEN Bauteil IN (SELECT Bezeichnung FROM Faktoren WHERE Art = "Formteil") THEN 'Formteile'
-                        WHEN Kategorie = "Kleinkram" THEN 'Kleinkram'
+                        WHEN Kategorie = "Kleinteile" THEN 'Kleinteile'
                         ELSE 'Bauteile'
                     END AS Gruppe,
                     Bauteil
@@ -600,7 +600,7 @@ class InvoiceForm(ft.UserControl):
             cursor.execute('''
                 SELECT 
                     CASE 
-                        WHEN Size LIKE '%-%' THEN 'Kleinkram'
+                        WHEN Size LIKE '%-%' THEN 'Kleinteile'
                         ELSE 'Bauteile'
                     END AS Gruppe,
                     Bauteil
@@ -610,7 +610,7 @@ class InvoiceForm(ft.UserControl):
                     Bauteil != 'Rohrleitung'
             ''')
             
-            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinkram': set()}
+            grouped_items = {'Bauteile': set(), 'Formteile': set(), 'Kleinteile': set()}
             for gruppe, bauteil in cursor.fetchall():
                 grouped_items[gruppe].add(bauteil)
 
@@ -633,8 +633,8 @@ class InvoiceForm(ft.UserControl):
             options.append(ft.dropdown.Option("--- Formteile ---", disabled=True))
             options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Formteile'])])
             
-            options.append(ft.dropdown.Option("--- Kleinkram ---", disabled=True))
-            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinkram'])])
+            options.append(ft.dropdown.Option("--- Kleinteile ---", disabled=True))
+            options.extend([ft.dropdown.Option(bauteil) for bauteil in sorted(grouped_items['Kleinteile'])])
 
             self.bauteil_dropdown.options = options
             self.bauteil_dropdown.value = None
@@ -948,7 +948,7 @@ class InvoiceForm(ft.UserControl):
                 FROM (
                     SELECT Bezeichnung AS Bauteil FROM Faktoren WHERE Art = "Formteil"
                     UNION ALL
-                    SELECT Bauteil FROM price_list WHERE Kategorie IN ("Kleinkram", "Bauteil")
+                    SELECT Bauteil FROM price_list WHERE Kategorie IN ("Kleinteile", "Bauteil")
                 ) 
                 ORDER BY Bauteil
             ''')

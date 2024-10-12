@@ -461,15 +461,15 @@ class InvoiceForm(ft.UserControl):
                 cursor.execute("SELECT DISTINCT Bezeichnung FROM Faktoren WHERE Art = 'Formteil' ORDER BY Bezeichnung")
                 formteile = [row[0] for row in cursor.fetchall()]
 
-                # Gruppiere Kleinkram-Bauteile
-                kleinkram_bauteile = ["Ausschnitte", "Rosetten", "Einsätze", "Blenden/Stirnscheiben", "Regenabweiser"]
+                # Gruppiere Kleinteile-Bauteile
+                Kleinteile_bauteile = ["Ausschnitte", "Rosetten", "Einsätze", "Blenden/Stirnscheiben", "Regenabweiser"]
                 
                 # Erstelle die Optionen mit Trennern für das Artikelbeschreibung-Dropdown
                 options = [
                     ft.dropdown.Option("Bauteil", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
-                    *[ft.dropdown.Option(bauteil) for bauteil in bauteile if bauteil not in kleinkram_bauteile],
-                    ft.dropdown.Option("Kleinkram", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
-                    *[ft.dropdown.Option(bauteil) for bauteil in kleinkram_bauteile],
+                    *[ft.dropdown.Option(bauteil) for bauteil in bauteile if bauteil not in Kleinteile_bauteile],
+                    ft.dropdown.Option("Kleinteile", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                    *[ft.dropdown.Option(bauteil) for bauteil in Kleinteile_bauteile],
                     ft.dropdown.Option("Formteil", disabled=True, text_style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                     *[ft.dropdown.Option(formteil) for formteil in formteile]
                 ]
