@@ -17,6 +17,7 @@ class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
         self.page = page
+        self.selected_sonderleistungen = []  # Initialisieren Sie dies als leere Liste
         logging.info("Initializing InvoiceForm")
         self.conn = get_db_connection()
         self.next_aufmass_nr = self.get_next_aufmass_nr()
@@ -31,7 +32,6 @@ class InvoiceForm(ft.UserControl):
         self.cache = {}
         self.article_summaries = []
         self.sonderleistungen_options = []
-        self.selected_sonderleistungen = []
         self.selected_zuschlaege = []
         self.previous_bauteil = None
         self.current_category = "Aufmaß"  # Setzen Sie eine Standardkategorie
@@ -45,11 +45,6 @@ class InvoiceForm(ft.UserControl):
             on_click=self.show_sonderleistungen_dialog
         )
        
-        # Zuschläge
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
-        self.zuschlaege_container = ft.Container(visible=False)
-        self.create_zuschlaege_checkboxes()
-        
         logging.info("Creating UI elements")
         self.create_ui_elements()
         self.load_invoice_options()
@@ -84,13 +79,13 @@ class InvoiceForm(ft.UserControl):
             title=ft.Text("Sonderleistungen auswählen"),
             content=ft.Column([
                 ft.Checkbox(
-                    label=f"{sl[0]} ({sl[1]})",
-                    value=sl[0] in [s[0] for s in self.selected_sonderleistungen],
-                    on_change=lambda e, sl=sl: self.toggle_sonderleistung(e, sl[0], sl[1])
-                ) for sl in self.sonderleistungen_options
+                    label=sl,
+                    value=sl in [s[0] for s in self.selected_sonderleistungen],
+                    on_change=lambda e, sl=sl: self.on_sonderleistung_change(e, sl)
+                ) for sl in self.load_sonderleistungen_from_db()
             ], scroll=ft.ScrollMode.AUTO, height=300),
             actions=[
-                ft.TextButton("Schließen", on_click=lambda _: self.close_dialog(dialog))
+                ft.TextButton("Schließen", on_click=lambda _: self.close_sonderleistungen_dialog(dialog))
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -99,7 +94,19 @@ class InvoiceForm(ft.UserControl):
         dialog.open = True
         self.page.update()
 
-    def close_dialog(self, dialog):
+    def on_sonderleistung_change(self, e, sonderleistung):
+        checkbox = e.control
+        faktor = self.get_sonderleistung_faktor(sonderleistung)
+        if checkbox.value:
+            if not any(sl[0] == sonderleistung for sl in self.selected_sonderleistungen):
+                self.selected_sonderleistungen.append((sonderleistung, faktor))
+        else:
+            self.selected_sonderleistungen = [sl for sl in self.selected_sonderleistungen if sl[0] != sonderleistung]
+        self.update_price()
+        self.update_sonderleistungen_button()
+        self.page.update()
+
+    def close_sonderleistungen_dialog(self, dialog):
         dialog.open = False
         self.page.update()
         self.update_sonderleistungen_button()
@@ -108,6 +115,90 @@ class InvoiceForm(ft.UserControl):
         count = len(self.selected_sonderleistungen)
         self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
         self.update()
+
+    def load_sonderleistungen_from_db(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Sonderleistung"')
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def get_sonderleistung_faktor(self, sonderleistung):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung" AND Bezeichnung = ?', (sonderleistung,))
+            result = cursor.fetchone()
+            return float(result[0]) if result else 1.0
+        finally:
+            cursor.close()
+
+    def show_zuschlaege_dialog(self, e):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Zuschläge auswählen"),
+            content=ft.Column([
+                ft.Checkbox(
+                    label=f"{z[0]} ({z[1]})",
+                    value=z[0] in [s[0] for s in self.selected_zuschlaege],
+                    on_change=lambda e, z=z: self.toggle_zuschlag(e, z[0], z[1])
+                ) for z in self.load_zuschlaege_from_db()
+            ], scroll=ft.ScrollMode.AUTO, height=300),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_zuschlaege_dialog(dialog))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+        self.update_zuschlaege_button()
+
+    def close_zuschlaege_dialog(self, dialog):
+        dialog.open = False
+        self.page.update()
+        self.update_zuschlaege_button()
+
+    def toggle_zuschlag(self, e, bezeichnung, faktor):
+        if e.control.value:
+            self.selected_zuschlaege.append((bezeichnung, faktor))
+        else:
+            self.selected_zuschlaege = [
+                (z, f) for z, f in self.selected_zuschlaege if z != bezeichnung
+            ]
+        self.update_total_price()
+
+    def update_zuschlaege_button(self):
+        count = len(self.selected_zuschlaege)
+        self.zuschlaege_button.text = f"Zuschläge ({count})"
+        self.update()
+
+    def load_zuschlaege_from_db(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = "Zuschlag"')
+            return cursor.fetchall()
+        except sqlite3.Error as e:
+            logging.error(f"Fehler beim Laden der Zuschläge aus der Datenbank: {e}")
+            return []
+        finally:
+            cursor.close()
+
+    def toggle_sonderleistung(self, e, bezeichnung, faktor):
+        if e.control.value:
+            if (bezeichnung, faktor) not in self.selected_sonderleistungen:
+                self.selected_sonderleistungen.append((bezeichnung, faktor))
+        else:
+            self.selected_sonderleistungen = [
+                (z, f) for z, f in self.selected_sonderleistungen if z != bezeichnung
+            ]
+        self.update_price()
+        self.update_sonderleistungen_button()
+
+    def close_dialog(self, dialog):
+        dialog.open = False
+        self.page.update()
+        self.update_sonderleistungen_button()
 
     def build(self):
         # Kopfdaten in 2 Spalten
@@ -156,7 +247,6 @@ class InvoiceForm(ft.UserControl):
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
                 self.article_input_row,
-                self.zuschlaege_button,
             ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
@@ -194,6 +284,7 @@ class InvoiceForm(ft.UserControl):
                 ]),
                 ft.Container(height=20),
                 ft.Row([
+                    self.zuschlaege_button,
                     self.create_pdf_with_prices_button,
                     self.create_pdf_without_prices_button,
                     self.back_to_main_menu_button,
@@ -220,23 +311,6 @@ class InvoiceForm(ft.UserControl):
         zuschlaege = self.load_zuschlaege_from_db()
         checkboxes = [ft.Checkbox(label=f"{z[0]} ({z[1]})", value=False) for z in zuschlaege]
         self.zuschlaege_container.content = ft.Column(controls=checkboxes)
-
-
-    def load_sonderleistungen_from_db(self):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Sonderleistung"')
-            return [row[0] for row in cursor.fetchall()]
-        finally:
-            cursor.close()
-
-    def load_zuschlaege_from_db(self):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = "Zuschlag"')
-            return cursor.fetchall()
-        finally:
-            cursor.close()
 
     def get_next_aufmass_nr(self):
         cursor = self.conn.cursor()
@@ -323,7 +397,7 @@ class InvoiceForm(ft.UserControl):
             text_align=ft.TextAlign.RIGHT
         )
 
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege, width=180)
+        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.show_zuschlaege_dialog, width=180)
         
         self.zuschlaege_container = ft.Column(visible=False, spacing=10)
 
@@ -511,32 +585,11 @@ class InvoiceForm(ft.UserControl):
             self.cache[key] = cursor.fetchall()
         return self.cache[key]
 
-    def toggle_sonderleistung(self, e, bezeichnung, faktor):
-        if e.control.value:
-            self.selected_sonderleistungen.append((bezeichnung, faktor))
-        else:
-            self.selected_sonderleistungen = [
-                (sl, f) for sl, f in self.selected_sonderleistungen if sl != bezeichnung
-            ]
-        self.update_price()
-        self.update_sonderleistungen_button()
-
     def create_sonderleistungen_checkboxes(self):
         sonderleistungen = self.load_sonderleistungen_from_db()
         checkboxes = [ft.Checkbox(label=sl, value=False, on_change=self.on_sonderleistung_change) for sl in sonderleistungen]
         self.sonderleistungen_container.content = ft.Column(controls=checkboxes, spacing=10)
         logging.info(f"Sonderleistungen Checkboxen erstellt: {len(checkboxes)}")
-
-    def on_sonderleistung_change(self, e):
-        checkbox = e.control
-        sonderleistung = checkbox.label
-        faktor = self.get_sonderleistung_faktor(sonderleistung)  # Diese Methode müssen wir noch implementieren
-        if checkbox.value:
-            self.selected_sonderleistungen.append((sonderleistung, faktor))
-        else:
-            self.selected_sonderleistungen = [item for item in self.selected_sonderleistungen if item[0] != sonderleistung]
-        self.update_price()
-        self.page.update()
 
     def clear_input_fields(self):
         self.position_field.value = ""
@@ -551,7 +604,7 @@ class InvoiceForm(ft.UserControl):
         self.zwischensumme_field.value = ""
         
         # Zurücksetzen der ausgewählten Sonderleistungen
-        self.selected_sonderleistungen.clear()
+        self.selected_sonderleistungen = []  # Setzen Sie dies auf eine leere Liste, nicht auf None
         self.update_sonderleistungen_button()
         
         self.update()
@@ -629,10 +682,11 @@ class InvoiceForm(ft.UserControl):
         
     def edit_article_row(self, row_index):
         if 0 <= row_index < len(self.article_list_header.rows):
+            row = self.article_list_header.rows[row_index]
             self.edit_mode = True
             self.edit_row_index = row_index
-            row = self.article_list_header.rows[row_index]
-            
+            self.update_position_button.visible = True
+
             # Füllen Sie die Eingabefelder mit den Werten aus der ausgewählten Zeile
             self.position_field.value = row.cells[0].content.value
             self.bauteil_dropdown.value = row.cells[1].content.value
@@ -642,36 +696,31 @@ class InvoiceForm(ft.UserControl):
             self.einheit_field.value = row.cells[5].content.value
             self.taetigkeit_dropdown.value = row.cells[6].content.value
             
-            # Setzen Sie die ausgewählten Sonderleistungen
-            selected_sonderleistungen = row.cells[7].content.value.split(", ")
-            self.selected_sonderleistungen = [
-                (sl, factor) for sl, factor in self.sonderleistungen_options
-                if sl in selected_sonderleistungen
-            ]
-            self.update_sonderleistungen_button()
-            
-            self.price_field.value = row.cells[8].content.value
+            # Behandeln Sie die Sonderleistungen
+            sonderleistungen_str = row.cells[7].content.value
+            self.selected_sonderleistungen = []
+            if sonderleistungen_str:
+                sonderleistungen = sonderleistungen_str.split(', ')
+                for sl in sonderleistungen:
+                    faktor = self.get_sonderleistung_faktor(sl)
+                    self.selected_sonderleistungen.append((sl, faktor))
+
+            self.price_field.value = row.cells[8].content.value.replace(' €', '')
             self.quantity_input.value = row.cells[9].content.value
-            self.zwischensumme_field.value = row.cells[10].content.value
-        
-            self.update_position_button.visible = True
+            self.zwischensumme_field.value = row.cells[10].content.value.replace(' €', '')
+
+            self.update_sonderleistungen_button()
             self.update()
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
 
-    def get_sonderleistung_faktor(self, sonderleistung):
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Sonderleistung" AND Bezeichnung = ?', (sonderleistung,))
-            result = cursor.fetchone()
-            return float(result[0]) if result else 1.0
-        finally:
-            cursor.close()
-
     def load_data(self):
         load_faktoren(self, "Sonstige Zuschläge")
         load_faktoren(self, "Sonderleistung")
-        self.load_zuschlaege()
+        self.sonderleistungen_options = self.load_faktoren("Sonderleistung")
+        # Laden Sie die Zuschläge für die Dropdown-Optionen
+        self.zuschlaege_options = self.load_faktoren("Zuschlag")
+       
 
     def load_invoice_options(self):
         for field in self.invoice_detail_fields:
@@ -980,14 +1029,6 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs ohne Preise: {str(ex)}")
 
-    def load_zuschlaege(self):
-        zuschlaege = self.get_from_cache_or_db("zuschlaege", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', ("Zuschläge",))
-        self.zuschlaege_container.controls.clear()
-        for bezeichnung, faktor in zuschlaege:
-            checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
-            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
-            self.zuschlaege_container.controls.append(checkbox)
-        self.update()
 
     def update_selected_zuschlaege(self, e, bezeichnung, faktor):
         if e.control.value:
@@ -996,11 +1037,6 @@ class InvoiceForm(ft.UserControl):
             self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
         self.update_total_price()
         self.update()
-
-    def toggle_zuschlaege(self, e):
-        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
-        self.update_total_price()  # Fügen Sie diese Zeile hinzu
-        self.page.update()
 
     def reset_checkboxes(self):
         self.selected_sonderleistungen.clear()
@@ -1445,7 +1481,7 @@ class InvoiceForm(ft.UserControl):
             elif art == "Zuschlag":
                 # Bestehende Logik für Zuschläge beibehalten
                 if hasattr(self, 'zuschlaege_container') and self.zuschlaege_container:
-                    container = self.zuschlaege_container.content
+                    container = self.zuschlaege_container
                     container.controls.clear()
                     for bezeichnung, faktor in faktoren:
                         checkbox = ft.Checkbox(
