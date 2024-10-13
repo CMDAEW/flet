@@ -156,8 +156,6 @@ class InvoiceForm(ft.UserControl):
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
                 self.article_input_row,
-                self.sonderleistungen_button,
-                self.sonderleistungen_button,
                 self.zuschlaege_button,
             ]),
             padding=20,
@@ -541,36 +539,22 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
 
     def clear_input_fields(self):
-        felder_zum_zuruecksetzen = [
-            self.position_field,
-            self.bauteil_dropdown,
-            self.dn_dropdown,
-            self.da_dropdown,
-            self.dammdicke_dropdown,
-            self.taetigkeit_dropdown,
-            self.einheit_field,
-            self.price_field,
-            self.zwischensumme_field,
-        ]
+        self.position_field.value = ""
+        self.bauteil_dropdown.value = None
+        self.dn_dropdown.value = None
+        self.da_dropdown.value = None
+        self.dammdicke_dropdown.value = None
+        self.einheit_field.value = ""
+        self.taetigkeit_dropdown.value = None
+        self.price_field.value = ""
+        self.quantity_input.value = ""
+        self.zwischensumme_field.value = ""
         
-        for feld in felder_zum_zuruecksetzen:
-            if isinstance(feld, ft.Dropdown):
-                feld.value = None
-            else:
-                feld.value = ""
+        # Zurücksetzen der ausgewählten Sonderleistungen
+        self.selected_sonderleistungen.clear()
+        self.update_sonderleistungen_button()
         
-        # Setze das Mengenfeld auf "1"
-        self.quantity_input.value = "1"
-        
-        self.dn_dropdown.visible = False
-        self.da_dropdown.visible = False
-        
-        # Zurücksetzen der Sonderleistungen
-        for checkbox in self.sonderleistungen_container.content.controls:
-            checkbox.value = False
-        self.selected_sonderleistungen = []
-        
-        self.page.update()
+        self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
@@ -641,10 +625,15 @@ class InvoiceForm(ft.UserControl):
                     cursor.close()
         else:
             self.einheit_field.value = ""
-        self.update()
+        self.update()       
+        
     def edit_article_row(self, row_index):
         if 0 <= row_index < len(self.article_list_header.rows):
+            self.edit_mode = True
+            self.edit_row_index = row_index
             row = self.article_list_header.rows[row_index]
+            
+            # Füllen Sie die Eingabefelder mit den Werten aus der ausgewählten Zeile
             self.position_field.value = row.cells[0].content.value
             self.bauteil_dropdown.value = row.cells[1].content.value
             self.dn_dropdown.value = row.cells[2].content.value
@@ -653,21 +642,20 @@ class InvoiceForm(ft.UserControl):
             self.einheit_field.value = row.cells[5].content.value
             self.taetigkeit_dropdown.value = row.cells[6].content.value
             
-            # Setzen Sie die Sonderleistungen
-            sonderleistungen = row.cells[7].content.value.split(", ")
-            for checkbox in self.sonderleistungen_container.content.controls:
-                checkbox.value = checkbox.label in sonderleistungen
-            self.selected_sonderleistungen = [(sl, self.get_sonderleistung_faktor(sl)) for sl in sonderleistungen if sl]
+            # Setzen Sie die ausgewählten Sonderleistungen
+            selected_sonderleistungen = row.cells[7].content.value.split(", ")
+            self.selected_sonderleistungen = [
+                (sl, factor) for sl, factor in self.sonderleistungen_options
+                if sl in selected_sonderleistungen
+            ]
+            self.update_sonderleistungen_button()
             
             self.price_field.value = row.cells[8].content.value
             self.quantity_input.value = row.cells[9].content.value
             self.zwischensumme_field.value = row.cells[10].content.value
-
-            self.edit_mode = True
-            self.edit_row_index = row_index
+        
             self.update_position_button.visible = True
             self.update()
-            logging.info(f"Artikelzeile {row_index} zum Bearbeiten geladen")
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
 
