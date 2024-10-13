@@ -211,8 +211,13 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     ]))
     elements.append(articles_table)
     
-    # Zuschläge
+    # Zuschläge und Bemerkung
     elements.append(Spacer(1, 5*mm))
+    
+    # Erstellen Sie eine Tabelle mit zwei Spalten: Bemerkung links, Zuschläge rechts
+    bemerkung_text = invoice_data.get('bemerkung', '')
+    bemerkung_para = Paragraph(f"<b>Bemerkung:</b><br/>{bemerkung_text}", styles['Normal'])
+
     zuschlaege_data = []
     zuschlaege_summe = 0
     nettobetrag = invoice_data.get('net_total', 0)
@@ -224,11 +229,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
                 zuschlaege_data.append([zuschlag, f"{zuschlag_betrag:.2f} €"])
             else:
                 zuschlaege_data.append([zuschlag, ""])
-    
-    # Bemerkung
-    bemerkung_text = invoice_data.get('bemerkung', '')
-    
-    # Erstellen Sie eine Tabelle mit zwei Spalten: Zuschläge und Bemerkung
+
     zuschlaege_table = Table([["Zuschläge:", "Betrag:"]] + zuschlaege_data, colWidths=[80*mm, 40*mm])
     zuschlaege_table.setStyle(TableStyle([
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -239,11 +240,10 @@ def generate_pdf(invoice_data, filename, include_prices=True):
         ('BOTTOMPADDING', (0,1), (-1,-1), 0),
     ]))
 
-    bemerkung_para = Paragraph(f"<b>Bemerkung:</b><br/>{bemerkung_text}", styles['Normal'])
-
-    combined_table = Table([[zuschlaege_table, bemerkung_para]], colWidths=[doc.width/2 - 10*mm, doc.width/2 - 10*mm])
+    combined_table = Table([[bemerkung_para, zuschlaege_table]], colWidths=[doc.width/2 - 10*mm, doc.width/2 - 10*mm])
     combined_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (1,0), (1,0), 'RIGHT'),
         ('TOPPADDING', (0,0), (-1,-1), 1*mm),
         ('BOTTOMPADDING', (0,0), (-1,-1), 1*mm),
     ]))
@@ -259,7 +259,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
             ["Gesamtbetrag:", f"{gesamtbetrag:.2f} €"]
         ]
         
-        total_price_table = Table(total_price_data, colWidths=[140*mm, 40*mm])
+        total_price_table = Table(total_price_data, colWidths=[doc.width - 60*mm, 50*mm])
         total_price_table.setStyle(TableStyle([
             ('ALIGN', (0,0), (0,-1), 'RIGHT'),
             ('ALIGN', (1,0), (1,-1), 'RIGHT'),
