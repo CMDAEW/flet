@@ -258,8 +258,11 @@ class InvoiceForm(ft.UserControl):
         article_list = ft.Container(
             content=ft.Column([
                 ft.Text("Artikelliste", size=20, weight=ft.FontWeight.BOLD),
-                self.article_list_header,
-            ]),
+                ft.Container(
+                    content=self.article_list_header,
+                    expand=True
+                )
+            ], expand=True),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
@@ -294,15 +297,19 @@ class InvoiceForm(ft.UserControl):
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
         )
-
         # Hauptlayout
         return ft.Container(
-            content=ft.Column([
-                invoice_details,
-                article_input,
-                article_list,
-                summary_and_actions,
-            ]),
+            content=ft.Column(
+                [
+                    invoice_details,
+                    article_input,
+                    article_list,
+                    summary_and_actions,
+                ],
+                expand=True,
+                alignment=ft.MainAxisAlignment.START,
+                
+            ),
             padding=20,
             expand=True,
         )
@@ -512,26 +519,43 @@ class InvoiceForm(ft.UserControl):
             self.update_position_button,
         ], alignment=ft.MainAxisAlignment.START, spacing=5)
 
-        # Ändern Sie die Spaltennamen für die Artikelliste
+        # Ändern Sie die Artikellistetabelle
         self.article_list_header = ft.DataTable(
             columns=[
-        ft.DataColumn(ft.Text("Position")),
-        ft.DataColumn(ft.Text("Bauteil")),
-        ft.DataColumn(ft.Text("DN")),
-        ft.DataColumn(ft.Text("DA")),
-        ft.DataColumn(ft.Text("Dämmdicke")),
-        ft.DataColumn(ft.Text("Einheit")),
-        ft.DataColumn(ft.Text("Tätigkeit")),
-        ft.DataColumn(ft.Text("Sonderleistungen")),
-        ft.DataColumn(ft.Text("Preis")),
-        ft.DataColumn(ft.Text("Menge")),
-        ft.DataColumn(ft.Text("Zwischensumme")),
-        ft.DataColumn(ft.Text("Aktionen")),
+                ft.DataColumn(ft.Text("Position", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Bauteil", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("DN", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("DA", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Dämmdicke", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Einheit", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Tätigkeit", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Sonderleistungen", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Preis", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Menge", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Zwischensumme", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Aktionen", text_align=ft.TextAlign.CENTER)),
             ],
             expand=True,
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
+            heading_row_height=50,
+            data_row_max_height=100,
+            column_spacing=140,
         )
+
+        # Erstellen Sie einen Container für die Tabelle, der sich über die gesamte Breite erstreckt
+        self.article_list_container = ft.Container(
+            content=self.article_list_header,
+            expand=True,
+            width=self.page.width,
+            height=600,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=5,
+        )
+
+        self.nettobetrag_field = ft.TextField(label="Nettobetrag", read_only=True)
+        self.zuschlaege_field = ft.TextField(label="Zuschläge", read_only=True)
+        self.gesamtbetrag_field = ft.TextField(label="Gesamtbetrag", read_only=True)
 
         # Kopfdaten-Felder in einem 3x3-Raster
         invoice_header = ft.Column([
@@ -564,9 +588,27 @@ class InvoiceForm(ft.UserControl):
             self.invoice_detail_fields['ausfuehrungsende'],
         ])
 
-        self.nettobetrag_field = ft.TextField(label="Nettobetrag", read_only=True)
-        self.zuschlaege_field = ft.TextField(label="Zuschläge", read_only=True)
-        self.gesamtbetrag_field = ft.TextField(label="Gesamtbetrag", read_only=True)
+        # Fügen Sie den Tabellencontainer zum Layout hinzu
+        self.content = ft.Column([
+            invoice_header,
+            self.article_input_row,
+            self.article_list_container,
+            ft.Row([
+                ft.Column([
+                    ft.Row([ft.Text("Nettobetrag:"), self.nettobetrag_field]),
+                    ft.Row([ft.Text("Zuschläge:"), self.zuschlaege_field]),
+                    ft.Row([ft.Text("Gesamtbetrag:"), self.gesamtbetrag_field]),
+                ]),
+                ft.Column([
+                    self.zuschlaege_button,
+                    self.create_pdf_with_prices_button,
+                    self.create_pdf_without_prices_button,
+                    self.back_to_main_menu_button,
+                ]),
+            ]),
+        ], spacing=20, expand=True)
+
+        return self.content
 
     def validate_number_field(self, e, field_name):
         value = e.control.value
@@ -1118,6 +1160,7 @@ class InvoiceForm(ft.UserControl):
             self.page.snack_bar = ft.SnackBar(content=ft.Text("Keine Rechnung zum Löschen vorhanden"))
             self.page.snack_bar.open = True
         self.update()
+    
     def add_article_row(self, e):
         # Überprüfen Sie, ob die wichtigsten Felder ausgefüllt sind
         if not self.bauteil_dropdown.value:
@@ -1164,17 +1207,17 @@ class InvoiceForm(ft.UserControl):
         # Wenn kein identisches Produkt gefunden wurde, füge die neue Zeile hinzu
         new_row = ft.DataRow(
             cells=[
-                ft.DataCell(ft.Text(position)),
-                ft.DataCell(ft.Text(bauteil)),
-                ft.DataCell(ft.Text(dn)),
-                ft.DataCell(ft.Text(da)),
-                ft.DataCell(ft.Text(dammdicke)),
-                ft.DataCell(ft.Text(einheit)),
-                ft.DataCell(ft.Text(taetigkeit)),
-                ft.DataCell(ft.Text(sonderleistungen)),
-                ft.DataCell(ft.Text(preis)),
-                ft.DataCell(ft.Text(menge)),
-                ft.DataCell(ft.Text(zwischensumme)),
+                ft.DataCell(ft.Text(position, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(bauteil, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(dn, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(da, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(dammdicke, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(einheit, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(taetigkeit, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(sonderleistungen, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(preis, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(menge, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Text(zwischensumme, text_align=ft.TextAlign.CENTER)),
                 ft.DataCell(
                     ft.Row([
                         ft.IconButton(
@@ -1187,12 +1230,12 @@ class InvoiceForm(ft.UserControl):
                             icon_color="red500",
                             on_click=lambda _, row=len(self.article_list_header.rows): self.delete_article_row(row)
                         )
-                    ])
+                    ], alignment=ft.MainAxisAlignment.CENTER)
                 )
             ]
         )
-
         self.article_list_header.rows.append(new_row)
+        self.update()
         
         summary_data = {
             'zwischensumme': float(zwischensumme.replace(',', '.')),
