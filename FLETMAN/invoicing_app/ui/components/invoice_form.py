@@ -540,14 +540,14 @@ class InvoiceForm(ft.UserControl):
 
     def clear_input_fields(self):
         self.position_field.value = ""
-        self.bauteil_dropdown.value = None
-        self.dn_dropdown.value = None
-        self.da_dropdown.value = None
-        self.dammdicke_dropdown.value = None
-        self.einheit_field.value = ""
-        self.taetigkeit_dropdown.value = None
+        self.bauteil_dropdown.value = "Rohrleitung"
+        self.dn_dropdown.value = "100"
+        self.da_dropdown.value = "114.3"
+        self.dammdicke_dropdown.value = "30"  
+        self.einheit_field.value = "m"
+        self.taetigkeit_dropdown.value = "Demontage / Entsorgung"
         self.price_field.value = ""
-        self.quantity_input.value = ""
+        self.quantity_input.value = "1"
         self.zwischensumme_field.value = ""
         
         # Zurücksetzen der ausgewählten Sonderleistungen
