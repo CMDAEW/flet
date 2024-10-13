@@ -643,10 +643,10 @@ class InvoiceForm(ft.UserControl):
         logging.info(f"Sonderleistungen Checkboxen erstellt: {len(checkboxes)}")
 
     def clear_input_fields(self):
-        self.position_field.value = ""
+        self.position_field.value = "51.9.1"
         self.bauteil_dropdown.value = "Rohrleitung"
-        self.dn_dropdown.value = "100"
-        self.da_dropdown.value = "114.3"
+        self.dn_dropdown.value = "15.0"
+        self.da_dropdown.value = ""
         self.dammdicke_dropdown.value = "30"  
         self.einheit_field.value = "m"
         self.taetigkeit_dropdown.value = "Demontage / Entsorgung"
@@ -655,8 +655,11 @@ class InvoiceForm(ft.UserControl):
         self.zwischensumme_field.value = ""
         
         # Zurücksetzen der ausgewählten Sonderleistungen
+        self.update_field_visibility()
+        self.update_price(self)
         self.selected_sonderleistungen = []  # Setzen Sie dies auf eine leere Liste, nicht auf None
         self.update_sonderleistungen_button()
+        self.auto_fill_rohrleitung_or_formteil(self)
         
         self.update()
 
