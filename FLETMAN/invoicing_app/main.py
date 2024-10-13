@@ -19,24 +19,38 @@ def main(page: ft.Page):
 
     # Zoom-Steuerung
     zoom_level = 1.0
+    zoom_step = 0.1
+    max_zoom = 5.0
+    min_zoom = 0.5
 
     def zoom_in(e):
         nonlocal zoom_level
-        zoom_level = min(2.0, zoom_level + 0.1)
+        zoom_level = min(max_zoom, zoom_level * (1 + zoom_step))
         update_zoom()
 
     def zoom_out(e):
         nonlocal zoom_level
-        zoom_level = max(0.5, zoom_level - 0.1)
+        zoom_level = max(min_zoom, zoom_level / (1 + zoom_step))
         update_zoom()
 
-    def update_zoom():
-        content_column.scale = zoom_level
-        page.update()
+    def reset_zoom(e):
+        nonlocal zoom_level
+        zoom_level = 1.0
+        content_column.scale = 1.0  # Direkt auf 1.0 setzen
+        update_zoom(force_update=True)
 
+    def update_zoom(force_update=False):
+        if force_update or content_column.scale != zoom_level:
+            content_column.scale = zoom_level
+            zoom_text.value = f"{zoom_level:.2f}x"
+            page.update()
+
+    zoom_text = ft.Text(f"{zoom_level:.2f}x")
     zoom_controls = ft.Row([
-        ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
         ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
+        zoom_text,
+        ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
+        ft.IconButton(ft.icons.RESTART_ALT, on_click=reset_zoom, tooltip="Zoom zurücksetzen"),
     ], alignment=ft.MainAxisAlignment.END)
 
     # Scrollbarer Inhaltsbereich

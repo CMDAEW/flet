@@ -395,22 +395,36 @@ class InvoiceForm(ft.UserControl):
         # Ändern Sie die Spaltennamen für die Artikelliste
         self.article_list_header = ft.DataTable(
             columns=[
-        ft.DataColumn(ft.Text("Position")),
-        ft.DataColumn(ft.Text("Bauteil")),
-        ft.DataColumn(ft.Text("DN")),
-        ft.DataColumn(ft.Text("DA")),
-        ft.DataColumn(ft.Text("Dämmdicke")),
-        ft.DataColumn(ft.Text("Einheit")),
-        ft.DataColumn(ft.Text("Tätigkeit")),
-        ft.DataColumn(ft.Text("Sonderleistungen")),
-        ft.DataColumn(ft.Text("Preis")),
-        ft.DataColumn(ft.Text("Menge")),
-        ft.DataColumn(ft.Text("Zwischensumme")),
-        ft.DataColumn(ft.Text("Aktionen")),
+                ft.DataColumn(ft.Text("Position"), numeric=True),
+                ft.DataColumn(ft.Text("Bauteil")),
+                ft.DataColumn(ft.Text("DN")),
+                ft.DataColumn(ft.Text("DA")),
+                ft.DataColumn(ft.Text("Dämmdicke")),
+                ft.DataColumn(ft.Text("Einheit")),
+                ft.DataColumn(ft.Text("Tätigkeit")),
+                ft.DataColumn(ft.Text("Sonderleistungen")),
+                ft.DataColumn(ft.Text("Preis"), numeric=True),
+                ft.DataColumn(ft.Text("Menge"), numeric=True),
+                ft.DataColumn(ft.Text("Zwischensumme"), numeric=True),
+                ft.DataColumn(ft.Text("Aktionen")),
             ],
             expand=True,
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
+            column_spacing=10,  # Erhöhen Sie den Abstand zwischen den Spalten
+            heading_row_height=70,  # Erhöhen Sie die Höhe der Überschriftenzeile
+            data_row_min_height=50,  # Setzen Sie eine Mindesthöhe für Datenzeilen
+            data_row_max_height=100,  # Setzen Sie eine maximale Höhe für Datenzeilen
+        )
+
+        # Erstellen Sie einen Container für die Tabelle mit horizontalem Scrollen
+        self.article_list_container = ft.Container(
+            content=self.article_list_header,
+            expand=True,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=8,
+            padding=10,
+            scroll=ft.ScrollMode.ALWAYS,  # Aktiviert horizontales und vertikales Scrollen
         )
 
         # Kopfdaten-Felder in einem 3x3-Raster
