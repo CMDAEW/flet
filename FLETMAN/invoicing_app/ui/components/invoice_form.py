@@ -436,17 +436,17 @@ class InvoiceForm(ft.UserControl):
         # Erstellen Sie die DatePicker
         self.bestelldatum_picker = ft.DatePicker(
             on_change=self.on_bestelldatum_change,
-            first_date=datetime(2020, 1, 1),
+            first_date=datetime(2024, 1, 1),
             last_date=datetime(2030, 12, 31)
         )
         self.ausfuehrungsbeginn_picker = ft.DatePicker(
             on_change=self.on_ausfuehrungsbeginn_change,
-            first_date=datetime(2020, 1, 1),
+            first_date=datetime(2024, 1, 1),
             last_date=datetime(2030, 12, 31)
         )
         self.ausfuehrungsende_picker = ft.DatePicker(
             on_change=self.on_ausfuehrungsende_change,
-            first_date=datetime(2020, 1, 1),
+            first_date=datetime(2024, 1, 1),
             last_date=datetime(2030, 12, 31)
         )
 
