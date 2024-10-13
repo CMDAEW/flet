@@ -70,17 +70,29 @@ def load_items(self, category):
     self.update_field_visibility()
 
 def load_faktoren(self, art):
-    faktoren = self.get_from_cache_or_db(f"faktoren_{art}", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
-    if art == "Sonderleistung":
-        container = self.sonderleistungen_container.content
-    else:
-        container = self.zuschlaege_container
-    container.controls.clear()
-    for bezeichnung, faktor in faktoren:
-        checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
-        checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren(e, b, f, art)
-        container.controls.append(checkbox)
-    self.update()
+    cursor = self.conn.cursor()
+    try:
+        cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+        faktoren = cursor.fetchall()
+        
+        if art == "Sonderleistung":
+            # Speichern Sie die Sonderleistungen in der options Liste
+            self.sonderleistungen_options = [
+                (bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren
+            ]
+        elif art == "Zuschlag":
+            # Bestehende Logik für Zuschläge beibehalten
+            if hasattr(self, 'zuschlaege_container') and self.zuschlaege_container:
+                container = self.zuschlaege_container.content
+                container.controls.clear()
+                for bezeichnung, faktor in faktoren:
+                    checkbox = ft.Checkbox(
+                        label=f"{bezeichnung} ({faktor})",
+                        on_change=lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
+                    )
+                    container.controls.append(checkbox)
+    finally:
+        cursor.close()
 
 def get_all_dn_options(self, bauteil):
     if self.is_rohrleitung_or_formteil(bauteil):

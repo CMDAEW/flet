@@ -13,7 +13,6 @@ from .invoice_form_helpers import (
     get_material_price, get_taetigkeit_faktor, get_positionsnummer, update_price,
     load_material_items, load_lohn_items, load_festpreis_items
 )
-
 class InvoiceForm(ft.UserControl):
     def __init__(self, page):
         super().__init__()
@@ -31,6 +30,7 @@ class InvoiceForm(ft.UserControl):
         
         self.cache = {}
         self.article_summaries = []
+        self.sonderleistungen_options = []
         self.selected_sonderleistungen = []
         self.selected_zuschlaege = []
         self.previous_bauteil = None
@@ -40,15 +40,11 @@ class InvoiceForm(ft.UserControl):
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         self.article_count = 0
         
-        # Sonderleistungen
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=150)
-        self.sonderleistungen_container = ft.Container(
-        content=ft.Column(controls=[]),
-            visible=False,
-            expand=True  # Dies könnte helfen, den Container sichtbarer zu machen
+        self.sonderleistungen_button = ft.ElevatedButton(
+            "Sonderleistungen",
+            on_click=self.show_sonderleistungen_dialog
         )
-        self.create_sonderleistungen_checkboxes()
-
+       
         # Zuschläge
         self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.toggle_zuschlaege)
         self.zuschlaege_container = ft.Container(visible=False)
@@ -73,26 +69,160 @@ class InvoiceForm(ft.UserControl):
             on_click=self.create_pdf_without_prices,
             disabled=True
         )
+        self.back_to_main_menu_button = ft.ElevatedButton(
+            "Zurück zum Hauptmenü",
+            on_click=self.back_to_main_menu
+        )
 
-    def create_sonderleistungen_checkboxes(self):
-        sonderleistungen = self.load_sonderleistungen_from_db()
-        checkboxes = [ft.Checkbox(label=sl, value=False) for sl in sonderleistungen]
-        self.sonderleistungen_container.content = ft.Column(controls=checkboxes)
+        # Neue Felder für die Zusammenfassung
+        self.nettobetrag_field = ft.Text("0.00 €", size=16)
+        self.zuschlaege_field = ft.Text("0.00 €", size=16)
+        self.gesamtbetrag_field = ft.Text("0.00 €", size=18, weight=ft.FontWeight.BOLD)
+
+    def show_sonderleistungen_dialog(self, e):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Sonderleistungen auswählen"),
+            content=ft.Column([
+                ft.Checkbox(
+                    label=f"{sl[0]} ({sl[1]})",
+                    value=sl[0] in [s[0] for s in self.selected_sonderleistungen],
+                    on_change=lambda e, sl=sl: self.toggle_sonderleistung(e, sl[0], sl[1])
+                ) for sl in self.sonderleistungen_options
+            ], scroll=ft.ScrollMode.AUTO, height=300),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_dialog(dialog))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def close_dialog(self, dialog):
+        dialog.open = False
+        self.page.update()
+        self.update_sonderleistungen_button()
+
+    def update_sonderleistungen_button(self):
+        count = len(self.selected_sonderleistungen)
+        self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
+        self.update()
+
+    def build(self):
+        # Kopfdaten in 2 Spalten
+        invoice_details = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Column([
+                        self.invoice_detail_fields['client_name'],
+                        self.new_entry_fields['client_name'],
+                        self.invoice_detail_fields['baustelle'],
+                        self.new_entry_fields['baustelle'],
+                        self.invoice_detail_fields['anlagenteil'],
+                        self.new_entry_fields['anlagenteil'],
+                    ], expand=1),
+                    ft.Column([
+                        self.invoice_detail_fields['bestell_nr'],
+                        self.new_entry_fields['bestell_nr'],
+                        self.invoice_detail_fields['auftrags_nr'],
+                        self.new_entry_fields['auftrags_nr'],
+                        self.invoice_detail_fields['aufmass_nr'],
+                    ], expand=1),
+                ]),
+                ft.Row([
+                    ft.Column([
+                        ft.Container(content=self.bestelldatum_button, alignment=ft.alignment.center),
+                        self.invoice_detail_fields['bestelldatum'],
+                    ], expand=1),
+                    ft.Column([
+                        ft.Container(content=self.ausfuehrungsbeginn_button, alignment=ft.alignment.center),
+                        self.invoice_detail_fields['ausfuehrungsbeginn'],
+                    ], expand=1),
+                    ft.Column([
+                        ft.Container(content=self.ausfuehrungsende_button, alignment=ft.alignment.center),
+                        self.invoice_detail_fields['ausfuehrungsende'],
+                    ], expand=1),
+                ]),
+            ]),
+            padding=20,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=10,
+            margin=ft.margin.only(bottom=20),
+        )
+
+        # Artikeleingabe
+        article_input = ft.Container(
+            content=ft.Column([
+                ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
+                self.article_input_row,
+                self.sonderleistungen_button,
+                self.sonderleistungen_button,
+                self.zuschlaege_button,
+            ]),
+            padding=20,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=10,
+            margin=ft.margin.only(bottom=20),
+        )
+
+        # Artikelliste
+        article_list = ft.Container(
+            content=ft.Column([
+                ft.Text("Artikelliste", size=20, weight=ft.FontWeight.BOLD),
+                self.article_list_header,
+            ]),
+            padding=20,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=10,
+            margin=ft.margin.only(bottom=20),
+            expand=True,
+        )
+
+        # Zusammenfassung und Aktionen
+        summary_and_actions = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Column([
+                        ft.Text("Nettobetrag:", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Text("Zuschläge:", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Text("Gesamtbetrag:", size=18, weight=ft.FontWeight.BOLD),
+                    ], expand=1),
+                    ft.Column([
+                        self.nettobetrag_field,
+                        self.zuschlaege_field,
+                        self.gesamtbetrag_field,
+                    ], expand=1, horizontal_alignment=ft.CrossAxisAlignment.END),
+                ]),
+                ft.Container(height=20),
+                ft.Row([
+                    self.create_pdf_with_prices_button,
+                    self.create_pdf_without_prices_button,
+                    self.back_to_main_menu_button,
+                ], alignment=ft.MainAxisAlignment.CENTER),
+            ]),
+            padding=20,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=10,
+        )
+
+        # Hauptlayout
+        return ft.Container(
+            content=ft.Column([
+                invoice_details,
+                article_input,
+                article_list,
+                summary_and_actions,
+            ]),
+            padding=20,
+            expand=True,
+        )
 
     def create_zuschlaege_checkboxes(self):
         zuschlaege = self.load_zuschlaege_from_db()
         checkboxes = [ft.Checkbox(label=f"{z[0]} ({z[1]})", value=False) for z in zuschlaege]
         self.zuschlaege_container.content = ft.Column(controls=checkboxes)
 
-    def toggle_sonderleistungen(self, e):
-        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
-        self.page.update()
-
-    def toggle_zuschlaege(self, e):
-        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
-        self.page.update()
-
-    
 
     def load_sonderleistungen_from_db(self):
         cursor = self.conn.cursor()
@@ -138,83 +268,6 @@ class InvoiceForm(ft.UserControl):
             self.invoice_detail_fields[field_name].value = ""
             button.text = f"{self.invoice_detail_fields[field_name].label} wählen"
         self.update()
-
-    def build(self):
-        logging.info("Building InvoiceForm UI")
-        
-        # Vergrößere und zentriere die Datumsbuttons
-        for button in [self.bestelldatum_button, self.ausfuehrungsbeginn_button, self.ausfuehrungsende_button]:
-            button.width = 250
-            button.height = 50
-            button.alignment = ft.alignment.center
-
-        # 3x3 Kopfdaten-Layout
-        invoice_details = ft.Column([
-            ft.Row([
-                ft.Column([self.invoice_detail_fields['client_name'], self.new_entry_fields['client_name']], expand=1),
-                ft.Column([self.invoice_detail_fields['bestell_nr'], self.new_entry_fields['bestell_nr']], expand=1),
-                ft.Column([self.invoice_detail_fields['aufmass_nr']], expand=1),
-            ]),
-            ft.Row([
-                ft.Column([self.invoice_detail_fields['baustelle'], self.new_entry_fields['baustelle']], expand=1),
-                ft.Column([self.invoice_detail_fields['anlagenteil'], self.new_entry_fields['anlagenteil']], expand=1),
-                ft.Column([self.invoice_detail_fields['auftrags_nr'], self.new_entry_fields['auftrags_nr']], expand=1),
-            ]),
-            ft.Row([
-                ft.Column([ft.Container(content=self.bestelldatum_button, alignment=ft.alignment.center), self.invoice_detail_fields['bestelldatum']], expand=1),
-                ft.Column([ft.Container(content=self.ausfuehrungsbeginn_button, alignment=ft.alignment.center), self.invoice_detail_fields['ausfuehrungsbeginn']], expand=1),
-                ft.Column([ft.Container(content=self.ausfuehrungsende_button, alignment=ft.alignment.center), self.invoice_detail_fields['ausfuehrungsende']], expand=1),
-            ]),
-        ])
-
-        # Logo hinzufügen
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                             'assets', 'logos', 'KAE_Logo_RGB_300dpi2.jpg')
-        logo = ft.Image(src=logo_path, width=100, height=50)
-        logo_container = ft.Container(content=logo)
-
-        # Verstecke die Kategorie-Buttons
-        for button in self.category_buttons:
-            button.visible = False
-
-        # Bemerkungsfeld und die drei Felder nebeneinander
-        bottom_row = ft.Row([
-            ft.Container(
-                content=self.bemerkung_field,
-                width=self.page.width * 0.5 if self.page.width else 300
-            ),
-            ft.Container(width=20),  # Abstand
-            self.nettobetrag_field,
-            self.zuschlaege_field,
-            self.gesamtbetrag_field
-        ])
-
-        # Restliches Layout
-        main_content = ft.Column([
-            ft.Row([logo_container], alignment=ft.MainAxisAlignment.END),
-            invoice_details,
-            ft.Container(height=20),
-            self.category_row,
-            self.article_input_row,  # Fügen Sie den Button separat hinzu
-            self.sonderleistungen_container,
-            self.article_list_header,
-            self.article_list,
-            bottom_row,
-            ft.Row([
-                self.zuschlaege_button,
-                self.create_pdf_with_prices_button,
-                self.create_pdf_without_prices_button,
-                self.back_to_main_menu_button
-            ], alignment=ft.MainAxisAlignment.END),
-            self.zuschlaege_container,
-        ])
-
-        return ft.Container(
-            content=main_content,
-            padding=10,
-            expand=True
-        )
-
 
     def show_snack_bar(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
@@ -276,17 +329,10 @@ class InvoiceForm(ft.UserControl):
         
         self.zuschlaege_container = ft.Column(visible=False, spacing=10)
 
-        # Sonderleistungen Button und Container
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.toggle_sonderleistungen, width=200)
-        self.sonderleistungen_container = ft.Container(
-            content=ft.Column(controls=[], spacing=10),
-            visible=False
-        )
-
         # Update Position Button
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
 
-        # Kopfdaten-Felder
+        # Kopfdaten-Felder  
         self.invoice_detail_fields = {
             'client_name': ft.Dropdown(label="Kunde", on_change=lambda e: self.toggle_new_entry(e, "client_name")),
             'bestell_nr': ft.Dropdown(label="Bestell-Nr.", on_change=lambda e: self.toggle_new_entry(e, "bestell_nr")),
@@ -376,6 +422,8 @@ class InvoiceForm(ft.UserControl):
         )
 
         # Ändern Sie die Reihenfolge der Elemente in der Artikelzeile
+        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=200)
+
         self.article_input_row = ft.Row([
             self.position_field,
             self.bauteil_dropdown,
@@ -465,36 +513,21 @@ class InvoiceForm(ft.UserControl):
             self.cache[key] = cursor.fetchall()
         return self.cache[key]
 
-    def toggle_sonderleistungen(self, e):
-        self.sonderleistungen_container.visible = not self.sonderleistungen_container.visible
-        logging.info(f"Sonderleistungen Container sichtbar: {self.sonderleistungen_container.visible}")
-        if self.sonderleistungen_container.visible:
-            self.create_sonderleistungen_checkboxes()  # Aktualisieren Sie die Checkboxen
-        self.sonderleistungen_container.update()
-        self.page.update()
-
-    def toggle_zuschlaege(self, row):
-        self.zuschlaege_container.visible = not self.zuschlaege_container.visible
-        self.page.update()
+    def toggle_sonderleistung(self, e, bezeichnung, faktor):
+        if e.control.value:
+            self.selected_sonderleistungen.append((bezeichnung, faktor))
+        else:
+            self.selected_sonderleistungen = [
+                (sl, f) for sl, f in self.selected_sonderleistungen if sl != bezeichnung
+            ]
+        self.update_price()
+        self.update_sonderleistungen_button()
 
     def create_sonderleistungen_checkboxes(self):
         sonderleistungen = self.load_sonderleistungen_from_db()
         checkboxes = [ft.Checkbox(label=sl, value=False, on_change=self.on_sonderleistung_change) for sl in sonderleistungen]
         self.sonderleistungen_container.content = ft.Column(controls=checkboxes, spacing=10)
         logging.info(f"Sonderleistungen Checkboxen erstellt: {len(checkboxes)}")
-
-    def update_selected_faktoren(self, e, bezeichnung, faktor, art):
-        if art == "Sonderleistung":
-            if e.control.value:
-                self.selected_sonderleistungen.append((bezeichnung, float(faktor)))
-            else:
-                self.selected_sonderleistungen = [item for item in self.selected_sonderleistungen if item[0] != bezeichnung]
-        elif art == "Zuschlag":
-            if e.control.value:
-                self.selected_zuschlaege.append((bezeichnung, float(faktor)))
-            else:
-                self.selected_zuschlaege = [item for item in self.selected_zuschlaege if item[0] != bezeichnung]
-        self.update_price()
 
     def on_sonderleistung_change(self, e):
         checkbox = e.control
@@ -982,10 +1015,8 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
 
     def reset_checkboxes(self):
-        for checkbox in self.sonderleistungen_container.controls:
-            if isinstance(checkbox, ft.Checkbox):
-                checkbox.value = False
         self.selected_sonderleistungen.clear()
+        self.update_sonderleistungen_button()
         self.update()
 
         # Nach dem Hinzufügen der Zeile, setzen Sie die Sonderleistungen zurück
@@ -1157,11 +1188,9 @@ class InvoiceForm(ft.UserControl):
             # Hier könnten Sie auch Korrekturmaßnahmen implementieren
 
     def reset_sonderleistungen(self):
-        for checkbox in self.sonderleistungen_container.content.controls:
-            if isinstance(checkbox, ft.Checkbox):
-                checkbox.value = False
         self.selected_sonderleistungen.clear()
-        self.update()
+        self.update_sonderleistungen_button()
+        self.update_price()
 
     def update_field_visibility(self):
         logging.info(f"Updating field visibility for category: {self.current_category}")
@@ -1415,14 +1444,29 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def load_faktoren(self, art):
-        faktoren = self.get_from_cache_or_db(f"faktoren_{art}", 'SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
-        container = self.sonderleistungen_container.content if art == "Sonderleistung" else self.zuschlaege_container
-        container.controls.clear()
-        for bezeichnung, faktor in faktoren:
-            checkbox = ft.Checkbox(label=f"{bezeichnung}", value=False)
-            checkbox.on_change = lambda e, b=bezeichnung, f=faktor: self.update_selected_faktoren_and_price(e, b, f, art)
-            container.controls.append(checkbox)
-        self.update()
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+            faktoren = cursor.fetchall()
+            
+            if art == "Sonderleistung":
+                # Speichern Sie die Sonderleistungen in der options Liste
+                self.sonderleistungen_options = [
+                    (bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren
+                ]
+            elif art == "Zuschlag":
+                # Bestehende Logik für Zuschläge beibehalten
+                if hasattr(self, 'zuschlaege_container') and self.zuschlaege_container:
+                    container = self.zuschlaege_container.content
+                    container.controls.clear()
+                    for bezeichnung, faktor in faktoren:
+                        checkbox = ft.Checkbox(
+                            label=f"{bezeichnung} ({faktor})",
+                            on_change=lambda e, b=bezeichnung, f=faktor: self.update_selected_zuschlaege(e, b, f)
+                        )
+                        container.controls.append(checkbox)
+        finally:
+            cursor.close()
 
     def update_selected_faktoren_and_price(self, e, bezeichnung, faktor, art):
         self.update_selected_faktoren(e, bezeichnung, faktor, art)
