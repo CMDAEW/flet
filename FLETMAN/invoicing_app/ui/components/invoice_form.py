@@ -297,6 +297,14 @@ class InvoiceForm(ft.UserControl):
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
         )
+
+        bemerkung_container = ft.Container(
+        content=self.bemerkung_field,
+        padding=20,
+        border=ft.border.all(1, ft.colors.GREY_400),
+        border_radius=10,
+            margin=ft.margin.only(bottom=20),
+        )
         # Hauptlayout
         return ft.Container(
             content=ft.Column(
@@ -304,6 +312,7 @@ class InvoiceForm(ft.UserControl):
                     invoice_details,
                     article_input,
                     article_list,
+                    bemerkung_container,
                     summary_and_actions,
                 ],
                 expand=True,
@@ -540,7 +549,7 @@ class InvoiceForm(ft.UserControl):
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             heading_row_height=50,
             data_row_max_height=100,
-            column_spacing=140,
+            column_spacing=80,
         )
 
         # Erstellen Sie einen Container für die Tabelle, der sich über die gesamte Breite erstreckt
