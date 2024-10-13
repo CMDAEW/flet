@@ -176,7 +176,7 @@ class InvoiceForm(ft.UserControl):
     def load_zuschlaege_from_db(self):
         cursor = self.conn.cursor()
         try:
-            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = "Zuschlag"')
+            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = "Zuschläge"')
             return cursor.fetchall()
         except sqlite3.Error as e:
             logging.error(f"Fehler beim Laden der Zuschläge aus der Datenbank: {e}")
