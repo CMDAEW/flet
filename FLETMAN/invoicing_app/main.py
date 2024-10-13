@@ -36,26 +36,22 @@ def main(page: ft.Page):
     def reset_zoom(e):
         nonlocal zoom_level
         zoom_level = 1.0
-        update_zoom()
+        content_column.scale = 1.0  # Direkt auf 1.0 setzen
+        update_zoom(force_update=True)
 
-    def update_zoom():
-        content_column.scale = zoom_level
-        zoom_text.value = f"{zoom_level:.2f}x"
-        page.update()
+    def update_zoom(force_update=False):
+        if force_update or content_column.scale != zoom_level:
+            content_column.scale = zoom_level
+            zoom_text.value = f"{zoom_level:.2f}x"
+            page.update()
 
-    zoom_text = ft.Text("1.00x")
-    zoom_controls = ft.Container(
-        content=ft.Row([
-            ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
-            zoom_text,
-            ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
-            ft.IconButton(ft.icons.RESTART_ALT, on_click=reset_zoom, tooltip="Zoom zurücksetzen"),
-        ], alignment=ft.MainAxisAlignment.END),
-        padding=10,
-        bgcolor=ft.colors.WHITE,
-        border=ft.border.all(1, ft.colors.GREY_400),
-        border_radius=ft.border_radius.all(5),
-    )
+    zoom_text = ft.Text(f"{zoom_level:.2f}x")
+    zoom_controls = ft.Row([
+        ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
+        zoom_text,
+        ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
+        ft.IconButton(ft.icons.RESTART_ALT, on_click=reset_zoom, tooltip="Zoom zurücksetzen"),
+    ], alignment=ft.MainAxisAlignment.END)
 
     # Scrollbarer Inhaltsbereich
     content_column = ft.Column([], expand=True, scroll=ft.ScrollMode.AUTO)
