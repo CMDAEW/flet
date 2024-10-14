@@ -179,25 +179,33 @@ class InvoiceForm(ft.UserControl):
         # Article list table
         self.article_list_header = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Position", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Bauteil", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("DN", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("DA", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Dämmdicke", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Einheit", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Tätigkeit", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Sonderleistungen", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Preis", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Menge", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Zwischensumme", text_align=ft.TextAlign.CENTER)),
-                ft.DataColumn(ft.Text("Aktionen", text_align=ft.TextAlign.CENTER)),
+                ft.DataColumn(ft.Text("Position")),
+                ft.DataColumn(ft.Text("Bauteil")),
+                ft.DataColumn(ft.Text("DN")),
+                ft.DataColumn(ft.Text("DA")),
+                ft.DataColumn(ft.Text("Dämmdicke")),
+                ft.DataColumn(ft.Text("Einheit")),
+                ft.DataColumn(ft.Text("Tätigkeit")),
+                ft.DataColumn(ft.Text("Sonderleistungen")),
+                ft.DataColumn(ft.Text("Preis")),
+                ft.DataColumn(ft.Text("Menge")),
+                ft.DataColumn(ft.Text("Zwischensumme")),
+                ft.DataColumn(ft.Text("Aktionen")),
             ],
-            expand=True,
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             heading_row_height=50,
             data_row_max_height=100,
-            column_spacing=50,
+            column_spacing=10,
+        )
+
+        # Einbetten der Tabelle in eine ListView
+        self.scrollable_table = ft.ListView(
+            [self.article_list_header],
+            expand=1,
+            spacing=10,
+            padding=20,
+            auto_scroll=True
         )
 
     def create_summary_fields(self):
@@ -289,11 +297,8 @@ class InvoiceForm(ft.UserControl):
         return ft.Container(
             content=ft.Column([
                 ft.Text("Artikelliste", size=20, weight=ft.FontWeight.BOLD),
-                ft.Container(
-                    content=self.article_list_header,
-                    expand=True
-                )
-            ], expand=True),
+                self.scrollable_table
+            ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
