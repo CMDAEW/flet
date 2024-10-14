@@ -1589,7 +1589,7 @@ class InvoiceForm(ft.UserControl):
             logging.info(f"Basispreis: {base_price}")
             if base_price is None:
                 logging.error("Kein Preis gefunden")
-                self.show_error("Kein Preis gefunden")
+               
                 return
 
             taetigkeit_faktor = get_taetigkeit_faktor(self, taetigkeit)
