@@ -736,7 +736,7 @@ class InvoiceForm(ft.UserControl):
             title=ft.Text("Zuschläge auswählen"),
             content=ft.Column([
                 ft.Checkbox(
-                    label=f"{z[0]} ({z[1]})",
+                    label=z[0],
                     value=z[0] in [s[0] for s in self.selected_zuschlaege],
                     on_change=lambda e, z=z: self.toggle_zuschlag(e, z[0], z[1])
                 ) for z in self.zuschlaege_options
