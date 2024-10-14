@@ -133,15 +133,15 @@ class InvoiceForm(ft.UserControl):
     def create_article_input_fields(self):
         # Article input fields
         self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
-        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.update_dn_da_fields, width=190)
+        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.update_dn_da_fields, width=220)
         self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=80, options=[])
         self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=80, options=[])
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=lambda e: update_price(self, e), width=100)
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=lambda e: update_price(self, e), width=140)
         self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=lambda e: update_price(self, e), width=300)
         self.position_field = ft.TextField(label="Position", read_only=True, width=100)
         self.price_field = ft.TextField(label="Preis", read_only=True, width=80)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=lambda e: update_price(self, e), width=50)
-        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=90)
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=lambda e: update_price(self, e), width=80)
+        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=150)
         
         # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=200)
