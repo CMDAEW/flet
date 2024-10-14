@@ -17,41 +17,6 @@ def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
 
-    # Zoom controls
-    zoom_level = 1.0
-    zoom_step = 0.1
-    max_zoom = 2.0
-    min_zoom = 0.5
-
-    def zoom_in(e):
-        nonlocal zoom_level
-        zoom_level = min(max_zoom, zoom_level + zoom_step)
-        update_zoom()
-
-    def zoom_out(e):
-        nonlocal zoom_level
-        zoom_level = max(min_zoom, zoom_level - zoom_step)
-        update_zoom()
-
-    def reset_zoom(e):
-        nonlocal zoom_level
-        zoom_level = 1.0
-        update_zoom()
-
-    def update_zoom():
-        # Apply scaling to the main container
-        main_container.scale = zoom_level
-        zoom_text.value = f"{zoom_level:.1f}x"
-        page.update()
-
-    zoom_text = ft.Text(f"{zoom_level:.1f}x")
-    zoom_controls = ft.Row([
-        ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
-        zoom_text,
-        ft.IconButton(ft.icons.ZOOM_IN, on_click=zoom_in),
-        ft.IconButton(ft.icons.RESTART_ALT, on_click=reset_zoom, tooltip="Zoom zurücksetzen"),
-    ], alignment=ft.MainAxisAlignment.END)
-
     # Scrollable content area
     content_column = ft.Column([], expand=True, scroll=ft.ScrollMode.AUTO)
 
@@ -91,20 +56,9 @@ def main(page: ft.Page):
 
     # Main container
     main_container = ft.Container(
-        content=ft.Column([
-            ft.Container(
-                content=zoom_controls,
-                padding=10,
-                bgcolor=ft.colors.WHITE,
-            ),
-            ft.Container(
-                content=content_column,
-                expand=True,
-                padding=20,
-            )
-        ], expand=True),
+        content=content_column,
         expand=True,
-        clip_behavior=ft.ClipBehavior.NONE  # Ensure the container doesn't clip content
+        padding=20,
     )
 
     def show_start_screen(e=None):

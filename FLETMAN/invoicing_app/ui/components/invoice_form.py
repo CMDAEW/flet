@@ -255,7 +255,7 @@ class InvoiceForm(ft.UserControl):
         )
 
     def build_article_input(self):
-        # Build article input UI
+        # Entfernen Sie die Container-Wraps und passen Sie die Breiten an
         self.article_input_row = ft.Row([
             self.position_field,
             self.bauteil_dropdown,
@@ -268,25 +268,21 @@ class InvoiceForm(ft.UserControl):
             self.quantity_input,
             self.zwischensumme_field,
             ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
-            self.update_position_button,
-        ], alignment=ft.MainAxisAlignment.START, spacing=5)
-
-        # Separate row for Sonderleistungen button
-        self.sonderleistungen_row = ft.Row([
-            self.sonderleistungen_button
-        ], alignment=ft.MainAxisAlignment.START)
+        ], alignment=ft.MainAxisAlignment.START, spacing=5, wrap=True)
 
         return ft.Container(
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
                 self.article_input_row,
-                self.sonderleistungen_row,  # Neue Zeile für Sonderleistungen
+                self.sonderleistungen_row,
+                self.update_position_button,
             ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
             margin=ft.margin.only(bottom=20),
         )
+
 
     def build_article_list(self):
         # Build article list UI
