@@ -3,49 +3,48 @@ from ui.components.invoice_form import InvoiceForm
 from database.db_init import initialize_database
 import logging
 
-# Konfigurieren Sie das Logging
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def main(page: ft.Page):
     page.title = "KAEFER Industrie GmbH Abrechnungsprogramm"
-    page.window.width = 1200
-    page.window.height = 800
-    page.window.resizable = True
-    page.window.maximized = True
+    page.window_width = 1200
+    page.window_height = 800
+    page.window_resizable = True
+    page.window_maximized = True
     page.bgcolor = ft.colors.WHITE
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
     page.spacing = 0
 
-    # Zoom-Steuerung
+    # Zoom controls
     zoom_level = 1.0
     zoom_step = 0.1
-    max_zoom = 5.0
+    max_zoom = 2.0
     min_zoom = 0.5
 
     def zoom_in(e):
         nonlocal zoom_level
-        zoom_level = min(max_zoom, zoom_level * (1 + zoom_step))
+        zoom_level = min(max_zoom, zoom_level + zoom_step)
         update_zoom()
 
     def zoom_out(e):
         nonlocal zoom_level
-        zoom_level = max(min_zoom, zoom_level / (1 + zoom_step))
+        zoom_level = max(min_zoom, zoom_level - zoom_step)
         update_zoom()
 
     def reset_zoom(e):
         nonlocal zoom_level
         zoom_level = 1.0
-        content_column.scale = 1.0  # Direkt auf 1.0 setzen
-        update_zoom(force_update=True)
+        update_zoom()
 
-    def update_zoom(force_update=False):
-        if force_update or content_column.scale != zoom_level:
-            content_column.scale = zoom_level
-            zoom_text.value = f"{zoom_level:.2f}x"
-            page.update()
+    def update_zoom():
+        # Apply scaling to the main container
+        main_container.scale = zoom_level
+        zoom_text.value = f"{zoom_level:.1f}x"
+        page.update()
 
-    zoom_text = ft.Text(f"{zoom_level:.2f}x")
+    zoom_text = ft.Text(f"{zoom_level:.1f}x")
     zoom_controls = ft.Row([
         ft.IconButton(ft.icons.ZOOM_OUT, on_click=zoom_out),
         zoom_text,
@@ -53,17 +52,17 @@ def main(page: ft.Page):
         ft.IconButton(ft.icons.RESTART_ALT, on_click=reset_zoom, tooltip="Zoom zurücksetzen"),
     ], alignment=ft.MainAxisAlignment.END)
 
-    # Scrollbarer Inhaltsbereich
+    # Scrollable content area
     content_column = ft.Column([], expand=True, scroll=ft.ScrollMode.AUTO)
 
     def button_clicked(e):
         if e.control.text == "Aufmaß":
             show_aufmass_screen()
         elif e.control.text == "Arbeitsbescheinigung":
-            # Hier Logik für Arbeitsbescheinigung einfügen
+            # Implement logic for "Arbeitsbescheinigung"
             pass
         elif e.control.text == "Verwaltung":
-            # Hier Logik für Verwaltung einfügen
+            # Implement logic for "Verwaltung"
             pass
 
     def create_start_screen():
@@ -90,19 +89,23 @@ def main(page: ft.Page):
             expand=True,
         )
 
-    # Hauptcontainer
-    main_container = ft.Column([
-        ft.Container(
-            content=zoom_controls,
-            padding=10,
-            bgcolor=ft.colors.WHITE,
-        ),
-        ft.Container(
-            content=content_column,
-            expand=True,
-            padding=20,
-        )
-    ], expand=True)
+    # Main container
+    main_container = ft.Container(
+        content=ft.Column([
+            ft.Container(
+                content=zoom_controls,
+                padding=10,
+                bgcolor=ft.colors.WHITE,
+            ),
+            ft.Container(
+                content=content_column,
+                expand=True,
+                padding=20,
+            )
+        ], expand=True),
+        expand=True,
+        clip_behavior=ft.ClipBehavior.NONE  # Ensure the container doesn't clip content
+    )
 
     def show_start_screen(e=None):
         content_column.controls.clear()
@@ -114,10 +117,10 @@ def main(page: ft.Page):
             if e.control.text == "hinzufügen":
                 show_invoice_form()
             elif e.control.text == "bearbeiten":
-                # Hier Logik für das Bearbeiten einfügen
+                # Implement logic for editing
                 pass
             elif e.control.text == "Berichte Anzeigen/Drucken":
-                # Hier Logik für Berichte einfügen
+                # Implement logic for reports
                 pass
 
         aufmass_screen = ft.Container(
