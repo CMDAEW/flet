@@ -93,7 +93,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     
     # Kopfzeile
     header_data = [
-    [Image(logo_path, width=50*mm, height=20*mm), 
+    [Image(logo_path, width=50*mm, height=15*mm), 
      Paragraph("KAEFER Industrie GmbH<br/>Niederlassung Norddeutschland<br/>Standort Bremen", styles['Normal']),
      ""],
     ["", "", Paragraph("Getreidestraße 3<br/>28217 Bremen<br/>Deutschland", styles['Normal_RIGHT'])],
