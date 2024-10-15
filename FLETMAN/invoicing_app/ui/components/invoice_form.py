@@ -643,6 +643,28 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
+    def delete_article_row(self, row_index):
+        if 0 <= row_index < len(self.article_list_header.rows):
+            del self.article_list_header.rows[row_index]
+            del self.article_summaries[row_index]
+
+            if self.edit_mode and self.edit_row_index is not None:
+                if row_index < self.edit_row_index:
+                    self.edit_row_index -= 1
+                elif row_index == self.edit_row_index:
+                    self.edit_mode = False
+                    self.edit_row_index = None
+                    self.update_position_button.visible = False
+                    self.clear_input_fields()
+
+            self.update_total_price()
+            self.update_pdf_buttons()
+            self.update()
+            logging.info(f"Artikelzeile {row_index} gelöscht")
+        else:
+            logging.warning(f"Ungültiger Zeilenindex beim Löschen: {row_index}")
+
+
     def update_total_price(self):
         logging.info("Starte Aktualisierung des Gesamtpreises")
         try:
