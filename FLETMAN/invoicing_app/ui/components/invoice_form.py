@@ -980,22 +980,59 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def add_article_row(self, e):
+        logging.info("Starte add_article_row Methode")
+
         if not self.bauteil_dropdown.value:
             self.show_error("Bitte wählen Sie ein Bauteil aus.")
+            logging.warning("Kein Bauteil ausgewählt")
             return
 
         if not self.quantity_input.value or float(self.quantity_input.value) <= 0:
             self.show_error("Bitte geben Sie eine gültige Menge ein.")
+            logging.warning("Ungültige Menge")
             return
 
         if not self.price_field.value or float(self.price_field.value.replace(',', '.')) <= 0:
             self.show_error("Bitte geben Sie einen gültigen Preis ein.")
+            logging.warning("Ungültiger Preis")
             return
 
         if not self.zwischensumme_field.value or float(self.zwischensumme_field.value.replace(',', '.')) <= 0:
             self.show_error("Bitte berechnen Sie die Zwischensumme.")
+            logging.warning("Ungültige Zwischensumme")
             return
 
+        # Erstellen Sie einen eindeutigen Identifikator für den Artikel
+        neuer_artikel_id = (
+            self.bauteil_dropdown.value,
+            self.dn_dropdown.value if self.dn_dropdown.visible else "",
+            self.da_dropdown.value if self.da_dropdown.visible else "",
+            self.dammdicke_dropdown.value,
+            self.taetigkeit_dropdown.value,
+            ", ".join([sl[0] for sl in self.selected_sonderleistungen])
+        )
+        logging.info(f"Neuer Artikel ID: {neuer_artikel_id}")
+
+        # Prüfen Sie, ob dieser Artikel bereits in der Liste ist
+        for index, row in enumerate(self.article_list_header.rows):
+            existing_artikel_id = (
+                row.cells[1].content.value,  # Bauteil
+                row.cells[2].content.value,  # DN
+                row.cells[3].content.value,  # DA
+                row.cells[4].content.value,  # Dämmdicke
+                row.cells[6].content.value,  # Tätigkeit
+                row.cells[7].content.value,  # Sonderleistungen
+            )
+            logging.info(f"Vergleiche mit existierendem Artikel {index}: {existing_artikel_id}")
+            if neuer_artikel_id == existing_artikel_id:
+                error_message = "Dieser Artikel ist bereits in der Liste vorhanden."
+                logging.warning(error_message)
+                self.show_error(error_message)
+                self.page.update()
+                return
+
+        logging.info("Füge neuen Artikel hinzu")
+        # Wenn der Artikel noch nicht in der Liste ist, fügen Sie ihn hinzu
         position = self.position_field.value
         bauteil = self.bauteil_dropdown.value
         dn = self.dn_dropdown.value if self.dn_dropdown.visible else ""
@@ -1038,7 +1075,6 @@ class InvoiceForm(ft.UserControl):
             ]
         )
         self.article_list_header.rows.append(new_row)
-        self.update()
 
         summary_data = {
             'zwischensumme': float(zwischensumme.replace(',', '.')),
