@@ -1,5 +1,6 @@
 import flet as ft
 from ui.components.invoice_form import InvoiceForm
+from ui.components.edit_invoice import show_edit_invoice_dialog
 from database.db_init import initialize_database
 import logging
 
@@ -66,16 +67,24 @@ def main(page: ft.Page):
         content_column.controls.append(create_start_screen())
         page.update()
 
+    def back_to_main_menu(e=None):
+        show_start_screen()
+
     def show_aufmass_screen():
         def aufmass_button_clicked(e):
             if e.control.text == "hinzufügen":
                 show_invoice_form()
             elif e.control.text == "bearbeiten":
-                # Implement logic for editing
-                pass
+                show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview)
             elif e.control.text == "Berichte Anzeigen/Drucken":
                 # Implement logic for reports
                 pass
+
+        def on_invoice_preview(aufmass_nr):
+            invoice_form = InvoiceForm(page, aufmass_nr, is_preview=True)
+            content_column.controls.clear()
+            content_column.controls.append(ft.Container(content=invoice_form, expand=True, opacity=0.7))
+            page.update()
 
         aufmass_screen = ft.Container(
             content=ft.Column([
@@ -103,11 +112,14 @@ def main(page: ft.Page):
         content_column.controls.append(aufmass_screen)
         page.update()
 
-    def show_invoice_form():
+    def show_invoice_form(aufmass_nr=None):
         content_column.controls.clear()
-        invoice_form = InvoiceForm(page)
+        invoice_form = InvoiceForm(page, aufmass_nr)
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
+
+    def on_invoice_selected(aufmass_nr):
+        show_invoice_form(aufmass_nr)
 
     page.add(main_container)
     page.go = show_start_screen

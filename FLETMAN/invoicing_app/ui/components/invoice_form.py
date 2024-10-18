@@ -13,7 +13,7 @@ from .invoice_form_helpers import (
 )
 
 class InvoiceForm(ft.UserControl):
-    def __init__(self, page):
+    def __init__(self, page, aufmass_nr=None, is_preview=False):
         super().__init__()
         self.page = page
         self.conn = get_db_connection()
@@ -26,17 +26,31 @@ class InvoiceForm(ft.UserControl):
         self.edit_mode = False
         self.edit_row_index = None
         self.article_count = 0
-        self.pdf_generated = False  # Neues Attribut zur Verfolgung der PDF-Erstellung
+        self.pdf_generated = False
+        self.is_preview = is_preview
 
         logging.info("Initializing InvoiceForm")
         self.create_ui_elements()
         self.load_invoice_options()
-        self.load_last_invoice_data()  # Neue Methode zum Laden der letzten Rechnungsdaten
+        if aufmass_nr:
+            self.load_invoice_data(aufmass_nr)
+        else:
+            self.load_last_invoice_data()
         logging.info("Loading data")
         self.load_data()
         load_items(self, self.current_category)
         self.update_price()
         logging.info("InvoiceForm initialization complete")
+
+        if self.is_preview:
+            self.disable_all_inputs()
+
+    def disable_all_inputs(self):
+        # Implementieren Sie hier die Logik, um alle Eingabefelder zu deaktivieren
+        for field in self.invoice_detail_fields.values():
+            field.disabled = True
+        # Deaktivieren Sie auch andere relevante Felder und Buttons
+        # ...
 
     def build(self):
         # Build the UI layout
@@ -377,15 +391,15 @@ class InvoiceForm(ft.UserControl):
                     self.zuschlaege_button,
                     self.save_invoice_with_pdf_button,
                     self.save_invoice_without_pdf_button,
-                    self.new_aufmass_button,  # Verschoben nach rechts
+                    self.new_aufmass_button,
+                    ft.Container(expand=True),  # This will push the next button to the right
                     self.back_to_main_menu_button,
-                ], alignment=ft.MainAxisAlignment.CENTER),
+                ], alignment=ft.MainAxisAlignment.START),
             ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
         )
-
     def build_bemerkung_container(self):
         # Build bemerkung container
         return ft.Container(
@@ -768,6 +782,10 @@ class InvoiceForm(ft.UserControl):
             self.quantity_input.value = row.cells[9].content.value
             self.zwischensumme_field.value = row.cells[10].content.value.replace(' €', '')
 
+            # Hide DN/DA fields if they are empty
+            self.dn_dropdown.visible = bool(self.dn_dropdown.value)
+            self.da_dropdown.visible = bool(self.da_dropdown.value)
+
             self.update_sonderleistungen_button()
             self.update()
         else:
@@ -856,9 +874,14 @@ class InvoiceForm(ft.UserControl):
             'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
         }
 
-        # Setzen Sie die Aufmaß-Nummer zurück
-        self.next_aufmass_nr = self.get_next_aufmass_nr()
-        self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+        # Setzen Sie die Aufmaß-Nummer nur zurück, wenn zuvor eine Rechnung erstellt wurde
+        if self.pdf_generated:
+            self.next_aufmass_nr = str(int(self.next_aufmass_nr) + 1)
+            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+            self.pdf_generated = False
+        else:
+            # Wenn keine Rechnung erstellt wurde, behalten Sie die aktuelle Aufmaß-Nummer bei
+            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
 
         # Setzen Sie alle anderen Felder zurück
         self.clear_input_fields()
@@ -1167,7 +1190,7 @@ class InvoiceForm(ft.UserControl):
         logging.info("Speichere Rechnung in der Datenbank")
         logging.debug(f"Rechnungsdaten: {invoice_data}")
 
-        nettobetrag = sum(float(article['zwischensumme'].replace(',', '.').replace('€', '').strip()) for article in invoice_data['articles'])
+        nettobetrag = sum(float(article['zwischensumme'].replace(',', '.').replace('€', '').strip() or '0') for article in invoice_data['articles'])
         zuschlaege_summe = 0
         for zuschlag, faktor in invoice_data['zuschlaege']:
             zuschlag_betrag = nettobetrag * (float(faktor) - 1)
@@ -1266,5 +1289,99 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
             self.conn.rollback()
             raise
+        finally:
+            cursor.close()
+
+    def load_invoice_data(self, aufmass_nr):
+        cursor = self.conn.cursor()
+        try:
+            # Lade Rechnungskopfdaten
+            cursor.execute('''
+            SELECT client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
+                   auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende, bemerkungen, zuschlaege, total_amount
+            FROM invoice
+            WHERE aufmass_nr = ?
+            ''', (aufmass_nr,))
+            invoice_data = cursor.fetchone()
+            
+            if invoice_data:
+                self.invoice_detail_fields['client_name'].value = invoice_data[0]
+                self.invoice_detail_fields['bestell_nr'].value = invoice_data[1]
+                self.invoice_detail_fields['bestelldatum'].value = invoice_data[2]
+                self.invoice_detail_fields['baustelle'].value = invoice_data[3]
+                self.invoice_detail_fields['anlagenteil'].value = invoice_data[4]
+                self.invoice_detail_fields['aufmass_nr'].value = aufmass_nr
+                self.invoice_detail_fields['auftrags_nr'].value = invoice_data[5]
+                self.invoice_detail_fields['ausfuehrungsbeginn'].value = invoice_data[6]
+                self.invoice_detail_fields['ausfuehrungsende'].value = invoice_data[7]
+                self.bemerkung_field.value = invoice_data[8]
+                
+                # Lade Zuschläge
+                self.selected_zuschlaege = []
+                if invoice_data[9]:
+                    zuschlaege = invoice_data[9].split(',')
+                    for zuschlag in zuschlaege:
+                        bezeichnung, faktor = zuschlag.split(':')
+                        self.selected_zuschlaege.append((bezeichnung, float(faktor)))
+                
+                # Lade Artikeldaten
+                cursor.execute('''
+                    SELECT position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen
+                    FROM invoice_items
+                    WHERE invoice_id = (SELECT id FROM invoice WHERE aufmass_nr = ?)
+                    ORDER BY position
+                ''', (aufmass_nr,))
+                items = cursor.fetchall()
+                
+                self.article_list_header.rows.clear()
+                self.article_summaries.clear()
+                
+                for item in items:
+                    new_row = ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(item[0])),  # Position
+                            ft.DataCell(ft.Text(item[1])),  # Bauteil
+                            ft.DataCell(ft.Text(item[2])),  # DN
+                            ft.DataCell(ft.Text(item[3])),  # DA
+                            ft.DataCell(ft.Text(item[4])),  # Dämmdicke
+                            ft.DataCell(ft.Text(item[6])),  # Einheit
+                            ft.DataCell(ft.Text(item[5])),  # Tätigkeit
+                            ft.DataCell(ft.Text(item[10])),  # Sonderleistungen
+                            ft.DataCell(ft.Text(f"{item[7]:.2f}")),  # Preis
+                            ft.DataCell(ft.Text(str(item[8]))),  # Menge
+                            ft.DataCell(ft.Text(f"{item[9]:.2f}")),  # Zwischensumme
+                            ft.DataCell(
+                                ft.Row([
+                                    ft.IconButton(
+                                        icon=ft.icons.EDIT,
+                                        icon_color="blue500",
+                                        on_click=lambda _, row=len(self.article_list_header.rows): self.edit_article_row(row)
+                                    ),
+                                    ft.IconButton(
+                                        icon=ft.icons.DELETE,
+                                        icon_color="red500",
+                                        on_click=lambda _, row=len(self.article_list_header.rows): self.delete_article_row(row)
+                                    )
+                                ], alignment=ft.MainAxisAlignment.CENTER)
+                            )
+                        ]
+                    )
+                    self.article_list_header.rows.append(new_row)
+                    
+                    summary_data = {
+                        'zwischensumme': float(item[9]) if item[9] else 0,
+                        'sonderleistungen': item[10].split(', ') if item[10] else []
+                    }
+                    self.article_summaries.append(summary_data)
+                
+                self.update_total_price()
+                self.update_pdf_buttons()
+                self.update_date_picker_buttons()
+                self.pdf_generated = True  # Setze dies auf True, da die Rechnung bereits existiert
+                self.update()
+            else:
+                logging.warning(f"Keine Rechnung mit Aufmaß-Nr. {aufmass_nr} gefunden")
+        except Exception as e:
+            logging.error(f"Fehler beim Laden der Rechnungsdaten: {str(e)}")
         finally:
             cursor.close()
