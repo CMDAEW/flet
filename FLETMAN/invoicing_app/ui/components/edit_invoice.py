@@ -103,7 +103,8 @@ def load_invoice_for_editing(aufmass_nr, on_invoice_selected, page):
 
 def close_edit_invoice_dialog(page):
     page.dialog.open = False
-    page.go('/')  # Zurück zum Hauptmenü
+    if hasattr(page, 'invoice_form'):
+        page.invoice_form.enable_all_inputs()
     page.update()
 
 def back_to_main_menu(page):

@@ -129,6 +129,13 @@ def main(page: ft.Page):
         content_column.controls.clear()
         invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False)
         page.invoice_form = invoice_form  # Hier weisen wir die InvoiceForm-Instanz der page zu
+        
+        # Wenn kein aufmass_nr übergeben wurde, handelt es sich um ein neues Aufmaß
+        if aufmass_nr is None:
+            invoice_form.save_invoice_with_pdf_button.visible = False
+            invoice_form.save_invoice_without_pdf_button.visible = False
+            invoice_form.new_aufmass_button.visible = False
+        
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
 

@@ -27,10 +27,15 @@ class InvoiceForm(ft.UserControl):
         self.edit_row_index = None
         self.article_count = 0
         self.pdf_generated = False
+        self.is_preview = is_preview
+
+        # Erstellen Sie die Buttons hier
+        self.create_action_buttons()
+
+        # Setzen Sie die Sichtbarkeit der Buttons
         self.save_invoice_with_pdf_button.visible = False
         self.save_invoice_without_pdf_button.visible = False
         self.new_aufmass_button.visible = False
-        self.is_preview = is_preview
 
         logging.info("Initializing InvoiceForm")
         self.create_ui_elements()
@@ -781,7 +786,10 @@ class InvoiceForm(ft.UserControl):
         }
         self.article_summaries.append(summary_data)
 
-        
+        # Machen Sie die Buttons sichtbar, nachdem der erste Artikel hinzugefügt wurde
+        self.save_invoice_with_pdf_button.visible = True
+        self.save_invoice_without_pdf_button.visible = True
+        self.new_aufmass_button.visible = True
 
         self.update_total_price()
         self.clear_input_fields()
@@ -930,6 +938,11 @@ class InvoiceForm(ft.UserControl):
         # Setzen Sie die Kopfdaten wieder ein
         for field, value in kopfdaten.items():
             self.invoice_detail_fields[field].value = value
+
+        # Setzen Sie die Buttons auf unsichtbar
+        self.save_invoice_with_pdf_button.visible = False
+        self.save_invoice_without_pdf_button.visible = False
+        self.new_aufmass_button.visible = False
 
         # Aktualisieren Sie die Gesamtpreise
         self.update_total_price()
@@ -1440,13 +1453,13 @@ class InvoiceForm(ft.UserControl):
     def enable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
             field.disabled = False
-        # Aktivieren Sie auch andere relevante Felder und Buttons
         self.bemerkung_field.disabled = False
         self.zuschlaege_button.disabled = False
         self.new_aufmass_button.disabled = False
         self.save_invoice_with_pdf_button.disabled = False
         self.save_invoice_without_pdf_button.disabled = False
-        # ... (andere Felder und Buttons, die aktiviert werden sollen)
+        # Aktiviere andere relevante Felder und Buttons
+        self.update()
 
     def enable_header_fields(self):
         for field in self.invoice_detail_fields.values():
