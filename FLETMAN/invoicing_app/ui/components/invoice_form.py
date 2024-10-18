@@ -17,7 +17,7 @@ class InvoiceForm(ft.UserControl):
         super().__init__()
         self.page = page
         self.conn = get_db_connection()
-        self.next_aufmass_nr = self.get_next_aufmass_nr()
+        self.next_aufmass_nr = self.get_current_aufmass_nr()
         self.cache = {}
         self.article_summaries = []
         self.selected_sonderleistungen = []
@@ -26,10 +26,12 @@ class InvoiceForm(ft.UserControl):
         self.edit_mode = False
         self.edit_row_index = None
         self.article_count = 0
+        self.pdf_generated = False  # Neues Attribut zur Verfolgung der PDF-Erstellung
 
         logging.info("Initializing InvoiceForm")
         self.create_ui_elements()
         self.load_invoice_options()
+        self.load_last_invoice_data()  # Neue Methode zum Laden der letzten Rechnungsdaten
         logging.info("Loading data")
         self.load_data()
         load_items(self, self.current_category)
@@ -130,6 +132,50 @@ class InvoiceForm(ft.UserControl):
             on_click=lambda _: self.ausfuehrungsende_picker.pick_date()
         )
 
+    def load_last_invoice_data(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
+                       auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende
+                FROM invoice
+                ORDER BY id DESC
+                LIMIT 1
+            ''')
+            last_invoice = cursor.fetchone()
+
+            if last_invoice:
+                self.invoice_detail_fields['client_name'].value = last_invoice[0]
+                self.invoice_detail_fields['bestell_nr'].value = last_invoice[1]
+                self.invoice_detail_fields['bestelldatum'].value = last_invoice[2]
+                self.invoice_detail_fields['baustelle'].value = last_invoice[3]
+                self.invoice_detail_fields['anlagenteil'].value = last_invoice[4]
+                self.invoice_detail_fields['auftrags_nr'].value = last_invoice[5]
+                self.invoice_detail_fields['ausfuehrungsbeginn'].value = last_invoice[6]
+                self.invoice_detail_fields['ausfuehrungsende'].value = last_invoice[7]
+
+                # Aktualisieren Sie die Datumspicker-Buttons
+                self.update_date_picker_buttons()
+
+            else:
+                # Wenn keine vorherige Rechnung existiert, setzen Sie das heutige Datum
+                today = datetime.now().strftime("%d.%m.%Y")
+                self.invoice_detail_fields['bestelldatum'].value = today
+                self.invoice_detail_fields['ausfuehrungsbeginn'].value = today
+                self.invoice_detail_fields['ausfuehrungsende'].value = today
+                self.update_date_picker_buttons()
+
+        except sqlite3.Error as e:
+            logging.error(f"Datenbankfehler beim Laden der letzten Rechnungsdaten: {str(e)}")
+        finally:
+            cursor.close()
+
+    def update_date_picker_buttons(self):
+        self.bestelldatum_button.text = f"Bestelldatum: {self.invoice_detail_fields['bestelldatum'].value}"
+        self.ausfuehrungsbeginn_button.text = f"Ausführungsbeginn: {self.invoice_detail_fields['ausfuehrungsbeginn'].value}"
+        self.ausfuehrungsende_button.text = f"Ausführungsende: {self.invoice_detail_fields['ausfuehrungsende'].value}"
+        self.update()
+
     def create_article_input_fields(self):
         # Article input fields
         self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
@@ -158,22 +204,20 @@ class InvoiceForm(ft.UserControl):
         self.category_row = ft.Row(controls=self.category_buttons, spacing=1)
 
     def create_action_buttons(self):
-        # Fügen Sie den neuen Button hinzu
         self.new_aufmass_button = ft.ElevatedButton(
             "Neues Aufmaß",
             on_click=self.reset_form,
             style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)
         )
         
-        # Bestehende Buttons
-        self.create_pdf_with_prices_button = ft.ElevatedButton(
+        self.save_invoice_with_pdf_button = ft.ElevatedButton(
             "PDF mit Preisen erstellen",
-            on_click=self.create_pdf_with_prices,
+            on_click=self.save_invoice_with_pdf,
             disabled=True
         )
-        self.create_pdf_without_prices_button = ft.ElevatedButton(
+        self.save_invoice_without_pdf_button = ft.ElevatedButton(
             "PDF ohne Preise erstellen",
-            on_click=self.create_pdf_without_prices,
+            on_click=self.save_invoice_without_pdf,
             disabled=True
         )
         self.back_to_main_menu_button = ft.ElevatedButton(
@@ -314,7 +358,6 @@ class InvoiceForm(ft.UserControl):
         )
 
     def build_summary_and_actions(self):
-        # Aktualisieren Sie diese Methode, um den neuen Button einzufügen
         return ft.Container(
             content=ft.Column([
                 ft.Row([
@@ -331,10 +374,10 @@ class InvoiceForm(ft.UserControl):
                 ]),
                 ft.Container(height=20),
                 ft.Row([
-                    self.new_aufmass_button,  # Neuer Button
                     self.zuschlaege_button,
-                    self.create_pdf_with_prices_button,
-                    self.create_pdf_without_prices_button,
+                    self.save_invoice_with_pdf_button,
+                    self.save_invoice_without_pdf_button,
+                    self.new_aufmass_button,  # Verschoben nach rechts
                     self.back_to_main_menu_button,
                 ], alignment=ft.MainAxisAlignment.CENTER),
             ]),
@@ -359,6 +402,15 @@ class InvoiceForm(ft.UserControl):
             cursor.execute("SELECT MAX(id) FROM invoice")
             max_id = cursor.fetchone()[0]
             return str(max_id + 1) if max_id else "1"
+        finally:
+            cursor.close()
+
+    def get_current_aufmass_nr(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
+            max_id = cursor.fetchone()[0]
+            return str(max_id) if max_id else "0"
         finally:
             cursor.close()
 
@@ -868,10 +920,10 @@ class InvoiceForm(ft.UserControl):
         self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
         self.update()
 
-    def create_pdf_with_prices(self, e):
+    def save_invoice_with_pdf(self, e):
         self.create_pdf(include_prices=True)
 
-    def create_pdf_without_prices(self, e):
+    def save_invoice_without_pdf(self, e):
         self.create_pdf(include_prices=False)
 
     def create_pdf(self, include_prices=True):
@@ -886,10 +938,15 @@ class InvoiceForm(ft.UserControl):
             invoice_data['bemerkungen'] = self.bemerkung_field.value
             logging.info(f"Rechnungsdaten erhalten: {invoice_data}")
 
-            # Hier rufen wir die Methode mit self auf
             invoice_id = self.save_invoice_to_db(invoice_data)
             if invoice_id is None:
                 raise Exception("Fehler beim Speichern der Rechnung in der Datenbank")
+
+            # Überprüfen, ob bereits eine PDF für diese Rechnung existiert
+            existing_pdf = self.check_existing_pdf(invoice_id)
+            if existing_pdf:
+                self.show_snack_bar(f"Bestehende PDF aktualisiert: {existing_pdf}")
+                return
 
             filename = f"Rechnung_{invoice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf" if include_prices else f"Auftragsbestätigung_{invoice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
@@ -905,12 +962,21 @@ class InvoiceForm(ft.UserControl):
             if os.path.exists(filepath):
                 logging.info(f"PDF erfolgreich erstellt: {filepath}")
                 self.show_snack_bar(f"PDF wurde erstellt: {filepath}")
+                self.pdf_generated = True
+                self.update_pdf_buttons()
             else:
                 raise FileNotFoundError(f"PDF-Datei wurde nicht erstellt: {filepath}")
 
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs: {str(ex)}")
+
+    def check_existing_pdf(self, invoice_id):
+        downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        for filename in os.listdir(downloads_dir):
+            if filename.startswith(f"Rechnung_{invoice_id}_") or filename.startswith(f"Auftragsbestätigung_{invoice_id}_"):
+                return os.path.join(downloads_dir, filename)
+        return None
 
     def show_zuschlaege_dialog(self, e):
         dialog = ft.AlertDialog(
@@ -1020,8 +1086,11 @@ class InvoiceForm(ft.UserControl):
     def update_pdf_buttons(self):
         has_articles = len(self.article_list_header.rows) > 0
         logging.info(f"Updating PDF buttons. Has articles: {has_articles}")
-        self.create_pdf_with_prices_button.disabled = not has_articles
-        self.create_pdf_without_prices_button.disabled = not has_articles
+        if self.pdf_generated:
+            self.save_invoice_with_pdf_button.text = "Rechnung aktualisiert speichern (mit PDF)"
+            self.save_invoice_without_pdf_button.text = "Rechnung aktualisiert speichern (ohne PDF)"
+        self.save_invoice_with_pdf_button.disabled = not has_articles
+        self.save_invoice_without_pdf_button.disabled = not has_articles
         self.update()
 
     def validate_invoice_details(self):
@@ -1107,30 +1176,66 @@ class InvoiceForm(ft.UserControl):
 
         cursor = self.conn.cursor()
         try:
-            cursor.execute('''
-            INSERT INTO invoice (
-                client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
-                aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende,
-                total_amount, zuschlaege, bemerkungen
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                invoice_data['client_name'],
-                invoice_data['bestell_nr'],
-                invoice_data['bestelldatum'],
-                invoice_data['baustelle'],
-                invoice_data['anlagenteil'],
-                self.next_aufmass_nr,
-                invoice_data['auftrags_nr'],
-                invoice_data['ausfuehrungsbeginn'],
-                invoice_data['ausfuehrungsende'],
-                total_price,
-                ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
-                invoice_data.get('bemerkungen', '')
-            ))
-            invoice_id = cursor.lastrowid
-            self.next_aufmass_nr = str(int(self.next_aufmass_nr) + 1)
-            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+            # Prüfen, ob bereits eine Rechnung mit dieser Aufmaß-Nummer existiert
+            cursor.execute('SELECT id, aufmass_nr FROM invoice WHERE aufmass_nr = ?', (self.invoice_detail_fields['aufmass_nr'].value,))
+            existing_invoice = cursor.fetchone()
 
+            if existing_invoice:
+                # Wenn eine Rechnung mit dieser Nummer existiert, aktualisieren wir sie
+                invoice_id, existing_aufmass_nr = existing_invoice
+                cursor.execute('''
+                UPDATE invoice SET
+                    client_name = ?, bestell_nr = ?, bestelldatum = ?, baustelle = ?, anlagenteil = ?,
+                    auftrags_nr = ?, ausfuehrungsbeginn = ?, ausfuehrungsende = ?,
+                    total_amount = ?, zuschlaege = ?, bemerkungen = ?
+                WHERE id = ?
+                ''', (
+                    invoice_data['client_name'],
+                    invoice_data['bestell_nr'],
+                    invoice_data['bestelldatum'],
+                    invoice_data['baustelle'],
+                    invoice_data['anlagenteil'],
+                    invoice_data['auftrags_nr'],
+                    invoice_data['ausfuehrungsbeginn'],
+                    invoice_data['ausfuehrungsende'],
+                    total_price,
+                    ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
+                    invoice_data.get('bemerkungen', ''),
+                    invoice_id
+                ))
+
+                # Löschen der alten Artikel für diese Rechnung
+                cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
+            else:
+                # Wenn keine Rechnung mit dieser Nummer existiert, erstellen wir eine neue
+                cursor.execute('SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice')
+                max_aufmass_nr = cursor.fetchone()[0]
+                new_aufmass_nr = str(int(max_aufmass_nr or 0) + 1)
+                
+                cursor.execute('''
+                INSERT INTO invoice (
+                    client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
+                    aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende,
+                    total_amount, zuschlaege, bemerkungen
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    invoice_data['client_name'],
+                    invoice_data['bestell_nr'],
+                    invoice_data['bestelldatum'],
+                    invoice_data['baustelle'],
+                    invoice_data['anlagenteil'],
+                    new_aufmass_nr,
+                    invoice_data['auftrags_nr'],
+                    invoice_data['ausfuehrungsbeginn'],
+                    invoice_data['ausfuehrungsende'],
+                    total_price,
+                    ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
+                    invoice_data.get('bemerkungen', '')
+                ))
+                invoice_id = cursor.lastrowid
+                self.invoice_detail_fields['aufmass_nr'].value = new_aufmass_nr
+
+            # Fügen Sie die Artikel für diese Rechnung hinzu
             for article in invoice_data['articles']:
                 cursor.execute('''
                     INSERT INTO invoice_items (invoice_id, position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen)

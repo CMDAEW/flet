@@ -215,39 +215,48 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     elements.append(Spacer(1, 5*mm))
     
     # Erstellen Sie eine Tabelle mit zwei Spalten: Bemerkung links, Zuschläge rechts
-    bemerkung_text = invoice_data.get('bemerkung', '')
-    bemerkung_para = Paragraph(f"<b>Bemerkung:</b><br/>{bemerkung_text}", styles['Normal'])
+    bemerkung_text = invoice_data.get('bemerkung', '').strip()
+    bemerkung_para = Paragraph(f"<b>Bemerkung:</b><br/>{bemerkung_text}", styles['Normal']) if bemerkung_text else None
 
     zuschlaege_data = []
     zuschlaege_summe = 0
     nettobetrag = invoice_data.get('net_total', 0)
     if invoice_data.get('zuschlaege'):
+        zuschlaege_header = ["Zuschläge:"]
+        if include_prices:
+            zuschlaege_header.append("Betrag:")
+        zuschlaege_data.append(zuschlaege_header)
         for zuschlag, faktor in invoice_data['zuschlaege']:
             if include_prices:
                 zuschlag_betrag = nettobetrag * (float(faktor) - 1)
                 zuschlaege_summe += zuschlag_betrag
                 zuschlaege_data.append([zuschlag, f"{zuschlag_betrag:.2f} €"])
             else:
-                zuschlaege_data.append([zuschlag, ""])
+                zuschlaege_data.append([zuschlag])
 
-    zuschlaege_table = Table([["Zuschläge:", "Betrag:"]] + zuschlaege_data, colWidths=[80*mm, 40*mm])
-    zuschlaege_table.setStyle(TableStyle([
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 1*mm),
-        ('TOPPADDING', (0,1), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 0),
-    ]))
+    if zuschlaege_data:
+        zuschlaege_table = Table(zuschlaege_data, colWidths=[80*mm, 40*mm] if include_prices else [120*mm])
+        zuschlaege_table.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 1*mm),
+            ('TOPPADDING', (0,1), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,1), (-1,-1), 0),
+        ]))
+    else:
+        zuschlaege_table = None
 
-    combined_table = Table([[bemerkung_para, zuschlaege_table]], colWidths=[doc.width/2 - 10*mm, doc.width/2 - 10*mm])
-    combined_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('ALIGN', (1,0), (1,0), 'RIGHT'),
-        ('TOPPADDING', (0,0), (-1,-1), 1*mm),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1*mm),
-    ]))
-    elements.append(combined_table)
+    if bemerkung_para or zuschlaege_table:
+        combined_table = Table([[bemerkung_para or '', zuschlaege_table or '']], 
+                               colWidths=[doc.width/2 - 10*mm, doc.width/2 - 10*mm])
+        combined_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (1,0), (1,0), 'RIGHT'),
+            ('TOPPADDING', (0,0), (-1,-1), 1*mm),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1*mm),
+        ]))
+        elements.append(combined_table)
 
     if include_prices:
         # Gesamtsumme
