@@ -238,6 +238,8 @@ def get_positionsnummer(self, bauteil, dammdicke, dn=None, da=None, category="Au
     finally:
         cursor.close()
 
+
+
 def update_price(self, e=None):
     category = self.current_category
     bauteil = self.bauteil_dropdown.value
@@ -329,3 +331,4 @@ def apply_zuschlaege(self, total_amount):
     for _, faktor in self.selected_zuschlaege:
         total_amount *= faktor
     return total_amount
+

@@ -75,7 +75,7 @@ def main(page: ft.Page):
             if e.control.text == "hinzufügen":
                 show_invoice_form()
             elif e.control.text == "bearbeiten":
-                show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview)
+                show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices)
             elif e.control.text == "Berichte Anzeigen/Drucken":
                 # Implement logic for reports
                 pass
@@ -83,8 +83,21 @@ def main(page: ft.Page):
         def on_invoice_preview(aufmass_nr):
             invoice_form = InvoiceForm(page, aufmass_nr, is_preview=True)
             content_column.controls.clear()
-            content_column.controls.append(ft.Container(content=invoice_form, expand=True, opacity=0.7))
+            content_column.controls.append(ft.Container(content=invoice_form, expand=True))
             page.update()
+
+        def close_preview():
+            content_column.controls.clear()
+            show_aufmass_screen()
+            page.update()
+
+        def on_pdf_with_prices(aufmass_nr):
+            invoice_form = InvoiceForm(page, aufmass_nr)
+            invoice_form.create_pdf(include_prices=True, force_new=True)
+
+        def on_pdf_without_prices(aufmass_nr):
+            invoice_form = InvoiceForm(page, aufmass_nr)
+            invoice_form.create_pdf(include_prices=False, force_new=True)
 
         aufmass_screen = ft.Container(
             content=ft.Column([
@@ -114,7 +127,8 @@ def main(page: ft.Page):
 
     def show_invoice_form(aufmass_nr=None):
         content_column.controls.clear()
-        invoice_form = InvoiceForm(page, aufmass_nr)
+        invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False)
+        page.invoice_form = invoice_form  # Hier weisen wir die InvoiceForm-Instanz der page zu
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
 

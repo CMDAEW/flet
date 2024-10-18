@@ -3,29 +3,29 @@ from flet import DataTable, DataColumn, DataRow, DataCell, IconButton, icons
 from database.db_operations import get_db_connection
 import logging
 
-def show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview):
+def show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices):
     invoices = get_existing_invoices()
     
     dialog = ft.AlertDialog(
-        title=ft.Text("Existierende Aufmaße"),
+        title=ft.Text("Existierende Aufmaße", size=20, weight=ft.FontWeight.BOLD),
         content=ft.Container(
-            content=build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview, page),
-            width=600,
+            content=build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, page),
+            width=650,
             height=400,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
             padding=10,
         ),
         actions=[
-            ft.TextButton("Zurück zum Hauptmenü", on_click=lambda _: back_to_main_menu(page)),
-            ft.TextButton("Schließen", on_click=lambda _: close_edit_invoice_dialog(page))
+            ft.TextButton("Schließen", on_click=lambda _: close_edit_invoice_dialog(page)),
         ],
+        actions_alignment=ft.MainAxisAlignment.END,
     )
     page.dialog = dialog
     dialog.open = True
     page.update()
 
-def build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview, page):
+def build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, page):
     rows = []
     for invoice in sorted(invoices, key=lambda x: int(x['aufmass_nr'])):
         rows.append(
@@ -37,16 +37,22 @@ def build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview
                     DataCell(
                         ft.Row([
                             IconButton(
-                                icon=icons.VISIBILITY,
-                                icon_color="green400",
-                                tooltip="Vorschau",
-                                on_click=lambda _, inv=invoice: preview_invoice(inv['aufmass_nr'], on_invoice_preview)
-                            ),
-                            IconButton(
                                 icon=icons.EDIT,
                                 icon_color="blue400",
                                 tooltip="Bearbeiten",
                                 on_click=lambda _, inv=invoice: load_invoice_for_editing(inv['aufmass_nr'], on_invoice_selected, page)
+                            ),
+                            IconButton(
+                                icon=icons.EURO_SYMBOL,
+                                icon_color="green400",
+                                tooltip="PDF mit Preisen",
+                                on_click=lambda _, inv=invoice: on_pdf_with_prices(inv['aufmass_nr'])
+                            ),
+                            IconButton(
+                                icon=icons.DESCRIPTION,
+                                icon_color="orange400",
+                                tooltip="PDF ohne Preise",
+                                on_click=lambda _, inv=invoice: on_pdf_without_prices(inv['aufmass_nr'])
                             )
                         ])
                     )
@@ -97,8 +103,17 @@ def load_invoice_for_editing(aufmass_nr, on_invoice_selected, page):
 
 def close_edit_invoice_dialog(page):
     page.dialog.open = False
+    page.go('/')  # Zurück zum Hauptmenü
     page.update()
 
 def back_to_main_menu(page):
     close_edit_invoice_dialog(page)
     page.go('/')
+
+def delete_invoice_dialog(page):
+    # Implement delete functionality
+    pass
+
+def print_invoice_dialog(page):
+    # Implement print functionality
+    pass

@@ -27,6 +27,9 @@ class InvoiceForm(ft.UserControl):
         self.edit_row_index = None
         self.article_count = 0
         self.pdf_generated = False
+        self.save_invoice_with_pdf_button.visible = False
+        self.save_invoice_without_pdf_button.visible = False
+        self.new_aufmass_button.visible = False
         self.is_preview = is_preview
 
         logging.info("Initializing InvoiceForm")
@@ -46,11 +49,15 @@ class InvoiceForm(ft.UserControl):
             self.disable_all_inputs()
 
     def disable_all_inputs(self):
-        # Implementieren Sie hier die Logik, um alle Eingabefelder zu deaktivieren
         for field in self.invoice_detail_fields.values():
             field.disabled = True
         # Deaktivieren Sie auch andere relevante Felder und Buttons
-        # ...
+        self.bemerkung_field.disabled = True
+        self.zuschlaege_button.disabled = True
+        self.new_aufmass_button.disabled = True
+        self.save_invoice_with_pdf_button.disabled = True
+        self.save_invoice_without_pdf_button.disabled = True
+        # ... (andere Felder und Buttons, die deaktiviert werden sollen)
 
     def build(self):
         # Build the UI layout
@@ -218,27 +225,50 @@ class InvoiceForm(ft.UserControl):
         self.category_row = ft.Row(controls=self.category_buttons, spacing=1)
 
     def create_action_buttons(self):
+        button_style = ft.ButtonStyle(
+            color=ft.colors.WHITE,
+            bgcolor=ft.colors.BLUE_700,
+            padding=10,
+        )
+
         self.new_aufmass_button = ft.ElevatedButton(
             "Neues Aufmaß",
             on_click=self.reset_form,
-            style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)
+            style=button_style,
+            width=150,
+            height=50,
         )
         
         self.save_invoice_with_pdf_button = ft.ElevatedButton(
             "PDF mit Preisen erstellen",
             on_click=self.save_invoice_with_pdf,
+            style=button_style,
+            width=200,
+            height=50,
             disabled=True
         )
         self.save_invoice_without_pdf_button = ft.ElevatedButton(
             "PDF ohne Preise erstellen",
             on_click=self.save_invoice_without_pdf,
+            style=button_style,
+            width=200,
+            height=50,
             disabled=True
         )
         self.back_to_main_menu_button = ft.ElevatedButton(
             "Zurück zum Hauptmenü",
-            on_click=self.back_to_main_menu
+            on_click=self.back_to_main_menu,
+            style=button_style,
+            width=200,
+            height=50,
         )
-        self.zuschlaege_button = ft.ElevatedButton("Zuschläge", on_click=self.show_zuschlaege_dialog, width=180)
+        self.zuschlaege_button = ft.ElevatedButton(
+            "Zuschläge",
+            on_click=self.show_zuschlaege_dialog,
+            style=button_style,
+            width=150,
+            height=50,
+        )
 
     def create_article_list_table(self):
         # Article list table
@@ -388,13 +418,17 @@ class InvoiceForm(ft.UserControl):
                 ]),
                 ft.Container(height=20),
                 ft.Row([
-                    self.zuschlaege_button,
-                    self.save_invoice_with_pdf_button,
-                    self.save_invoice_without_pdf_button,
-                    self.new_aufmass_button,
-                    ft.Container(expand=True),  # This will push the next button to the right
+                    ft.Container(
+                        content=ft.Row([
+                            self.zuschlaege_button,
+                            self.save_invoice_with_pdf_button,
+                            self.save_invoice_without_pdf_button,
+                            self.new_aufmass_button,
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        expand=True
+                    ),
                     self.back_to_main_menu_button,
-                ], alignment=ft.MainAxisAlignment.START),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
@@ -747,6 +781,8 @@ class InvoiceForm(ft.UserControl):
         }
         self.article_summaries.append(summary_data)
 
+        
+
         self.update_total_price()
         self.clear_input_fields()
         self.update_pdf_buttons()
@@ -949,7 +985,7 @@ class InvoiceForm(ft.UserControl):
     def save_invoice_without_pdf(self, e):
         self.create_pdf(include_prices=False)
 
-    def create_pdf(self, include_prices=True):
+    def create_pdf(self, include_prices=True, force_new=False):
         logging.info("Starte PDF-Erstellung")
         is_valid, error_message = self.validate_invoice_details()
         if not is_valid:
@@ -964,12 +1000,6 @@ class InvoiceForm(ft.UserControl):
             invoice_id = self.save_invoice_to_db(invoice_data)
             if invoice_id is None:
                 raise Exception("Fehler beim Speichern der Rechnung in der Datenbank")
-
-            # Überprüfen, ob bereits eine PDF für diese Rechnung existiert
-            existing_pdf = self.check_existing_pdf(invoice_id)
-            if existing_pdf:
-                self.show_snack_bar(f"Bestehende PDF aktualisiert: {existing_pdf}")
-                return
 
             filename = f"Rechnung_{invoice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf" if include_prices else f"Auftragsbestätigung_{invoice_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             filepath = os.path.join(os.path.expanduser("~"), "Downloads", filename)
@@ -993,6 +1023,7 @@ class InvoiceForm(ft.UserControl):
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs: {str(ex)}")
+
 
     def check_existing_pdf(self, invoice_id):
         downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -1098,6 +1129,12 @@ class InvoiceForm(ft.UserControl):
                     self.edit_row_index = None
                     self.update_position_button.visible = False
                     self.clear_input_fields()
+
+            # Überprüfen Sie, ob noch Artikel übrig sind
+            if len(self.article_list_header.rows) == 0:
+                self.save_invoice_with_pdf_button.visible = False
+                self.save_invoice_without_pdf_button.visible = False
+                self.new_aufmass_button.visible = False
 
             self.update_total_price()
             self.update_pdf_buttons()
@@ -1374,10 +1411,24 @@ class InvoiceForm(ft.UserControl):
                     }
                     self.article_summaries.append(summary_data)
                 
+                if self.article_list_header.rows:
+                    self.save_invoice_with_pdf_button.visible = True
+                    self.save_invoice_without_pdf_button.visible = True
+                    self.new_aufmass_button.visible = True
+                else:
+                    self.save_invoice_with_pdf_button.visible = False
+                    self.save_invoice_without_pdf_button.visible = False
+                    self.new_aufmass_button.visible = False
+                
                 self.update_total_price()
                 self.update_pdf_buttons()
                 self.update_date_picker_buttons()
                 self.pdf_generated = True  # Setze dies auf True, da die Rechnung bereits existiert
+                self.update()
+
+                # Nachdem alle Daten geladen wurden, aktivieren Sie die Eingabefelder
+                self.enable_all_inputs()
+
                 self.update()
             else:
                 logging.warning(f"Keine Rechnung mit Aufmaß-Nr. {aufmass_nr} gefunden")
@@ -1385,3 +1436,20 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Fehler beim Laden der Rechnungsdaten: {str(e)}")
         finally:
             cursor.close()
+
+    def enable_all_inputs(self):
+        for field in self.invoice_detail_fields.values():
+            field.disabled = False
+        # Aktivieren Sie auch andere relevante Felder und Buttons
+        self.bemerkung_field.disabled = False
+        self.zuschlaege_button.disabled = False
+        self.new_aufmass_button.disabled = False
+        self.save_invoice_with_pdf_button.disabled = False
+        self.save_invoice_without_pdf_button.disabled = False
+        # ... (andere Felder und Buttons, die aktiviert werden sollen)
+
+    def enable_header_fields(self):
+        for field in self.invoice_detail_fields.values():
+            field.disabled = False
+        self.bemerkung_field.disabled = False
+        self.update()
