@@ -27,7 +27,6 @@ class InvoiceForm(ft.UserControl):
         self.edit_row_index = None
         self.article_count = 0
         self.pdf_generated = False
-        self.add_logo_and_topbar()
         self.is_preview = is_preview
 
         # Erstellen Sie die Buttons hier
@@ -1251,17 +1250,24 @@ class InvoiceForm(ft.UserControl):
         return invoice_data
 
     def add_logo_and_topbar(self):
-        logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
         if os.path.exists(logo_path):
-            logo = ft.Image(src=logo_path, width=40, height=40)
+            logo = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
         else:
-            logo = ft.Text("LOGO")  # Fallback, wenn das Logo nicht gefunden wird
+            logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
             logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
+
+        if self.is_preview:
+            title_text = f"Aufmaß Nr. {self.invoice_detail_fields['aufmass_nr'].value}"
+        elif self.edit_mode:
+            title_text = f"Aufmaß Nr. {self.invoice_detail_fields['aufmass_nr'].value} bearbeiten"
+        else:
+            title_text = "Neues Aufmaß erstellen"
 
         self.page.appbar = ft.AppBar(
             leading=logo,
-            leading_width=40,
-            title=ft.Text("Rechnungsformular"),
+            leading_width=100,
+            title=ft.Text(title_text),
             center_title=False,
             bgcolor=ft.colors.SURFACE_VARIANT,
             actions=[
