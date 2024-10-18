@@ -3,10 +3,11 @@ from flet import DataTable, DataColumn, DataRow, DataCell, IconButton, icons
 from database.db_operations import get_db_connection
 import logging
 
-def show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices):
+def show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, back_to_main_menu_func):
     invoices = get_existing_invoices()
     
     dialog = ft.AlertDialog(
+        modal=True,  # Dies verhindert Klicks außerhalb des Dialogs
         title=ft.Text("Existierende Aufmaße", size=20, weight=ft.FontWeight.BOLD),
         content=ft.Container(
             content=build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, page),
@@ -17,7 +18,7 @@ def show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_p
             padding=10,
         ),
         actions=[
-            ft.TextButton("Schließen", on_click=lambda _: close_edit_invoice_dialog(page)),
+            ft.TextButton("Schließen", on_click=lambda _: close_edit_invoice_dialog(page, back_to_main_menu_func)),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
@@ -98,14 +99,19 @@ def preview_invoice(aufmass_nr, on_invoice_preview):
     on_invoice_preview(aufmass_nr)
 
 def load_invoice_for_editing(aufmass_nr, on_invoice_selected, page):
-    close_edit_invoice_dialog(page)
+    close_edit_invoice_dialog(page, lambda: None)  # Übergeben Sie eine leere Funktion, um nicht zum Hauptmenü zurückzukehren
     on_invoice_selected(aufmass_nr)
-
-def close_edit_invoice_dialog(page):
-    page.dialog.open = False
+    # Warten Sie, bis das Formular zur Seite hinzugefügt wurde, bevor Sie enable_all_inputs aufrufen
+    page.update()
     if hasattr(page, 'invoice_form'):
         page.invoice_form.enable_all_inputs()
-    page.update()
+        page.update()
+
+def close_edit_invoice_dialog(page, back_to_main_menu_func):
+    if hasattr(page, 'dialog'):
+        page.dialog.open = False
+        page.update()
+    back_to_main_menu_func()  # Ruft die Funktion auf, um zum Hauptmenü zurückzukehren
 
 def back_to_main_menu(page):
     close_edit_invoice_dialog(page)

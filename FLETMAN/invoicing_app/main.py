@@ -68,14 +68,18 @@ def main(page: ft.Page):
         page.update()
 
     def back_to_main_menu(e=None):
-        show_start_screen()
+        if hasattr(page, 'dialog'):
+            page.dialog.open = False
+        content_column.controls.clear()
+        content_column.controls.append(create_start_screen())
+        page.update()
 
     def show_aufmass_screen():
         def aufmass_button_clicked(e):
             if e.control.text == "hinzufügen":
                 show_invoice_form()
             elif e.control.text == "bearbeiten":
-                show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices)
+                show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, back_to_main_menu)
             elif e.control.text == "Berichte Anzeigen/Drucken":
                 # Implement logic for reports
                 pass
@@ -128,15 +132,17 @@ def main(page: ft.Page):
     def show_invoice_form(aufmass_nr=None):
         content_column.controls.clear()
         invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False)
-        page.invoice_form = invoice_form  # Hier weisen wir die InvoiceForm-Instanz der page zu
+        page.invoice_form = invoice_form
         
-        # Wenn kein aufmass_nr übergeben wurde, handelt es sich um ein neues Aufmaß
         if aufmass_nr is None:
             invoice_form.save_invoice_with_pdf_button.visible = False
             invoice_form.save_invoice_without_pdf_button.visible = False
             invoice_form.new_aufmass_button.visible = False
         
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
+        page.update()
+        # Aktivieren Sie die Eingabefelder erst hier, nachdem das Formular zur Seite hinzugefügt wurde
+        invoice_form.enable_all_inputs()
         page.update()
 
     def on_invoice_selected(aufmass_nr):

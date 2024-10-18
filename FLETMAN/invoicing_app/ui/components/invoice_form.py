@@ -363,7 +363,6 @@ class InvoiceForm(ft.UserControl):
         )
 
     def build_article_input(self):
-        # Entfernen Sie die Container-Wraps und passen Sie die Breiten an
         self.article_input_row = ft.Row([
             self.position_field,
             self.bauteil_dropdown,
@@ -376,13 +375,13 @@ class InvoiceForm(ft.UserControl):
             self.quantity_input,
             self.zwischensumme_field,
             ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
+            self.sonderleistungen_button,
         ], alignment=ft.MainAxisAlignment.START, spacing=5, wrap=True)
 
         return ft.Container(
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
                 self.article_input_row,
-                self.sonderleistungen_row,
                 self.update_position_button,
             ]),
             padding=20,
@@ -1160,8 +1159,8 @@ class InvoiceForm(ft.UserControl):
         has_articles = len(self.article_list_header.rows) > 0
         logging.info(f"Updating PDF buttons. Has articles: {has_articles}")
         if self.pdf_generated:
-            self.save_invoice_with_pdf_button.text = "Rechnung aktualisiert speichern (mit PDF)"
-            self.save_invoice_without_pdf_button.text = "Rechnung aktualisiert speichern (ohne PDF)"
+            self.save_invoice_with_pdf_button.text = "Rechnung aktualisiert speichern (mit Preis)"
+            self.save_invoice_without_pdf_button.text = "Rechnung aktualisiert speichern (ohne Preis)"
         self.save_invoice_with_pdf_button.disabled = not has_articles
         self.save_invoice_without_pdf_button.disabled = not has_articles
         self.update()
