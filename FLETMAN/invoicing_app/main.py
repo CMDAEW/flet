@@ -141,12 +141,14 @@ def main(page: ft.Page):
         
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
-        # Aktivieren Sie die Eingabefelder erst hier, nachdem das Formular zur Seite hinzugefügt wurde
         invoice_form.enable_all_inputs()
+        invoice_form.update_topbar()  # Aktualisiere die TopBar
         page.update()
 
     def on_invoice_selected(aufmass_nr):
         show_invoice_form(aufmass_nr)
+        page.invoice_form.update_topbar()  # Aktualisiere die TopBar
+        page.update()
 
     page.add(main_container)
     page.go = show_start_screen

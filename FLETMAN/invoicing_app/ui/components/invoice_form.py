@@ -1257,17 +1257,10 @@ class InvoiceForm(ft.UserControl):
             logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
             logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
 
-        if self.is_preview:
-            title_text = f"Aufmaß Nr. {self.invoice_detail_fields['aufmass_nr'].value}"
-        elif self.edit_mode:
-            title_text = f"Aufmaß Nr. {self.invoice_detail_fields['aufmass_nr'].value} bearbeiten"
-        else:
-            title_text = "Neues Aufmaß erstellen"
-
         self.page.appbar = ft.AppBar(
             leading=logo,
             leading_width=100,
-            title=ft.Text(title_text),
+            title=ft.Text(""),  # Leerer Text anstelle des Titels
             center_title=False,
             bgcolor=ft.colors.SURFACE_VARIANT,
             actions=[
