@@ -27,6 +27,7 @@ class InvoiceForm(ft.UserControl):
         self.edit_row_index = None
         self.article_count = 0
         self.pdf_generated = False
+        self.add_logo_and_topbar()
         self.is_preview = is_preview
 
         # Erstellen Sie die Buttons hier
@@ -52,6 +53,9 @@ class InvoiceForm(ft.UserControl):
 
         if self.is_preview:
             self.disable_all_inputs()
+
+        # Fügen Sie das Logo und die TopBar hinzu
+        self.add_logo_and_topbar()
 
     def disable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
@@ -1245,6 +1249,35 @@ class InvoiceForm(ft.UserControl):
 
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         return invoice_data
+
+    def add_logo_and_topbar(self):
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logo.png")
+        if os.path.exists(logo_path):
+            logo = ft.Image(src=logo_path, width=40, height=40)
+        else:
+            logo = ft.Text("LOGO")  # Fallback, wenn das Logo nicht gefunden wird
+            logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
+
+        self.page.appbar = ft.AppBar(
+            leading=logo,
+            leading_width=40,
+            title=ft.Text("Rechnungsformular"),
+            center_title=False,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            actions=[
+                ft.IconButton(ft.icons.SETTINGS, on_click=self.open_settings),
+                ft.IconButton(ft.icons.HELP_OUTLINE, on_click=self.show_help),
+            ],
+        )
+        self.page.update()
+
+    def open_settings(self, e):
+        # Implementieren Sie hier die Logik für die Einstellungen
+        print("Einstellungen öffnen")
+
+    def show_help(self, e):
+        # Implementieren Sie hier die Logik für die Hilfe
+        print("Hilfe anzeigen")
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
