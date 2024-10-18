@@ -1129,9 +1129,22 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def delete_article_row(self, row_index):
+        logging.info(f"Versuche Artikelzeile {row_index} zu löschen")
         if 0 <= row_index < len(self.article_list_header.rows):
             del self.article_list_header.rows[row_index]
-            del self.article_summaries[row_index]
+            if row_index < len(self.article_summaries):
+                del self.article_summaries[row_index]
+
+            # Aktualisieren Sie die Indizes für die verbleibenden Zeilen
+            for i, row in enumerate(self.article_list_header.rows):
+                for cell in row.cells:
+                    if isinstance(cell.content, ft.Row):
+                        for control in cell.content.controls:
+                            if isinstance(control, ft.IconButton):
+                                if control.icon == ft.icons.EDIT:
+                                    control.on_click = lambda _, r=i: self.edit_article_row(r)
+                                elif control.icon == ft.icons.DELETE:
+                                    control.on_click = lambda _, r=i: self.delete_article_row(r)
 
             if self.edit_mode and self.edit_row_index is not None:
                 if row_index < self.edit_row_index:
@@ -1151,18 +1164,16 @@ class InvoiceForm(ft.UserControl):
             self.update_total_price()
             self.update_pdf_buttons()
             self.update()
-            logging.info(f"Artikelzeile {row_index} gelöscht")
+            logging.info(f"Artikelzeile {row_index} erfolgreich gelöscht")
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Löschen: {row_index}")
 
-    def update_pdf_buttons(self):
-        has_articles = len(self.article_list_header.rows) > 0
-        logging.info(f"Updating PDF buttons. Has articles: {has_articles}")
-        if self.pdf_generated:
-            self.save_invoice_with_pdf_button.text = "Rechnung aktualisiert speichern (mit Preis)"
-            self.save_invoice_without_pdf_button.text = "Rechnung aktualisiert speichern (ohne Preis)"
-        self.save_invoice_with_pdf_button.disabled = not has_articles
-        self.save_invoice_without_pdf_button.disabled = not has_articles
+        # Aktualisieren Sie die Positionen der verbleibenden Artikel
+        self.update_article_positions()
+
+    def update_article_positions(self):
+        for i, row in enumerate(self.article_list_header.rows):
+            row.cells[0].content.value = str(i + 1)  # Aktualisiere die Position
         self.update()
 
     def validate_invoice_details(self):
