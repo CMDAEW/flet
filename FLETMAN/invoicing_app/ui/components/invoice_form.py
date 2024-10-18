@@ -904,8 +904,48 @@ class InvoiceForm(ft.UserControl):
     def is_rohrleitung(self, bauteil):
         return bauteil.lower() == "rohrleitung"
 
-    def back_to_main_menu(self, e):
-        self.page.go('/')
+    def back_to_main_menu(self, e=None):
+        if self.page:
+            if hasattr(self.page, 'go'):
+                # Setze das Logo zurück
+                self.reset_logo()
+                # Navigiere zum Hauptmenü
+                self.page.go('/')
+            else:
+                logging.error("Page object does not have 'go' method")
+        else:
+            logging.error("Page object is None in InvoiceForm")
+
+    def reset_logo(self):
+        if hasattr(self.page, 'appbar'):
+            logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
+            if os.path.exists(logo_path):
+                self.page.appbar.leading = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
+            else:
+                self.page.appbar.leading = ft.Text("KAEFER")
+            self.page.appbar.title = ft.Text("")  # Setze den Titel zurück
+            self.page.update()
+
+    def update_topbar(self):
+        # Aktualisiere den Titel der TopBar mit der aktuellen Aufmaß-Nummer
+        aufmass_nr = self.invoice_detail_fields['aufmass_nr'].value
+        title = f"Aufmaß Nr. {aufmass_nr}" if aufmass_nr else "Neues Aufmaß"
+        
+        # Aktualisiere den Titel in der AppBar
+        if hasattr(self.page, 'appbar'):
+            self.page.appbar.title = ft.Text(title)
+        
+        # Füge einen "Zurück" Button hinzu, wenn wir uns in einem bestehenden Aufmaß befinden
+        if aufmass_nr:
+            self.page.appbar.leading = ft.IconButton(
+                icon=ft.icons.ARROW_BACK,
+                on_click=self.back_to_main_menu
+            )
+        else:
+            # Setze das Logo zurück, wenn wir uns in einem neuen Aufmaß befinden
+            self.reset_logo()
+        
+        self.page.update()
 
     def reset_form(self, e):
         # Behalten Sie die Kopfdaten bei
@@ -949,6 +989,7 @@ class InvoiceForm(ft.UserControl):
         # Aktualisieren Sie die Gesamtpreise
         self.update_total_price()
         self.update_pdf_buttons()
+        self.update_topbar()  # Hier hinzugefügt
 
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
@@ -1032,13 +1073,17 @@ class InvoiceForm(ft.UserControl):
                 self.show_snack_bar(f"PDF wurde erstellt: {filepath}")
                 self.pdf_generated = True
                 self.update_pdf_buttons()
+                self.update_topbar()  # Aktualisiere die TopBar nach der PDF-Erstellung
             else:
                 raise FileNotFoundError(f"PDF-Datei wurde nicht erstellt: {filepath}")
 
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs: {str(ex)}", exc_info=True)
             self.show_snack_bar(f"Fehler beim Erstellen des PDFs: {str(ex)}")
-
+        finally:
+            self.update_pdf_buttons()  # Stelle sicher, dass die Buttons in jedem Fall aktualisiert werden
+            self.update_topbar()  # Stelle sicher, dass die TopBar in jedem Fall aktualisiert wird
+            self.update()
 
     def check_existing_pdf(self, invoice_id):
         downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -1046,6 +1091,13 @@ class InvoiceForm(ft.UserControl):
             if filename.startswith(f"Rechnung_{invoice_id}_") or filename.startswith(f"Auftragsbestätigung_{invoice_id}_"):
                 return os.path.join(downloads_dir, filename)
         return None
+
+    def update_pdf_buttons(self):
+        if hasattr(self, 'save_invoice_with_pdf_button'):
+            self.save_invoice_with_pdf_button.disabled = False
+        if hasattr(self, 'save_invoice_without_pdf_button'):
+            self.save_invoice_without_pdf_button.disabled = False
+        self.update()
 
     def show_zuschlaege_dialog(self, e):
         dialog = ft.AlertDialog(
@@ -1478,7 +1530,8 @@ class InvoiceForm(ft.UserControl):
                 self.update_total_price()
                 self.update_pdf_buttons()
                 self.update_date_picker_buttons()
-                self.pdf_generated = True  # Setze dies auf True, da die Rechnung bereits existiert
+                self.pdf_generated = True
+                self.update_topbar()  # Hier hinzugefügt
                 self.update()
 
                 # Nachdem alle Daten geladen wurden, aktivieren Sie die Eingabefelder
