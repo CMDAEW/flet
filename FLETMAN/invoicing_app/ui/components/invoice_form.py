@@ -282,18 +282,18 @@ class InvoiceForm(ft.UserControl):
         # Article list table
         self.article_list_header = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Position")),
-                ft.DataColumn(ft.Text("Bauteil")),
-                ft.DataColumn(ft.Text("DN")),
-                ft.DataColumn(ft.Text("DA")),
-                ft.DataColumn(ft.Text("Dämmdicke")),
-                ft.DataColumn(ft.Text("Einheit")),
-                ft.DataColumn(ft.Text("Tätigkeit")),
-                ft.DataColumn(ft.Text("Sonderleistungen")),
-                ft.DataColumn(ft.Text("Preis")),
-                ft.DataColumn(ft.Text("Menge")),
-                ft.DataColumn(ft.Text("Zwischensumme")),
-                ft.DataColumn(ft.Text("Aktionen")),
+                ft.DataColumn(ft.Container(content=ft.Text("Position", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Bauteil", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("DN", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("DA", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Dämmdicke", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Einheit", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Tätigkeit", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Sonderleistungen", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Preis", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Menge", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Zwischensumme", size=16), alignment=ft.alignment.center)),
+                ft.DataColumn(ft.Container(content=ft.Text("Aktionen", size=16), alignment=ft.alignment.center)),
             ],
             horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
             vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
@@ -377,22 +377,28 @@ class InvoiceForm(ft.UserControl):
             self.price_field,
             self.quantity_input,
             self.zwischensumme_field,
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=5, wrap=True)
+
+        button_row = ft.Row([
             ft.ElevatedButton("Hinzufügen", on_click=self.add_article_row),
             self.sonderleistungen_button,
-        ], alignment=ft.MainAxisAlignment.START, spacing=5, wrap=True)
+            self.update_position_button,
+        ], alignment=ft.MainAxisAlignment.END, spacing=10)
 
         return ft.Container(
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
-                self.article_input_row,
-                self.update_position_button,
+                ft.Row([
+                    ft.Column([self.article_input_row], expand=True),
+                    button_row
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ]),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
             margin=ft.margin.only(bottom=20),
+            width=self.page.window_width - 40,  # Breite des Containers anpassen
         )
-
 
     def build_article_list(self):
         # Build article list UI
@@ -722,12 +728,12 @@ class InvoiceForm(ft.UserControl):
         # Prüfen Sie, ob dieser Artikel bereits in der Liste ist
         for index, row in enumerate(self.article_list_header.rows):
             existing_artikel_id = (
-                row.cells[1].content.value,  # Bauteil
-                row.cells[2].content.value,  # DN
-                row.cells[3].content.value,  # DA
-                row.cells[4].content.value,  # Dämmdicke
-                row.cells[6].content.value,  # Tätigkeit
-                row.cells[7].content.value,  # Sonderleistungen
+                row.cells[1].content.content.value,  # Bauteil
+                row.cells[2].content.content.value,  # DN
+                row.cells[3].content.content.value,  # DA
+                row.cells[4].content.content.value,  # Dämmdicke
+                row.cells[6].content.content.value,  # Tätigkeit
+                row.cells[7].content.content.value,  # Sonderleistungen
             )
             logging.info(f"Vergleiche mit existierendem Artikel {index}: {existing_artikel_id}")
             if neuer_artikel_id == existing_artikel_id:
@@ -753,17 +759,17 @@ class InvoiceForm(ft.UserControl):
 
         new_row = ft.DataRow(
             cells=[
-                ft.DataCell(ft.Text(position, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(bauteil, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(dn, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(da, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(dammdicke, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(einheit, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(taetigkeit, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(sonderleistungen, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(preis, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(menge, text_align=ft.TextAlign.CENTER)),
-                ft.DataCell(ft.Text(zwischensumme, text_align=ft.TextAlign.CENTER)),
+                ft.DataCell(ft.Container(content=ft.Text(position, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(bauteil, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(dn, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(da, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(dammdicke, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(einheit, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(taetigkeit, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(sonderleistungen, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(preis, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(menge, size=16), alignment=ft.alignment.center)),
+                ft.DataCell(ft.Container(content=ft.Text(zwischensumme, size=16), alignment=ft.alignment.center)),
                 ft.DataCell(
                     ft.Row([
                         ft.IconButton(
@@ -807,16 +813,16 @@ class InvoiceForm(ft.UserControl):
             self.update_position_button.visible = True
 
             # Fill the input fields with values from the selected row
-            self.position_field.value = row.cells[0].content.value
-            self.bauteil_dropdown.value = row.cells[1].content.value
-            self.dn_dropdown.value = row.cells[2].content.value
-            self.da_dropdown.value = row.cells[3].content.value
-            self.dammdicke_dropdown.value = row.cells[4].content.value
-            self.einheit_field.value = row.cells[5].content.value
-            self.taetigkeit_dropdown.value = row.cells[6].content.value
+            self.position_field.value = row.cells[0].content.content.value
+            self.bauteil_dropdown.value = row.cells[1].content.content.value
+            self.dn_dropdown.value = row.cells[2].content.content.value
+            self.da_dropdown.value = row.cells[3].content.content.value
+            self.dammdicke_dropdown.value = row.cells[4].content.content.value
+            self.einheit_field.value = row.cells[5].content.content.value
+            self.taetigkeit_dropdown.value = row.cells[6].content.content.value
 
             # Handle sonderleistungen
-            sonderleistungen_str = row.cells[7].content.value
+            sonderleistungen_str = row.cells[7].content.content.value
             self.selected_sonderleistungen = []
             if sonderleistungen_str:
                 sonderleistungen = sonderleistungen_str.split(', ')
@@ -824,9 +830,9 @@ class InvoiceForm(ft.UserControl):
                     faktor = self.get_sonderleistung_faktor(sl)
                     self.selected_sonderleistungen.append((sl, faktor))
 
-            self.price_field.value = row.cells[8].content.value.replace(' €', '')
-            self.quantity_input.value = row.cells[9].content.value
-            self.zwischensumme_field.value = row.cells[10].content.value.replace(' €', '')
+            self.price_field.value = row.cells[8].content.content.value.replace(' €', '')
+            self.quantity_input.value = row.cells[9].content.content.value
+            self.zwischensumme_field.value = row.cells[10].content.content.value.replace(' €', '')
 
             # Hide DN/DA fields if they are empty
             self.dn_dropdown.visible = bool(self.dn_dropdown.value)
@@ -843,17 +849,17 @@ class InvoiceForm(ft.UserControl):
                 sonderleistungen = ", ".join([sl[0] for sl in self.selected_sonderleistungen])
                 updated_row = ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(self.position_field.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.bauteil_dropdown.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.dammdicke_dropdown.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.einheit_field.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.taetigkeit_dropdown.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(sonderleistungen, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.price_field.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.quantity_input.value, text_align=ft.TextAlign.CENTER)),
-                        ft.DataCell(ft.Text(self.zwischensumme_field.value, text_align=ft.TextAlign.CENTER)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.position_field.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.bauteil_dropdown.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.dammdicke_dropdown.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.einheit_field.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.taetigkeit_dropdown.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(sonderleistungen, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.price_field.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.quantity_input.value, size=16), alignment=ft.alignment.center)),
+                        ft.DataCell(ft.Container(content=ft.Text(self.zwischensumme_field.value, size=16), alignment=ft.alignment.center)),
                         ft.DataCell(
                             ft.Row([
                                 ft.IconButton(
@@ -1141,7 +1147,7 @@ class InvoiceForm(ft.UserControl):
         logging.info("Starte Aktualisierung des Gesamtpreises")
         try:
             nettobetrag = sum(
-                float(row.cells[10].content.value.replace(',', '.').replace('€', '').strip() or '0')
+                float(row.cells[10].content.content.value.replace(',', '.').replace('€', '').strip() or '0')
                 for row in self.article_list_header.rows
             )
             logging.info(f"Berechneter Nettobetrag: {nettobetrag}")
@@ -1273,21 +1279,21 @@ class InvoiceForm(ft.UserControl):
 
         for row in self.article_list_header.rows:
             article = {
-                'position': row.cells[0].content.value,
-                'artikelbeschreibung': row.cells[1].content.value,
-                'dn': row.cells[2].content.value,
-                'da': row.cells[3].content.value,
-                'dammdicke': row.cells[4].content.value,
-                'einheit': row.cells[5].content.value,
-                'taetigkeit': row.cells[6].content.value,
-                'sonderleistungen': row.cells[7].content.value,
-                'einheitspreis': row.cells[8].content.value,
-                'quantity': row.cells[9].content.value,
-                'zwischensumme': row.cells[10].content.value
+                'position': row.cells[0].content.content.value,
+                'artikelbeschreibung': row.cells[1].content.content.value,
+                'dn': row.cells[2].content.content.value,
+                'da': row.cells[3].content.content.value,
+                'dammdicke': row.cells[4].content.content.value,
+                'einheit': row.cells[5].content.content.value,
+                'taetigkeit': row.cells[6].content.content.value,
+                'sonderleistungen': row.cells[7].content.content.value,
+                'einheitspreis': row.cells[8].content.content.value,
+                'quantity': row.cells[9].content.content.value,
+                'zwischensumme': row.cells[10].content.content.value
             }
             invoice_data['articles'].append(article)
             try:
-                zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip())
+                zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip() or '0')
                 invoice_data['net_total'] += zwischensumme
             except ValueError:
                 logging.warning(f"Ungültiger Zwischensummenwert: {article['zwischensumme']}")
@@ -1483,17 +1489,17 @@ class InvoiceForm(ft.UserControl):
                 for item in items:
                     new_row = ft.DataRow(
                         cells=[
-                            ft.DataCell(ft.Text(item[0])),  # Position
-                            ft.DataCell(ft.Text(item[1])),  # Bauteil
-                            ft.DataCell(ft.Text(item[2])),  # DN
-                            ft.DataCell(ft.Text(item[3])),  # DA
-                            ft.DataCell(ft.Text(item[4])),  # Dämmdicke
-                            ft.DataCell(ft.Text(item[6])),  # Einheit
-                            ft.DataCell(ft.Text(item[5])),  # Tätigkeit
-                            ft.DataCell(ft.Text(item[10])),  # Sonderleistungen
-                            ft.DataCell(ft.Text(f"{item[7]:.2f}")),  # Preis
-                            ft.DataCell(ft.Text(str(item[8]))),  # Menge
-                            ft.DataCell(ft.Text(f"{item[9]:.2f}")),  # Zwischensumme
+                            ft.DataCell(ft.Container(content=ft.Text(item[0], size=16), alignment=ft.alignment.center)),  # Position
+                            ft.DataCell(ft.Container(content=ft.Text(item[1], size=16), alignment=ft.alignment.center)),  # Bauteil
+                            ft.DataCell(ft.Container(content=ft.Text(item[2], size=16), alignment=ft.alignment.center)),  # DN
+                            ft.DataCell(ft.Container(content=ft.Text(item[3], size=16), alignment=ft.alignment.center)),  # DA
+                            ft.DataCell(ft.Container(content=ft.Text(item[4], size=16), alignment=ft.alignment.center)),  # Dämmdicke
+                            ft.DataCell(ft.Container(content=ft.Text(item[6], size=16), alignment=ft.alignment.center)),  # Einheit
+                            ft.DataCell(ft.Container(content=ft.Text(item[5], size=16), alignment=ft.alignment.center)),  # Tätigkeit
+                            ft.DataCell(ft.Container(content=ft.Text(item[10], size=16), alignment=ft.alignment.center)),  # Sonderleistungen
+                            ft.DataCell(ft.Container(content=ft.Text(f"{item[7]:.2f}", size=16), alignment=ft.alignment.center)),  # Preis
+                            ft.DataCell(ft.Container(content=ft.Text(str(item[8]), size=16), alignment=ft.alignment.center)),  # Menge
+                            ft.DataCell(ft.Container(content=ft.Text(f"{item[9]:.2f}", size=16), alignment=ft.alignment.center)),  # Zwischensumme
                             ft.DataCell(
                                 ft.Row([
                                     ft.IconButton(

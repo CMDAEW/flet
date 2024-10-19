@@ -99,12 +99,12 @@ def preview_invoice(aufmass_nr, on_invoice_preview):
     on_invoice_preview(aufmass_nr)
 
 def load_invoice_for_editing(aufmass_nr, on_invoice_selected, page):
-    close_edit_invoice_dialog(page, lambda: None)  # Übergeben Sie eine leere Funktion, um nicht zum Hauptmenü zurückzukehren
+    close_edit_invoice_dialog(page, lambda: None)
     on_invoice_selected(aufmass_nr)
-    # Warten Sie, bis das Formular zur Seite hinzugefügt wurde, bevor Sie enable_all_inputs aufrufen
     page.update()
     if hasattr(page, 'invoice_form'):
         page.invoice_form.enable_all_inputs()
+        page.invoice_form.update_topbar()
         page.update()
 
 def close_edit_invoice_dialog(page, back_to_main_menu_func):
