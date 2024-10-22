@@ -773,18 +773,14 @@ class InvoiceForm(ft.UserControl):
                 ft.DataCell(
                     ft.Row([
                         ft.IconButton(
-                            icon=ft.icons.EDIT,
-                            icon_color="blue500",
-                            on_click=lambda _, row=len(self.article_list_header.rows): self.edit_article_row(row)
-                        ),
-                        ft.IconButton(
                             icon=ft.icons.DELETE,
                             icon_color="red500",
                             on_click=lambda _, row=len(self.article_list_header.rows): self.delete_article_row(row)
                         )
                     ], alignment=ft.MainAxisAlignment.CENTER)
                 )
-            ]
+            ],
+            on_select_changed=self.on_row_select
         )
         self.article_list_header.rows.append(new_row)
 
@@ -805,14 +801,20 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
+    def on_row_select(self, e):
+        if e.data == "true":  # Zeile wurde ausgewählt
+            selected_index = self.article_list_header.rows.index(e.control)
+            self.edit_article_row(selected_index)
+
     def edit_article_row(self, row_index):
+        logging.info(f"Bearbeite Artikelzeile {row_index}")
         if 0 <= row_index < len(self.article_list_header.rows):
             row = self.article_list_header.rows[row_index]
             self.edit_mode = True
             self.edit_row_index = row_index
             self.update_position_button.visible = True
 
-            # Fill the input fields with values from the selected row
+            # Füllen Sie die Eingabefelder mit den Werten aus der ausgewählten Zeile
             self.position_field.value = row.cells[0].content.content.value
             self.bauteil_dropdown.value = row.cells[1].content.content.value
             self.dn_dropdown.value = row.cells[2].content.content.value
@@ -821,7 +823,7 @@ class InvoiceForm(ft.UserControl):
             self.einheit_field.value = row.cells[5].content.content.value
             self.taetigkeit_dropdown.value = row.cells[6].content.content.value
 
-            # Handle sonderleistungen
+            # Behandeln Sie Sonderleistungen
             sonderleistungen_str = row.cells[7].content.content.value
             self.selected_sonderleistungen = []
             if sonderleistungen_str:
@@ -834,14 +836,72 @@ class InvoiceForm(ft.UserControl):
             self.quantity_input.value = row.cells[9].content.content.value
             self.zwischensumme_field.value = row.cells[10].content.content.value.replace(' €', '')
 
-            # Hide DN/DA fields if they are empty
+            # Aktualisieren Sie die Sichtbarkeit der DN/DA Felder
             self.dn_dropdown.visible = bool(self.dn_dropdown.value)
             self.da_dropdown.visible = bool(self.da_dropdown.value)
 
+            # Aktualisieren Sie den Sonderleistungen-Button
             self.update_sonderleistungen_button()
+
+            # Aktualisieren Sie die Benutzeroberfläche
             self.update()
+
+            # Scrollen Sie zu den Eingabefeldern
+            self.page.scroll_to(self.position_field)
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
+
+    def edit_article_row(self, row_index):
+        logging.info(f"Bearbeite Artikelzeile {row_index}")
+        if 0 <= row_index < len(self.article_list_header.rows):
+            row = self.article_list_header.rows[row_index]
+            self.edit_mode = True
+            self.edit_row_index = row_index
+            self.update_position_button.visible = True
+
+            # Füllen Sie die Eingabefelder mit den Werten aus der ausgewählten Zeile
+            self.position_field.value = row.cells[0].content.content.value
+            self.bauteil_dropdown.value = row.cells[1].content.content.value
+            self.dn_dropdown.value = row.cells[2].content.content.value
+            self.da_dropdown.value = row.cells[3].content.content.value
+            self.dammdicke_dropdown.value = row.cells[4].content.content.value
+            self.einheit_field.value = row.cells[5].content.content.value
+            self.taetigkeit_dropdown.value = row.cells[6].content.content.value
+
+            # Behandeln Sie Sonderleistungen
+            sonderleistungen_str = row.cells[7].content.content.value
+            self.selected_sonderleistungen = []
+            if sonderleistungen_str:
+                sonderleistungen = sonderleistungen_str.split(', ')
+                for sl in sonderleistungen:
+                    faktor = self.get_sonderleistung_faktor(sl)
+                    self.selected_sonderleistungen.append((sl, faktor))
+
+            self.price_field.value = row.cells[8].content.content.value.replace(' €', '')
+            self.quantity_input.value = row.cells[9].content.content.value
+            self.zwischensumme_field.value = row.cells[10].content.content.value.replace(' €', '')
+
+            # Aktualisieren Sie die Sichtbarkeit der DN/DA Felder
+            self.dn_dropdown.visible = bool(self.dn_dropdown.value)
+            self.da_dropdown.visible = bool(self.da_dropdown.value)
+
+            # Aktualisieren Sie den Sonderleistungen-Button
+            self.update_sonderleistungen_button()
+
+            # Aktualisieren Sie die Benutzeroberfläche
+            self.update()
+
+            # Scrollen Sie zu den Eingabefeldern
+            self.page.scroll_to(self.position_field)
+        else:
+            logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
+
+    # Fügen Sie diese Hilfsmethode hinzu, falls sie noch nicht existiert
+    def get_sonderleistung_faktor(self, sonderleistung):
+        for sl, faktor in self.sonderleistungen_options:
+            if sl == sonderleistung:
+                return faktor
+        return 1.0  # Standardfaktor, falls nicht gefunden
 
     def update_article_row(self, e):
         if self.edit_mode and self.edit_row_index is not None:
@@ -863,18 +923,14 @@ class InvoiceForm(ft.UserControl):
                         ft.DataCell(
                             ft.Row([
                                 ft.IconButton(
-                                    icon=ft.icons.EDIT,
-                                    icon_color="blue500",
-                                    on_click=lambda _, row=self.edit_row_index: self.edit_article_row(row)
-                                ),
-                                ft.IconButton(
                                     icon=ft.icons.DELETE,
                                     icon_color="red500",
                                     on_click=lambda _, row=self.edit_row_index: self.delete_article_row(row)
                                 )
                             ], alignment=ft.MainAxisAlignment.CENTER)
                         )
-                    ]
+                    ],
+                    on_select_changed=lambda e, index=self.edit_row_index: self.edit_article_row(index)
                 )
 
                 self.article_list_header.rows[self.edit_row_index] = updated_row
@@ -1202,9 +1258,7 @@ class InvoiceForm(ft.UserControl):
                     if isinstance(cell.content, ft.Row):
                         for control in cell.content.controls:
                             if isinstance(control, ft.IconButton):
-                                if control.icon == ft.icons.EDIT:
-                                    control.on_click = lambda _, r=i: self.edit_article_row(r)
-                                elif control.icon == ft.icons.DELETE:
+                                if control.icon == ft.icons.DELETE:
                                     control.on_click = lambda _, r=i: self.delete_article_row(r)
 
             if self.edit_mode and self.edit_row_index is not None:
@@ -1234,7 +1288,7 @@ class InvoiceForm(ft.UserControl):
 
     def update_article_positions(self):
         for i, row in enumerate(self.article_list_header.rows):
-            row.cells[0].content.value = str(i + 1)  # Aktualisiere die Position
+            row.cells[0].content.content.value = str(i + 1)  # Aktualisiere die Position
         self.update()
 
     def validate_invoice_details(self):
@@ -1487,6 +1541,7 @@ class InvoiceForm(ft.UserControl):
                 self.article_summaries.clear()
                 
                 for item in items:
+                    row_index = len(self.article_list_header.rows)
                     new_row = ft.DataRow(
                         cells=[
                             ft.DataCell(ft.Container(content=ft.Text(item[0], size=16), alignment=ft.alignment.center)),  # Position
@@ -1501,20 +1556,16 @@ class InvoiceForm(ft.UserControl):
                             ft.DataCell(ft.Container(content=ft.Text(str(item[8]), size=16), alignment=ft.alignment.center)),  # Menge
                             ft.DataCell(ft.Container(content=ft.Text(f"{item[9]:.2f}", size=16), alignment=ft.alignment.center)),  # Zwischensumme
                             ft.DataCell(
-                                ft.Row([
-                                    ft.IconButton(
-                                        icon=ft.icons.EDIT,
-                                        icon_color="blue500",
-                                        on_click=lambda _, row=len(self.article_list_header.rows): self.edit_article_row(row)
-                                    ),
-                                    ft.IconButton(
-                                        icon=ft.icons.DELETE,
-                                        icon_color="red500",
-                                        on_click=lambda _, row=len(self.article_list_header.rows): self.delete_article_row(row)
-                                    )
-                                ], alignment=ft.MainAxisAlignment.CENTER)
-                            )
-                        ]
+                                    ft.Row([
+                                        ft.IconButton(
+                                            icon=ft.icons.DELETE,
+                                            icon_color="red500",
+                                            on_click=lambda _, row=row_index: self.delete_article_row(row)
+                                        )
+                                    ], alignment=ft.MainAxisAlignment.CENTER)
+                                )
+                        ],
+                        on_select_changed=lambda e, index=row_index: self.edit_article_row(index)
                     )
                     self.article_list_header.rows.append(new_row)
                     

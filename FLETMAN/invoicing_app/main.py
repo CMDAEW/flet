@@ -142,12 +142,12 @@ def main(page: ft.Page):
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
         invoice_form.enable_all_inputs()
-        invoice_form.update_topbar()  # Aktualisiere die TopBar
+        invoice_form.update_topbar()
         page.update()
 
     def on_invoice_selected(aufmass_nr):
         show_invoice_form(aufmass_nr)
-        page.invoice_form.update_topbar()  # Aktualisiere die TopBar
+        page.invoice_form.update_topbar()
         page.update()
 
     page.add(main_container)
