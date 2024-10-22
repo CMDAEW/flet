@@ -16,7 +16,6 @@ class InvoiceForm(ft.UserControl):
     def __init__(self, page, aufmass_nr=None, is_preview=False):
         super().__init__()
         self.page = page
-        self.conn = get_db_connection()
         self.next_aufmass_nr = self.get_next_aufmass_nr()
         self.cache = {}
         self.article_summaries = []
@@ -29,6 +28,9 @@ class InvoiceForm(ft.UserControl):
         self.pdf_generated = False
         self.is_preview = is_preview
 
+        # Erstellen Sie die UI-Elemente
+        self.create_ui_elements()
+
         # Erstellen Sie die Buttons hier
         self.create_action_buttons()
 
@@ -38,7 +40,6 @@ class InvoiceForm(ft.UserControl):
         self.new_aufmass_button.visible = False
 
         logging.info("Initializing InvoiceForm")
-        self.create_ui_elements()
         self.load_invoice_options()
         if aufmass_nr:
             self.load_invoice_data(aufmass_nr)
@@ -53,8 +54,51 @@ class InvoiceForm(ft.UserControl):
         if self.is_preview:
             self.disable_all_inputs()
 
-        # Fügen Sie das Logo und die TopBar hinzu
+        self.initialize_ui()
+        self.load_color_scheme()
+        self.update_summary_buttons()
+
+    def initialize_ui(self):
         self.add_logo_and_topbar()
+        # Hier können Sie weitere UI-Initialisierungen hinzufügen
+
+    def show_error_dialog(self, message):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Fehler"),
+        content=ft.Text(message),
+            actions=[
+                ft.TextButton("OK", on_click=lambda _: self.close_dialog())
+            ],
+        )
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def close_dialog(self):
+        if self.page.dialog:
+            self.page.dialog.open = False
+            self.page.update()
+
+    def add_logo_and_topbar(self):
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
+        if os.path.exists(logo_path):
+            logo = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
+        else:
+            logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
+            logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
+
+        self.page.appbar = ft.AppBar(
+            leading=logo,
+            leading_width=100,
+            title=ft.Text(""),  # Leerer Text anstelle des Titels
+            center_title=False,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            actions=[
+                ft.IconButton(ft.icons.SETTINGS, on_click=self.open_settings),
+                ft.IconButton(ft.icons.HELP_OUTLINE, on_click=self.show_help),
+            ],
+        )
+        self.page.update()
 
     def disable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
@@ -162,7 +206,8 @@ class InvoiceForm(ft.UserControl):
         )
 
     def load_last_invoice_data(self):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('''
                 SELECT client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
@@ -198,6 +243,7 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Datenbankfehler beim Laden der letzten Rechnungsdaten: {str(e)}")
         finally:
             cursor.close()
+            conn.close()
 
     def update_date_picker_buttons(self):
         self.bestelldatum_button.text = f"Bestelldatum: {self.invoice_detail_fields['bestelldatum'].value}"
@@ -270,7 +316,8 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def update_dn_da_fields(self, bauteil):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             if self.is_rohrleitung_or_formteil(bauteil):
                 cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
@@ -299,9 +346,11 @@ class InvoiceForm(ft.UserControl):
             self.update_taetigkeit_options()
         finally:
             cursor.close()
+            conn.close()
 
     def update_da_options(self, dn):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? ORDER BY DA', (dn,))
             da_options = [row[0] for row in cursor.fetchall()]
@@ -309,9 +358,11 @@ class InvoiceForm(ft.UserControl):
             self.da_dropdown.value = str(da_options[0]) if da_options else None
         finally:
             cursor.close()
+            conn.close()
 
     def update_dn_options(self, da):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ? ORDER BY DN', (da,))
             dn_options = [row[0] for row in cursor.fetchall()]
@@ -319,6 +370,7 @@ class InvoiceForm(ft.UserControl):
             self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
         finally:
             cursor.close()
+            conn.close()
 
     def update_dammdicke_options(self):
         bauteil = self.bauteil_dropdown.value
@@ -329,7 +381,8 @@ class InvoiceForm(ft.UserControl):
         self.dammdicke_dropdown.value = str(dammdicke_options[0]) if dammdicke_options else None
 
     def update_taetigkeit_options(self):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung')
             taetigkeit_options = [row[0] for row in cursor.fetchall()]
@@ -337,6 +390,7 @@ class InvoiceForm(ft.UserControl):
             self.taetigkeit_dropdown.value = taetigkeit_options[0] if taetigkeit_options else None
         finally:
             cursor.close()
+            conn.close()
 
     def create_action_buttons(self):
         button_style = ft.ButtonStyle(
@@ -564,22 +618,26 @@ class InvoiceForm(ft.UserControl):
         )
 
     def get_next_aufmass_nr(self):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
             max_nr = cursor.fetchone()[0]
             return str(int(max_nr or 0) + 1)
         finally:
             cursor.close()
+            conn.close()
 
     def get_current_aufmass_nr(self):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
             max_id = cursor.fetchone()[0]
             return str(max_id) if max_id else "0"
         finally:
             cursor.close()
+            conn.close()
 
     def load_invoice_options(self):
         for field in self.invoice_detail_fields:
@@ -591,9 +649,12 @@ class InvoiceForm(ft.UserControl):
 
     def get_from_cache_or_db(self, key, query, params=None):
         if key not in self.cache:
-            cursor = self.conn.cursor()
+            conn = get_db_connection()
+            cursor = conn.cursor()
             cursor.execute(query, params or ())
             self.cache[key] = cursor.fetchall()
+            cursor.close()
+            conn.close()
         return self.cache[key]
 
     def load_data(self):
@@ -605,7 +666,8 @@ class InvoiceForm(ft.UserControl):
         self.update_price()
 
     def load_faktoren(self, art):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
             faktoren = cursor.fetchall()
@@ -615,6 +677,7 @@ class InvoiceForm(ft.UserControl):
                 self.zuschlaege_options = [(bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren]
         finally:
             cursor.close()
+            conn.close()
 
     def toggle_new_entry(self, e, field):
         dropdown = self.invoice_detail_fields[field]
@@ -689,15 +752,18 @@ class InvoiceForm(ft.UserControl):
         return bauteil is not None and bauteil.lower() == "rohrleitung"
 
     def is_formteil(self, bauteil):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ? LIMIT 1', (bauteil,))
             return cursor.fetchone() is not None
         finally:
             cursor.close()
+            conn.close()
 
     def auto_fill_rohrleitung_or_formteil(self, bauteil):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
             dn_options = [row[0] for row in cursor.fetchall()]
@@ -726,6 +792,7 @@ class InvoiceForm(ft.UserControl):
             update_price(self)
         finally:
             cursor.close()
+            conn.close()
 
     def update_einheit(self):
         bauteil = self.bauteil_dropdown.value
@@ -733,7 +800,8 @@ class InvoiceForm(ft.UserControl):
             if self.is_formteil(bauteil):
                 self.einheit_field.value = "m²"
             else:
-                cursor = self.conn.cursor()
+                conn = get_db_connection()
+                cursor = conn.cursor()
                 try:
                     cursor.execute('SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1', (bauteil,))
                     result = cursor.fetchone()
@@ -743,6 +811,7 @@ class InvoiceForm(ft.UserControl):
                         self.einheit_field.value = ""
                 finally:
                     cursor.close()
+                    conn.close()
         else:
             self.einheit_field.value = ""
         self.update()
@@ -751,7 +820,8 @@ class InvoiceForm(ft.UserControl):
         bauteil = self.bauteil_dropdown.value
         dn = self.dn_dropdown.value
         if self.is_rohrleitung_or_formteil(bauteil):
-            cursor = self.conn.cursor()
+            conn = get_db_connection()
+            cursor = conn.cursor()
             try:
                 cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn,))
                 first_valid_da = cursor.fetchone()[0]
@@ -761,6 +831,7 @@ class InvoiceForm(ft.UserControl):
                     self.da_dropdown.value = None
             finally:
                 cursor.close()
+                conn.close()
         self.update_dammdicke_options()
         update_price(self)
         self.update()
@@ -769,7 +840,8 @@ class InvoiceForm(ft.UserControl):
         bauteil = self.bauteil_dropdown.value
         da = self.da_dropdown.value
         if self.is_rohrleitung_or_formteil(bauteil):
-            cursor = self.conn.cursor()
+            conn = get_db_connection()
+            cursor = conn.cursor()
             try:
                 cursor.execute('SELECT MIN(DN) FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ?', (da,))
                 first_valid_dn = cursor.fetchone()[0]
@@ -779,6 +851,7 @@ class InvoiceForm(ft.UserControl):
                     self.dn_dropdown.value = None
             finally:
                 cursor.close()
+                conn.close()
         self.update_dammdicke_options()
         update_price(self)
         self.update()
@@ -1410,27 +1483,6 @@ class InvoiceForm(ft.UserControl):
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         return invoice_data
 
-    def add_logo_and_topbar(self):
-        logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
-        if os.path.exists(logo_path):
-            logo = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
-        else:
-            logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
-            logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
-
-        self.page.appbar = ft.AppBar(
-            leading=logo,
-            leading_width=100,
-            title=ft.Text(""),  # Leerer Text anstelle des Titels
-            center_title=False,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            actions=[
-                ft.IconButton(ft.icons.SETTINGS, on_click=self.open_settings),
-                ft.IconButton(ft.icons.HELP_OUTLINE, on_click=self.show_help),
-            ],
-        )
-        self.page.update()
-
     def open_settings(self, e):
         color_options = [
             ft.dropdown.Option("BLUE"),
@@ -1542,11 +1594,6 @@ class InvoiceForm(ft.UserControl):
         dialog.open = True
         self.page.update()
 
-    def show_snack_bar(self, message):
-        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
-        self.page.snack_bar.open = True
-        self.page.update()
-
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
         logging.debug(f"Rechnungsdaten: {invoice_data}")
@@ -1563,7 +1610,8 @@ class InvoiceForm(ft.UserControl):
             zuschlaege_summe += zuschlag_betrag
         total_price = nettobetrag + zuschlaege_summe
 
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             # Prüfen, ob bereits eine Rechnung mit dieser Aufmaß-Nummer existiert
             cursor.execute('SELECT id, aufmass_nr FROM invoice WHERE aufmass_nr = ?', (self.invoice_detail_fields['aufmass_nr'].value,))
@@ -1642,22 +1690,24 @@ class InvoiceForm(ft.UserControl):
                     str(article.get('sonderleistungen', ''))
                 ))
 
-            self.conn.commit()
+            conn.commit()
             logging.info(f"Rechnung mit ID {invoice_id} erfolgreich in der Datenbank gespeichert")
             return invoice_id
         except sqlite3.Error as e:
             logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
-            self.conn.rollback()
+            conn.rollback()
             raise Exception(f"Datenbankfehler: {str(e)}")
         except Exception as e:
             logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
-            self.conn.rollback()
+            conn.rollback()
             raise
         finally:
             cursor.close()
+            conn.close()
 
     def load_invoice_data(self, aufmass_nr):
-        cursor = self.conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             # Lade Rechnungskopfdaten
             cursor.execute('''
@@ -1761,6 +1811,7 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Fehler beim Laden der Rechnungsdaten: {str(e)}")
         finally:
             cursor.close()
+            conn.close()
 
     def enable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
@@ -1843,3 +1894,35 @@ class InvoiceForm(ft.UserControl):
         self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
 
     # ... (andere Methoden bleiben unverändert)
+
+    def update_summary_buttons(self):
+        try:
+            primary_color = self.page.theme.color_scheme.primary
+            buttons_to_update = [
+                self.zuschlaege_button,
+                self.save_invoice_with_pdf_button,
+                self.save_invoice_without_pdf_button,
+                self.new_aufmass_button,
+                self.back_to_main_menu_button
+            ]
+            
+            for button in buttons_to_update:
+                if button and isinstance(button, ft.ElevatedButton):
+                    button.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color)
+            
+            if hasattr(self, 'article_input_row'):
+                for control in self.article_input_row.controls:
+                    if isinstance(control, ft.ElevatedButton):
+                        control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color)
+            
+            if hasattr(self, 'category_buttons'):
+                for button in self.category_buttons:
+                    if hasattr(button, 'data'):
+                        button.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color) if button.data == self.current_category else None
+            
+            self.update()
+        except Exception as e:
+            logging.exception("Error in update_summary_buttons")
+            self.show_error_dialog(f"Error updating buttons: {str(e)}")
+
+    # ... (Rest der Klasse bleibt unverändert)

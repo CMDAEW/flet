@@ -1,9 +1,11 @@
 import logging
 import sqlite3
 import flet as ft
+from database.db_operations import get_db_connection
 
 def load_aufmass_items(self):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         # Laden Sie Bauteile aus der Preisliste
         cursor.execute('''
@@ -55,6 +57,7 @@ def load_aufmass_items(self):
         self.taetigkeit_dropdown.value = None
     finally:
         cursor.close()
+        conn.close()
 
     self.update()
 
@@ -115,7 +118,8 @@ def get_all_da_options(self, bauteil):
     return [float(da[0]) for da in options]
 
 def get_dammdicke_options(self, bauteil, dn=None, da=None):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         if self.is_rohrleitung_or_formteil(bauteil):
             query = 'SELECT DISTINCT Size FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? AND DA = ? ORDER BY CAST(Size AS FLOAT)'
@@ -128,9 +132,11 @@ def get_dammdicke_options(self, bauteil, dn=None, da=None):
         return [row[0] for row in cursor.fetchall()]
     finally:
         cursor.close()
+        conn.close()
 
 def get_base_price(self, bauteil, dn, da, dammdicke):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         if self.is_rohrleitung_or_formteil(bauteil):
             if self.is_formteil(bauteil):
@@ -154,9 +160,11 @@ def get_base_price(self, bauteil, dn, da, dammdicke):
         return None
     finally:
         cursor.close()
+        conn.close()
 
 def get_material_price(self, bauteil):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         # Zuerst überprüfen wir die Struktur der Tabelle
         cursor.execute("PRAGMA table_info(Materialpreise)")
@@ -177,15 +185,18 @@ def get_material_price(self, bauteil):
         return None
     finally:
         cursor.close()
+        conn.close()
 
 def get_taetigkeit_faktor(self, taetigkeit):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         cursor.execute('SELECT Faktor FROM Faktoren WHERE Art = "Tätigkeit" AND Bezeichnung = ?', (taetigkeit,))
         result = cursor.fetchone()
         return result[0] if result else None
     finally:
         cursor.close()
+        conn.close()
 
 def get_positionsnummer(self, bauteil, dammdicke, dn, da, category):
     if category == "Material":
@@ -288,7 +299,8 @@ def update_price(self, e=None):
     self.update()
 
 def load_material_items(self):
-    cursor = self.conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         cursor.execute('SELECT DISTINCT Bauteil FROM price_list WHERE Category = "Material" ORDER BY Bauteil')
         items = [row[0] for row in cursor.fetchall()]
@@ -296,6 +308,7 @@ def load_material_items(self):
         self.bauteil_dropdown.value = None
     finally:
         cursor.close()
+        conn.close()
 
 def load_lohn_items(self):
     # Implementieren Sie hier die Logik zum Laden der Lohn-Artikel
@@ -311,6 +324,8 @@ def apply_zuschlaege(self, total_amount):
     for _, faktor in self.selected_zuschlaege:
         total_amount *= faktor
     return total_amount
+
+
 
 
 
