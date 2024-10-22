@@ -3,6 +3,7 @@ from ui.components.invoice_form import InvoiceForm
 from ui.components.edit_invoice import show_edit_invoice_dialog
 from database.db_init import initialize_database
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,6 +18,110 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
     page.spacing = 0
+
+    def add_logo_and_topbar():
+        logo_path = os.path.join(os.path.dirname(__file__), "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
+        if os.path.exists(logo_path):
+            logo = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
+        else:
+            logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
+            logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
+
+        page.appbar = ft.AppBar(
+            leading=logo,
+            leading_width=100,
+            title=ft.Text(""),  # Leerer Text anstelle des Titels
+            center_title=False,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            actions=[
+                ft.IconButton(ft.icons.SETTINGS, on_click=open_settings),
+                ft.IconButton(ft.icons.HELP_OUTLINE, on_click=show_help),
+            ],
+        )
+        page.update()
+
+    def open_settings(e):
+        color_options = [
+            ft.dropdown.Option("BLUE"),
+            ft.dropdown.Option("GREEN"),
+            ft.dropdown.Option("RED"),
+            ft.dropdown.Option("PURPLE"),
+            ft.dropdown.Option("ORANGE")
+        ]
+        
+        current_color = get_color_scheme()
+        
+        color_dropdown = ft.Dropdown(
+            label="Farbschema",
+            options=color_options,
+            value=current_color,
+            on_change=change_color_scheme
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Einstellungen"),
+            content=ft.Column([color_dropdown], tight=True),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: close_dialog())
+            ],
+        )
+        
+        show_dialog(dialog)
+
+    def change_color_scheme(e):
+        color = e.control.value
+        set_color_scheme(color)
+        page.theme = ft.Theme(color_scheme=ft.ColorScheme(
+            primary=getattr(ft.colors, color),
+            on_primary=ft.colors.WHITE,
+        ))
+        page.update()
+
+    def get_color_scheme():
+        if hasattr(page, 'client_storage'):
+            color = page.client_storage.get("color_scheme")
+            return color if color else "BLUE"
+        return "BLUE"  # Default color if client_storage is not available
+
+    def set_color_scheme(color):
+        if hasattr(page, 'client_storage'):
+            page.client_storage.set("color_scheme", color)
+
+    def show_help(e):
+        help_text = """
+        Hilfe zur Rechnungs-App:
+
+        1. Kopfdaten ausfüllen: Füllen Sie alle erforderlichen Felder im oberen Bereich aus.
+        2. Artikel hinzufügen: Wählen Sie Bauteil, Dämmdicke, etc. und klicken Sie auf 'Artikel hinzufügen'.
+        3. Artikel bearbeiten: Klicken Sie auf einen Artikel in der Liste, um ihn zu bearbeiten.
+        4. Artikel löschen: Klicken Sie auf das Mülleimer-Symbol neben einem Artikel, um ihn zu löschen.
+        5. Sonderleistungen: Klicken Sie auf 'Sonderleistungen', um zusätzliche Leistungen hinzuzufügen.
+        6. Zuschläge: Klicken Sie auf 'Zuschläge', um Zuschläge hinzuzufügen.
+        7. PDF erstellen: Klicken Sie auf 'PDF mit Preisen erstellen' oder 'PDF ohne Preise erstellen'.
+        8. Neues Aufmaß: Klicken Sie auf 'Speichern und neues Aufmaß erstellen', um ein neues Aufmaß zu beginnen.
+
+        Bei weiteren Fragen wenden Sie sich bitte an den Support.
+        """
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Hilfe"),
+            content=ft.Text(help_text),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: close_dialog())
+            ],
+        )
+        
+        show_dialog(dialog)
+
+    def show_dialog(dialog):
+        page.dialog = dialog
+        dialog.open = True
+        page.update()
+
+    def close_dialog():
+        if page.dialog:
+            page.dialog.open = False
+            page.update()
 
     # Scrollable content area
     content_column = ft.Column([], expand=True, scroll=ft.ScrollMode.AUTO)
@@ -152,6 +257,9 @@ def main(page: ft.Page):
 
     page.add(main_container)
     page.go = show_start_screen
+
+    # Add the TopBar
+    add_logo_and_topbar()
 
     show_start_screen()
 
