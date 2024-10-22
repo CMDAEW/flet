@@ -8,7 +8,23 @@ import os
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Global variable for the page
+global_page = None
+
+def set_color_scheme(color):
+    if global_page and hasattr(global_page, 'client_storage'):
+        global_page.client_storage.set("color_scheme", color)
+
+def get_color_scheme():
+    if global_page and hasattr(global_page, 'client_storage'):
+        color = global_page.client_storage.get("color_scheme")
+        return color if color else "BLUE"
+    return "BLUE"  # Default color if client_storage is not available
+
 def main(page: ft.Page):
+    global global_page
+    global_page = page
+
     page.title = "KAEFER Industrie GmbH Abrechnungsprogramm"
     page.window_width = 1200
     page.window_height = 800
@@ -27,6 +43,13 @@ def main(page: ft.Page):
         )
         page.bgcolor = ft.colors.WHITE if page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
         page.update()
+
+    # Setze initiale Werte
+    page.theme_mode = ft.ThemeMode.LIGHT
+    set_color_scheme("BLUE")
+    
+    # Jetzt können wir update_theme aufrufen
+    update_theme()
 
     def add_logo_and_topbar():
         logo_path = os.path.join(os.path.dirname(__file__), "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
@@ -93,16 +116,6 @@ def main(page: ft.Page):
         page.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
         update_theme()
         update_all_buttons()
-
-    def get_color_scheme():
-        if hasattr(page, 'client_storage'):
-            color = page.client_storage.get("color_scheme")
-            return color if color else "BLUE"
-        return "BLUE"  # Default color if client_storage is not available
-
-    def set_color_scheme(color):
-        if hasattr(page, 'client_storage'):
-            page.client_storage.set("color_scheme", color)
 
     def update_all_buttons():
         for control in page.controls:
@@ -292,9 +305,6 @@ def main(page: ft.Page):
 
     # Add the TopBar
     add_logo_and_topbar()
-
-    # Initial theme setup
-    update_theme()
 
     show_start_screen()
 

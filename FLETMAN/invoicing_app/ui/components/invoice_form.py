@@ -61,6 +61,9 @@ class InvoiceForm(ft.UserControl):
         self.load_color_scheme()
         self.update_summary_buttons()
 
+        # Add the TopBar
+        self.add_logo_and_topbar()
+
     def create_dialogs(self):
         # Settings Dialog
         self.settings_dialog = ft.AlertDialog(
@@ -97,9 +100,6 @@ class InvoiceForm(ft.UserControl):
                 ft.TextButton("Schließen", on_click=self.close_help_dialog)
             ],
         )
-
-    def open_settings(self, e):
-        self.show_dialog(self.settings_dialog)
 
     def open_help(self, e):
         self.show_dialog(self.help_dialog)
@@ -141,12 +141,18 @@ class InvoiceForm(ft.UserControl):
             value=current_color,
             on_change=self.change_color_scheme
         )
+
+        theme_switch = ft.Switch(
+            label="Dunkles Theme",
+            value=self.page.theme_mode == ft.ThemeMode.DARK,
+            on_change=self.toggle_theme
+        )
         
         dialog = ft.AlertDialog(
             title=ft.Text("Einstellungen"),
-            content=ft.Column([color_dropdown], tight=True),
+            content=ft.Column([color_dropdown, theme_switch], tight=True),
             actions=[
-                ft.TextButton("Schließen", on_click=lambda _: self.close_settings_dialog(dialog))
+                ft.TextButton("Schließen", on_click=lambda _: self.close_dialog())
             ],
         )
         
@@ -239,9 +245,13 @@ class InvoiceForm(ft.UserControl):
         summary_and_actions = self.build_summary_and_actions()
         bemerkung_container = self.build_bemerkung_container()
 
+        # Add the TopBar
+        self.add_logo_and_topbar()
+
         return ft.Container(
             content=ft.Column(
                 [
+                    self.topbar,  # Add this line to include the TopBar
                     invoice_details,
                     article_input,
                     article_list,
@@ -1912,16 +1922,11 @@ class InvoiceForm(ft.UserControl):
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
         self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
-
-    def show_dialog(self, dialog):
-        self.page.dialog.open = False
-        self.page.dialog = dialog
-        self.page.dialog.open = True
-        self.update()   
-
     
-    def get_color_scheme(self):
-        return self.page.theme.color_scheme
+    def change_color_scheme(self, e):
+        color = e.control.value
+        self.set_color_scheme(color)
+        self.update_theme()
     
     def change_color_scheme(self, e):
         color_scheme = e.data
@@ -1939,6 +1944,26 @@ class InvoiceForm(ft.UserControl):
     def load_color_scheme(self):
         color_scheme = self.get_color_scheme()
         return color_scheme
+    
+    def set_color_scheme(self, color):
+        if hasattr(self.page, 'client_storage'):
+            self.page.client_storage.set("color_scheme", color)
+
+    def toggle_theme(self, e):
+        self.page.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
+        self.update_theme()
+
+    def update_theme(self):
+        color = self.get_color_scheme()
+        self.page.theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=getattr(ft.colors, color),
+                on_primary=ft.colors.WHITE,
+            )
+        )
+        self.page.bgcolor = ft.colors.WHITE if self.page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
+        self.update()
+        self.page.update()
 
     def update_summary_buttons(self):
         if self.article_summaries:
@@ -1963,9 +1988,6 @@ class InvoiceForm(ft.UserControl):
 
     def show_help(self, e):
         self.open_help(e)
-
-    def open_settings(self, e):
-        self.show_dialog(self.settings_dialog)
 
     def open_help(self, e):
         self.show_dialog(self.help_dialog)  
@@ -1996,6 +2018,8 @@ class InvoiceForm(ft.UserControl):
 
     def settings_dialog_load_color_scheme_callback(self, e):
         self.load_color_scheme(e)
+
+  
 
 
 
