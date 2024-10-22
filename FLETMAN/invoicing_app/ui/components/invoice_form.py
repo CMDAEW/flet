@@ -39,6 +39,9 @@ class InvoiceForm(ft.UserControl):
         self.save_invoice_without_pdf_button.visible = False
         self.new_aufmass_button.visible = False
 
+        # Erstellen Sie die Dialoge
+        self.create_dialogs()
+
         logging.info("Initializing InvoiceForm")
         self.load_invoice_options()
         if aufmass_nr:
@@ -58,24 +61,141 @@ class InvoiceForm(ft.UserControl):
         self.load_color_scheme()
         self.update_summary_buttons()
 
+    def create_dialogs(self):
+        # Settings Dialog
+        self.settings_dialog = ft.AlertDialog(
+            title=ft.Text("Einstellungen"),
+            content=ft.Column([
+                ft.Dropdown(
+                    label="Farbschema",
+                    options=[
+                        ft.dropdown.Option("BLUE"),
+                        ft.dropdown.Option("RED"),
+                        ft.dropdown.Option("GREEN"),
+                        # Fügen Sie hier weitere Farboptionen hinzu
+                    ],
+                    on_change=self.change_color_scheme
+                )
+            ]),
+            actions=[
+                ft.TextButton("Schließen", on_click=self.close_settings_dialog)
+            ],
+        )
+
+        # Help Dialog
+        self.help_dialog = ft.AlertDialog(
+            title=ft.Text("Hilfe"),
+            content=ft.Text("""
+            Hier können Sie eine Hilfe-Anleitung für die Benutzung des Formulars einfügen.
+            Zum Beispiel:
+            - Wie man ein neues Aufmaß erstellt
+            - Wie man Artikel hinzufügt
+            - Wie man Zuschläge anwendet
+            usw.
+            """),
+            actions=[
+                ft.TextButton("Schließen", on_click=self.close_help_dialog)
+            ],
+        )
+
+    def open_settings(self, e):
+        self.show_dialog(self.settings_dialog)
+
+    def open_help(self, e):
+        self.show_dialog(self.help_dialog)
+
+    def show_dialog(self, dialog):
+        self.page.dialog = dialog
+        self.page.dialog.open = True
+        self.page.update()
+
+    def close_settings_dialog(self, e):
+        if self.page.dialog:
+            self.page.dialog.open = False
+            self.page.update()
+
+    def close_help_dialog(self, e):
+        if self.page.dialog:
+            self.page.dialog.open = False
+            self.page.update()
+
+    def change_color_scheme(self, e):
+        color_scheme = e.control.value
+        self.page.theme.color_scheme = ft.ColorScheme(color_scheme)
+        self.page.update()
+
+    def open_settings(self, e):
+        color_options = [
+            ft.dropdown.Option("BLUE"),
+            ft.dropdown.Option("GREEN"),
+            ft.dropdown.Option("RED"),
+            ft.dropdown.Option("PURPLE"),
+            ft.dropdown.Option("ORANGE")
+        ]
+        
+        current_color = self.get_color_scheme()
+        
+        color_dropdown = ft.Dropdown(
+            label="Farbschema",
+            options=color_options,
+            value=current_color,
+            on_change=self.change_color_scheme
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Einstellungen"),
+            content=ft.Column([color_dropdown], tight=True),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_settings_dialog(dialog))
+            ],
+        )
+        
+        self.show_dialog(dialog)
+
+    def show_help(self, e):
+        help_text = """
+        Hilfe zur Rechnungs-App:
+
+        1. Kopfdaten ausfüllen: Füllen Sie alle erforderlichen Felder im oberen Bereich aus.
+        2. Artikel hinzufügen: Wählen Sie Bauteil, Dämmdicke, etc. und klicken Sie auf 'Artikel hinzufügen'.
+        3. Artikel bearbeiten: Klicken Sie auf einen Artikel in der Liste, um ihn zu bearbeiten.
+        4. Artikel löschen: Klicken Sie auf das Mülleimer-Symbol neben einem Artikel, um ihn zu löschen.
+        5. Sonderleistungen: Klicken Sie auf 'Sonderleistungen', um zusätzliche Leistungen hinzuzufügen.
+        6. Zuschläge: Klicken Sie auf 'Zuschläge', um Zuschläge hinzuzufügen.
+        7. PDF erstellen: Klicken Sie auf 'PDF mit Preisen erstellen' oder 'PDF ohne Preise erstellen'.
+        8. Neues Aufmaß: Klicken Sie auf 'Speichern und neues Aufmaß erstellen', um ein neues Aufmaß zu beginnen.
+
+        Bei weiteren Fragen wenden Sie sich bitte an den Support.
+        """
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Hilfe"),
+            content=ft.Text(help_text),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_help_dialog(dialog))
+            ],
+        )
+        
+        self.show_dialog(dialog)
+
     def initialize_ui(self):
         self.add_logo_and_topbar()
         # Hier können Sie weitere UI-Initialisierungen hinzufügen
 
     def show_error_dialog(self, message):
         dialog = ft.AlertDialog(
-            title=ft.Text("Fehler"),
+        title=ft.Text("Fehler"),
         content=ft.Text(message),
-            actions=[
-                ft.TextButton("OK", on_click=lambda _: self.close_dialog())
-            ],
-        )
+        actions=[
+            ft.TextButton("OK", on_click=lambda _: self.close_dialog())
+        ],
+    )
         self.page.dialog = dialog
         dialog.open = True
         self.page.update()
 
     def close_dialog(self):
-        if self.page.dialog:
+        if self.page.dialog:    
             self.page.dialog.open = False
             self.page.update()
 
@@ -1483,116 +1603,16 @@ class InvoiceForm(ft.UserControl):
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         return invoice_data
 
-    def open_settings(self, e):
-        color_options = [
-            ft.dropdown.Option("BLUE"),
-            ft.dropdown.Option("GREEN"),
-            ft.dropdown.Option("RED"),
-            ft.dropdown.Option("PURPLE"),
-            ft.dropdown.Option("ORANGE")
-        ]
-        
-        current_color = self.get_color_scheme()
-        
-        color_dropdown = ft.Dropdown(
-            label="Farbschema",
-            options=color_options,
-            value=current_color,
-            on_change=self.change_color_scheme
-        )
-        
-        dialog = ft.AlertDialog(
-            title=ft.Text("Einstellungen"),
-            content=ft.Column([color_dropdown], tight=True),
-            actions=[
-                ft.TextButton("Schließen", on_click=lambda _: self.close_settings_dialog(dialog))
-            ],
-        )
-        
-        self.show_dialog(dialog)
-
-    def change_color_scheme(self, e):
-        color = e.control.value
-        self.set_color_scheme(color)
-        self.page.theme = ft.Theme(color_scheme=ft.ColorScheme(
-            primary=getattr(ft.colors, color),
-            on_primary=ft.colors.WHITE,
-        ))
-        self.update_summary_buttons()
-        self.page.update()
-
-    def close_settings_dialog(self, dialog):
-        if hasattr(self.page, 'dialog'):
-            self.page.dialog.open = False
-            self.page.update()
-
-    def get_color_scheme(self):
-        if hasattr(self.page, 'client_storage'):
-            color = self.page.client_storage.get("color_scheme")
-            return color if color else "BLUE"
-        return "BLUE"  # Default color if client_storage is not available
-
-    def set_color_scheme(self, color):
-        if hasattr(self.page, 'client_storage'):
-            self.page.client_storage.set("color_scheme", color)
-
-    def load_color_scheme(self):
-        color = self.get_color_scheme()
-        
-        # Mapping von deutschen zu englischen Farbnamen
-        color_mapping = {
-            "Blau": "BLUE",
-            "Grün": "GREEN",
-            "Rot": "RED",
-            "Lila": "PURPLE",
-            "Orange": "ORANGE"
-        }
-        
-        # Konvertiere den deutschen Farbnamen in den englischen, falls nötig
-        color = color_mapping.get(color, color)
-        
-        self.page.theme = ft.Theme(color_scheme=ft.ColorScheme(
-            primary=getattr(ft.colors, color, ft.colors.BLUE),
-            on_primary=ft.colors.WHITE,
-        ))
-        self.update_summary_buttons()
-        self.page.update()
-
-    def show_help(self, e):
-        help_text = """
-        Hilfe zur Rechnungs-App:
-
-        1. Kopfdaten ausfüllen: Füllen Sie alle erforderlichen Felder im oberen Bereich aus.
-        2. Artikel hinzufügen: Wählen Sie Bauteil, Dämmdicke, etc. und klicken Sie auf 'Artikel hinzufügen'.
-        3. Artikel bearbeiten: Klicken Sie auf einen Artikel in der Liste, um ihn zu bearbeiten.
-        4. Artikel löschen: Klicken Sie auf das Mülleimer-Symbol neben einem Artikel, um ihn zu löschen.
-        5. Sonderleistungen: Klicken Sie auf 'Sonderleistungen', um zusätzliche Leistungen hinzuzufügen.
-        6. Zuschläge: Klicken Sie auf 'Zuschläge', um Zuschläge hinzuzufügen.
-        7. PDF erstellen: Klicken Sie auf 'PDF mit Preisen erstellen' oder 'PDF ohne Preise erstellen'.
-        8. Neues Aufmaß: Klicken Sie auf 'Speichern und neues Aufmaß erstellen', um ein neues Aufmaß zu beginnen.
-
-        Bei weiteren Fragen wenden Sie sich bitte an den Support.
-        """
-        
-        dialog = ft.AlertDialog(
-            title=ft.Text("Hilfe"),
-            content=ft.Text(help_text),
-            actions=[
-                ft.TextButton("Schließen", on_click=lambda _: self.close_help_dialog(dialog))
-            ],
-        )
-        
-        self.show_dialog(dialog)
-
-    def close_help_dialog(self, dialog):
-        if hasattr(self.page, 'dialog'):
-            self.page.dialog.open = False
-            self.page.update()
-
-    def show_dialog(self, dialog):
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+    def get_next_aufmass_nr(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
+            max_nr = cursor.fetchone()[0]
+            return str(int(max_nr or 0) + 1)
+        finally:
+            cursor.close()
+            conn.close()
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
@@ -1893,36 +1913,91 @@ class InvoiceForm(ft.UserControl):
         self.update()
         self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
 
-    # ... (andere Methoden bleiben unverändert)
+    def show_dialog(self, dialog):
+        self.page.dialog.open = False
+        self.page.dialog = dialog
+        self.page.dialog.open = True
+        self.update()   
+
+    
+    def get_color_scheme(self):
+        return self.page.theme.color_scheme
+    
+    def change_color_scheme(self, e):
+        color_scheme = e.data
+        self.page.theme.color_scheme = color_scheme
+        self.update()   
+
+    def close_settings_dialog(self, dialog):
+        dialog.open = False
+        self.update()   
+
+    def close_help_dialog(self, dialog):
+        dialog.open = False
+        self.update()
+
+    def load_color_scheme(self):
+        color_scheme = self.get_color_scheme()
+        return color_scheme
 
     def update_summary_buttons(self):
-        try:
-            primary_color = self.page.theme.color_scheme.primary
-            buttons_to_update = [
-                self.zuschlaege_button,
-                self.save_invoice_with_pdf_button,
-                self.save_invoice_without_pdf_button,
-                self.new_aufmass_button,
-                self.back_to_main_menu_button
-            ]
-            
-            for button in buttons_to_update:
-                if button and isinstance(button, ft.ElevatedButton):
-                    button.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color)
-            
-            if hasattr(self, 'article_input_row'):
-                for control in self.article_input_row.controls:
-                    if isinstance(control, ft.ElevatedButton):
-                        control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color)
-            
-            if hasattr(self, 'category_buttons'):
-                for button in self.category_buttons:
-                    if hasattr(button, 'data'):
-                        button.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=primary_color) if button.data == self.current_category else None
-            
-            self.update()
-        except Exception as e:
-            logging.exception("Error in update_summary_buttons")
-            self.show_error_dialog(f"Error updating buttons: {str(e)}")
+        if self.article_summaries:
+            self.save_invoice_with_pdf_button.visible = True
+            self.save_invoice_without_pdf_button.visible = True
+        else:
+            self.save_invoice_with_pdf_button.visible = False
+            self.save_invoice_without_pdf_button.visible = False
 
-    # ... (Rest der Klasse bleibt unverändert)
+    def theme_changed(self, e):
+        self.update_summary_buttons()
+        self.update()
+
+    def theme_changed_callback(self, e):
+        self.theme_changed(e)
+
+    def update_summary_buttons_callback(self, e):
+        self.update_summary_buttons(e)
+
+    def show_settings(self, e):
+        self.open_settings(e)
+
+    def show_help(self, e):
+        self.open_help(e)
+
+    def open_settings(self, e):
+        self.show_dialog(self.settings_dialog)
+
+    def open_help(self, e):
+        self.show_dialog(self.help_dialog)  
+
+    def show_error_dialog(self, message):
+        dialog = ft.AlertDialog(
+            title=ft.Text("Fehler"),
+            content=ft.Text(message),
+            actions=[ft.TextButton("OK", on_click=lambda _: self.close_error_dialog(dialog))],
+        )
+        self.show_dialog(dialog)
+
+    def close_error_dialog(self, dialog):
+        dialog.open = False
+        self.update()
+
+    def help_dialog_callback(self, e):
+        self.show_help(e)
+
+    def settings_dialog_callback(self, e):
+        self.show_settings(e)
+
+    def settings_dialog_close_callback(self, e):
+        self.close_settings_dialog(e)
+
+    def settings_dialog_change_color_scheme_callback(self, e):
+        self.change_color_scheme(e)
+
+    def settings_dialog_load_color_scheme_callback(self, e):
+        self.load_color_scheme(e)
+
+
+
+    
+    

@@ -14,10 +14,19 @@ def main(page: ft.Page):
     page.window_height = 800
     page.window_resizable = True
     page.window_maximized = True
-    page.bgcolor = ft.colors.WHITE
-    page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
     page.spacing = 0
+
+    def update_theme():
+        color = get_color_scheme()
+        page.theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=getattr(ft.colors, color),
+                on_primary=ft.colors.WHITE,
+            )
+        )
+        page.bgcolor = ft.colors.WHITE if page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
+        page.update()
 
     def add_logo_and_topbar():
         logo_path = os.path.join(os.path.dirname(__file__), "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
@@ -57,10 +66,16 @@ def main(page: ft.Page):
             value=current_color,
             on_change=change_color_scheme
         )
+
+        theme_switch = ft.Switch(
+            label="Dunkles Theme",
+            value=page.theme_mode == ft.ThemeMode.DARK,
+            on_change=toggle_theme
+        )
         
         dialog = ft.AlertDialog(
             title=ft.Text("Einstellungen"),
-            content=ft.Column([color_dropdown], tight=True),
+            content=ft.Column([color_dropdown, theme_switch], tight=True),
             actions=[
                 ft.TextButton("Schließen", on_click=lambda _: close_dialog())
             ],
@@ -71,11 +86,13 @@ def main(page: ft.Page):
     def change_color_scheme(e):
         color = e.control.value
         set_color_scheme(color)
-        page.theme = ft.Theme(color_scheme=ft.ColorScheme(
-            primary=getattr(ft.colors, color),
-            on_primary=ft.colors.WHITE,
-        ))
-        page.update()
+        update_theme()
+        update_all_buttons()
+
+    def toggle_theme(e):
+        page.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
+        update_theme()
+        update_all_buttons()
 
     def get_color_scheme():
         if hasattr(page, 'client_storage'):
@@ -86,6 +103,24 @@ def main(page: ft.Page):
     def set_color_scheme(color):
         if hasattr(page, 'client_storage'):
             page.client_storage.set("color_scheme", color)
+
+    def update_all_buttons():
+        for control in page.controls:
+            update_button_colors(control)
+        page.update()
+
+    def update_button_colors(control):
+        if isinstance(control, ft.ElevatedButton):
+            control.style = ft.ButtonStyle(
+                color=ft.colors.WHITE,
+                bgcolor=page.theme.color_scheme.primary,
+            )
+        elif isinstance(control, ft.Container):
+            if control.content:
+                update_button_colors(control.content)
+        elif isinstance(control, ft.Control) and hasattr(control, 'controls'):
+            for sub_control in control.controls:
+                update_button_colors(sub_control)
 
     def show_help(e):
         help_text = """
@@ -143,20 +178,16 @@ def main(page: ft.Page):
                     ft.Text("Willkommen beim KAEFER Industrie GmbH Abrechnungsprogramm", 
                             size=28, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700),
                     ft.Container(height=50),
-                    ft.ElevatedButton("Aufmaß", on_click=button_clicked, width=250, height=60,
-                                      style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                    ft.ElevatedButton("Aufmaß", on_click=button_clicked, width=250, height=60),
                     ft.Container(height=20),
-                    ft.ElevatedButton("Arbeitsbescheinigung", on_click=button_clicked, width=250, height=60,
-                                      style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                    ft.ElevatedButton("Arbeitsbescheinigung", on_click=button_clicked, width=250, height=60),
                     ft.Container(height=20),
-                    ft.ElevatedButton("Verwaltung", on_click=button_clicked, width=250, height=60,
-                                      style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                    ft.ElevatedButton("Verwaltung", on_click=button_clicked, width=250, height=60),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             padding=40,
-            bgcolor=ft.colors.WHITE,
             expand=True,
         )
 
@@ -170,6 +201,7 @@ def main(page: ft.Page):
     def show_start_screen(e=None):
         content_column.controls.clear()
         content_column.controls.append(create_start_screen())
+        update_all_buttons()
         page.update()
 
     def back_to_main_menu(e=None):
@@ -177,6 +209,7 @@ def main(page: ft.Page):
             page.dialog.open = False
         content_column.controls.clear()
         content_column.controls.append(create_start_screen())
+        update_all_buttons()
         page.update()
 
     def show_aufmass_screen():
@@ -193,6 +226,7 @@ def main(page: ft.Page):
             invoice_form = InvoiceForm(page, aufmass_nr, is_preview=True)
             content_column.controls.clear()
             content_column.controls.append(ft.Container(content=invoice_form, expand=True))
+            update_all_buttons()
             page.update()
 
         def close_preview():
@@ -212,26 +246,22 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Text("Aufmaß", size=28, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700),
                 ft.Container(height=50),
-                ft.ElevatedButton("hinzufügen", on_click=aufmass_button_clicked, width=250, height=60,
-                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                ft.ElevatedButton("hinzufügen", on_click=aufmass_button_clicked, width=250, height=60),
                 ft.Container(height=20),
-                ft.ElevatedButton("bearbeiten", on_click=aufmass_button_clicked, width=250, height=60,
-                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                ft.ElevatedButton("bearbeiten", on_click=aufmass_button_clicked, width=250, height=60),
                 ft.Container(height=20),
-                ft.ElevatedButton("Berichte Anzeigen/Drucken", on_click=aufmass_button_clicked, width=250, height=60,
-                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                ft.ElevatedButton("Berichte Anzeigen/Drucken", on_click=aufmass_button_clicked, width=250, height=60),
                 ft.Container(height=50),
-                ft.ElevatedButton("zurück", on_click=lambda _: show_start_screen(), width=250, height=60,
-                                  style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700)),
+                ft.ElevatedButton("zurück", on_click=lambda _: show_start_screen(), width=250, height=60),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             padding=40,
-            bgcolor=ft.colors.WHITE,
             expand=True,
         )
         content_column.controls.clear()
         content_column.controls.append(aufmass_screen)
+        update_all_buttons()
         page.update()
 
     def show_invoice_form(aufmass_nr=None):
@@ -248,11 +278,13 @@ def main(page: ft.Page):
         page.update()
         invoice_form.enable_all_inputs()
         invoice_form.update_topbar()
+        update_all_buttons()
         page.update()
 
     def on_invoice_selected(aufmass_nr):
         show_invoice_form(aufmass_nr)
         page.invoice_form.update_topbar()
+        update_all_buttons()
         page.update()
 
     page.add(main_container)
@@ -261,7 +293,13 @@ def main(page: ft.Page):
     # Add the TopBar
     add_logo_and_topbar()
 
+    # Initial theme setup
+    update_theme()
+
     show_start_screen()
+
+    # Fügen Sie diese Zeile am Ende der main-Funktion hinzu
+    page.on_route_change = lambda _: page.update()
 
 if __name__ == "__main__":
     try:
