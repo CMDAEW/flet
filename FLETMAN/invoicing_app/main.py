@@ -221,9 +221,10 @@ def main(page: ft.Page):
         if hasattr(page, 'dialog'):
             page.dialog.open = False
         content_column.controls.clear()
-        content_column.controls.append(create_start_screen())
-        update_all_buttons()
-        page.update()
+    content_column.controls.append(create_start_screen())
+    update_all_buttons()
+    # Entfernen Sie den Aufruf zur Aktualisierung der appbar hier
+    page.update()
 
     def show_aufmass_screen():
         def aufmass_button_clicked(e):
@@ -292,7 +293,7 @@ def main(page: ft.Page):
         content_column.controls.append(ft.Container(content=invoice_form, expand=True))
         page.update()
         invoice_form.enable_all_inputs()
-        invoice_form.update_topbar()
+        invoice_form.update_topbar()  # Dies aktualisiert nun die topbar statt der appbar
         update_all_buttons()
         page.update()
 
@@ -324,4 +325,3 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Ein Fehler ist aufgetreten: {e}")
         raise
-

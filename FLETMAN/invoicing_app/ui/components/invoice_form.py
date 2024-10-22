@@ -23,6 +23,7 @@ class InvoiceForm(ft.UserControl):
         self.selected_zuschlaege = []
         self.current_category = "Aufmaß"
         self.edit_mode = False
+        self.topbar = None
         self.edit_row_index = None
         self.article_count = 0
         self.pdf_generated = False
@@ -210,19 +211,17 @@ class InvoiceForm(ft.UserControl):
         if os.path.exists(logo_path):
             logo = ft.Image(src=logo_path, width=100, height=40, fit=ft.ImageFit.CONTAIN)
         else:
-            logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
-            logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
-
-        self.topbar = ft.AppBar(
-            leading=logo,
-            leading_width=100,
-            title=ft.Text(""),
-            center_title=False,
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            actions=[
+            logo = ft.Text("KAEFER")
+        
+        self.topbar = ft.Container(
+            content=ft.Row([
+                logo,
+                ft.Text("", expand=True),
                 ft.IconButton(ft.icons.SETTINGS, on_click=self.open_settings),
                 ft.IconButton(ft.icons.HELP_OUTLINE, on_click=self.show_help),
-            ],
+            ]),
+            padding=10,
+            bgcolor=ft.colors.SURFACE_VARIANT,
         )
       
 
@@ -1241,26 +1240,12 @@ class InvoiceForm(ft.UserControl):
             self.page.update()
 
     def update_topbar(self):
-        # Aktualisiere den Titel der TopBar mit der aktuellen Aufmaß-Nummer
-        aufmass_nr = self.invoice_detail_fields['aufmass_nr'].value
-        title = f"Aufmaß Nr. {aufmass_nr}" if aufmass_nr else "Neues Aufmaß"
-        
-        # Aktualisiere den Titel in der AppBar
-        if hasattr(self.page, 'appbar'):
-            self.page.appbar.title = ft.Text(title)
-        
-        # Füge einen "Zurück" Button hinzu, wenn wir uns in einem bestehenden Aufmaß befinden
-        if aufmass_nr:
-            self.page.appbar.leading = ft.IconButton(
-                icon=ft.icons.ARROW_BACK,
-                on_click=self.back_to_main_menu
-            )
-        else:
-            # Setze das Logo zurück, wenn wir uns in einem neuen Aufmaß befinden
-            self.reset_logo()
-        
-        self.page.update()
-
+        if self.topbar:
+            aufmass_nr = self.invoice_detail_fields['aufmass_nr'].value
+            title = f"Aufmaß Nr. {aufmass_nr}" if aufmass_nr else "Neues Aufmaß"
+            self.topbar.content.controls[1] = ft.Text(title, expand=True)
+            self.update()
+            
     def reset_form(self, e):
         # Behalten Sie die Kopfdaten bei
         kopfdaten = {
