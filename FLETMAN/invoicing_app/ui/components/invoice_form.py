@@ -208,14 +208,14 @@ class InvoiceForm(ft.UserControl):
     def create_article_input_fields(self):
         # Article input fields
         self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
-        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.update_dn_da_fields, width=220)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.update_dn_fields, width=80, options=[])
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.update_da_fields, width=80, options=[])
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=lambda e: update_price(self, e), width=140)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=lambda e: update_price(self, e), width=300)
+        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.on_bauteil_change, width=220)
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.on_dn_change, width=80, options=[])
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.on_da_change, width=80, options=[])
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.on_dammdicke_change, width=140)
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.on_taetigkeit_change, width=300)
         self.position_field = ft.TextField(label="Position", read_only=True, width=100)
         self.price_field = ft.TextField(label="Preis", read_only=True, width=80)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=lambda e: update_price(self, e), width=80)
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.on_quantity_change, width=80)
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=150)
         
         # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
@@ -231,6 +231,112 @@ class InvoiceForm(ft.UserControl):
             ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=150)
         ]
         self.category_row = ft.Row(controls=self.category_buttons, spacing=1)
+
+    def on_bauteil_change(self, e):
+        bauteil = e.control.value
+        if bauteil:
+            self.update_dn_da_fields(bauteil)
+            self.update_dammdicke_options()
+            self.update_einheit()
+            self.update_price()
+        self.update()
+
+    def on_dn_change(self, e):
+        dn = e.control.value
+        if dn:
+            self.update_da_options(dn)
+            self.update_dammdicke_options()
+            self.update_price()
+        self.update()
+
+    def on_da_change(self, e):
+        da = e.control.value
+        if da:
+            self.update_dn_options(da)
+            self.update_dammdicke_options()
+            self.update_price()
+        self.update()
+
+    def on_dammdicke_change(self, e):
+        self.update_price()
+        self.update()
+
+    def on_taetigkeit_change(self, e):
+        self.update_price()
+        self.update()
+
+    def on_quantity_change(self, e):
+        self.update_price()
+        self.update()
+
+    def update_dn_da_fields(self, bauteil):
+        cursor = self.conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
+                dn_options = [row[0] for row in cursor.fetchall()]
+                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
+                self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
+
+                cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
+                da_options = [row[0] for row in cursor.fetchall()]
+                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+
+                if dn_options:
+                    cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
+                    first_valid_da = cursor.fetchone()[0]
+                    self.da_dropdown.value = str(first_valid_da) if first_valid_da else None
+
+                self.dn_dropdown.visible = True
+                self.da_dropdown.visible = True
+            else:
+                self.dn_dropdown.visible = False
+                self.da_dropdown.visible = False
+                self.dn_dropdown.value = None
+                self.da_dropdown.value = None
+
+            self.update_dammdicke_options()
+            self.update_taetigkeit_options()
+        finally:
+            cursor.close()
+
+    def update_da_options(self, dn):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? ORDER BY DA', (dn,))
+            da_options = [row[0] for row in cursor.fetchall()]
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+            self.da_dropdown.value = str(da_options[0]) if da_options else None
+        finally:
+            cursor.close()
+
+    def update_dn_options(self, da):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ? ORDER BY DN', (da,))
+            dn_options = [row[0] for row in cursor.fetchall()]
+            self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
+            self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
+        finally:
+            cursor.close()
+
+    def update_dammdicke_options(self):
+        bauteil = self.bauteil_dropdown.value
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        dammdicke_options = get_dammdicke_options(self, bauteil, dn, da)
+        self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
+        self.dammdicke_dropdown.value = str(dammdicke_options[0]) if dammdicke_options else None
+
+    def update_taetigkeit_options(self):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung')
+            taetigkeit_options = [row[0] for row in cursor.fetchall()]
+            self.taetigkeit_dropdown.options = [ft.dropdown.Option(taetigkeit) for taetigkeit in taetigkeit_options]
+            self.taetigkeit_dropdown.value = taetigkeit_options[0] if taetigkeit_options else None
+        finally:
+            cursor.close()
 
     def create_action_buttons(self):
         button_style = ft.ButtonStyle(
@@ -1326,12 +1432,120 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
 
     def open_settings(self, e):
-        # Implementieren Sie hier die Logik für die Einstellungen
-        print("Einstellungen öffnen")
+        color_options = [
+            ft.dropdown.Option("BLUE"),
+            ft.dropdown.Option("GREEN"),
+            ft.dropdown.Option("RED"),
+            ft.dropdown.Option("PURPLE"),
+            ft.dropdown.Option("ORANGE")
+        ]
+        
+        current_color = self.get_color_scheme()
+        
+        color_dropdown = ft.Dropdown(
+            label="Farbschema",
+            options=color_options,
+            value=current_color,
+            on_change=self.change_color_scheme
+        )
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Einstellungen"),
+            content=ft.Column([color_dropdown], tight=True),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_settings_dialog(dialog))
+            ],
+        )
+        
+        self.show_dialog(dialog)
+
+    def change_color_scheme(self, e):
+        color = e.control.value
+        self.set_color_scheme(color)
+        self.page.theme = ft.Theme(color_scheme=ft.ColorScheme(
+            primary=getattr(ft.colors, color),
+            on_primary=ft.colors.WHITE,
+        ))
+        self.update_summary_buttons()
+        self.page.update()
+
+    def close_settings_dialog(self, dialog):
+        if hasattr(self.page, 'dialog'):
+            self.page.dialog.open = False
+            self.page.update()
+
+    def get_color_scheme(self):
+        if hasattr(self.page, 'client_storage'):
+            color = self.page.client_storage.get("color_scheme")
+            return color if color else "BLUE"
+        return "BLUE"  # Default color if client_storage is not available
+
+    def set_color_scheme(self, color):
+        if hasattr(self.page, 'client_storage'):
+            self.page.client_storage.set("color_scheme", color)
+
+    def load_color_scheme(self):
+        color = self.get_color_scheme()
+        
+        # Mapping von deutschen zu englischen Farbnamen
+        color_mapping = {
+            "Blau": "BLUE",
+            "Grün": "GREEN",
+            "Rot": "RED",
+            "Lila": "PURPLE",
+            "Orange": "ORANGE"
+        }
+        
+        # Konvertiere den deutschen Farbnamen in den englischen, falls nötig
+        color = color_mapping.get(color, color)
+        
+        self.page.theme = ft.Theme(color_scheme=ft.ColorScheme(
+            primary=getattr(ft.colors, color, ft.colors.BLUE),
+            on_primary=ft.colors.WHITE,
+        ))
+        self.update_summary_buttons()
+        self.page.update()
 
     def show_help(self, e):
-        # Implementieren Sie hier die Logik für die Hilfe
-        print("Hilfe anzeigen")
+        help_text = """
+        Hilfe zur Rechnungs-App:
+
+        1. Kopfdaten ausfüllen: Füllen Sie alle erforderlichen Felder im oberen Bereich aus.
+        2. Artikel hinzufügen: Wählen Sie Bauteil, Dämmdicke, etc. und klicken Sie auf 'Artikel hinzufügen'.
+        3. Artikel bearbeiten: Klicken Sie auf einen Artikel in der Liste, um ihn zu bearbeiten.
+        4. Artikel löschen: Klicken Sie auf das Mülleimer-Symbol neben einem Artikel, um ihn zu löschen.
+        5. Sonderleistungen: Klicken Sie auf 'Sonderleistungen', um zusätzliche Leistungen hinzuzufügen.
+        6. Zuschläge: Klicken Sie auf 'Zuschläge', um Zuschläge hinzuzufügen.
+        7. PDF erstellen: Klicken Sie auf 'PDF mit Preisen erstellen' oder 'PDF ohne Preise erstellen'.
+        8. Neues Aufmaß: Klicken Sie auf 'Speichern und neues Aufmaß erstellen', um ein neues Aufmaß zu beginnen.
+
+        Bei weiteren Fragen wenden Sie sich bitte an den Support.
+        """
+        
+        dialog = ft.AlertDialog(
+            title=ft.Text("Hilfe"),
+            content=ft.Text(help_text),
+            actions=[
+                ft.TextButton("Schließen", on_click=lambda _: self.close_help_dialog(dialog))
+            ],
+        )
+        
+        self.show_dialog(dialog)
+
+    def close_help_dialog(self, dialog):
+        if hasattr(self.page, 'dialog'):
+            self.page.dialog.open = False
+            self.page.update()
+
+    def show_dialog(self, dialog):
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def show_snack_bar(self, message):
+        self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
+        self.page.snack_bar.open = True
+        self.page.update()
 
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
@@ -1550,19 +1764,27 @@ class InvoiceForm(ft.UserControl):
 
     def enable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
-            field.disabled = False
-        self.bemerkung_field.disabled = False
-        self.zuschlaege_button.disabled = False
-        self.new_aufmass_button.disabled = False
-        self.save_invoice_with_pdf_button.disabled = False
-        self.save_invoice_without_pdf_button.disabled = False
+            if hasattr(field, 'disabled'):
+                field.disabled = False
+        if hasattr(self.bemerkung_field, 'disabled'):
+            self.bemerkung_field.disabled = False
+        if hasattr(self.zuschlaege_button, 'disabled'):
+            self.zuschlaege_button.disabled = False
+        if hasattr(self.new_aufmass_button, 'disabled'):
+            self.new_aufmass_button.disabled = False
+        if hasattr(self.save_invoice_with_pdf_button, 'disabled'):
+            self.save_invoice_with_pdf_button.disabled = False
+        if hasattr(self.save_invoice_without_pdf_button, 'disabled'):
+            self.save_invoice_without_pdf_button.disabled = False
         # Aktiviere andere relevante Felder und Buttons
         self.update()
 
     def enable_header_fields(self):
         for field in self.invoice_detail_fields.values():
-            field.disabled = False
-        self.bemerkung_field.disabled = False
+            if hasattr(field, 'disabled'):
+                field.disabled = False
+        if hasattr(self.bemerkung_field, 'disabled'):
+            self.bemerkung_field.disabled = False
         self.update()
 
 
