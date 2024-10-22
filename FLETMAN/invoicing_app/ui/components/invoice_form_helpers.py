@@ -158,9 +158,23 @@ def get_base_price(self, bauteil, dn, da, dammdicke):
 def get_material_price(self, bauteil):
     cursor = self.conn.cursor()
     try:
-        cursor.execute("SELECT Preis FROM Materialpreise WHERE Benennung = ?", (bauteil,))
-        result = cursor.fetchone()
-        return result[0] if result else None
+        # Zuerst überprüfen wir die Struktur der Tabelle
+        cursor.execute("PRAGMA table_info(Materialpreise)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Wir suchen nach einer Spalte, die "preis" oder "price" enthält (Groß-/Kleinschreibung ignorieren)
+        price_column = next((col for col in columns if "preis" in col.lower() or "price" in col.lower()), None)
+        
+        if price_column:
+            cursor.execute(f"SELECT {price_column} FROM Materialpreise WHERE Benennung = ?", (bauteil,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+        else:
+            logging.error("Keine Preis-Spalte in der Materialpreise-Tabelle gefunden")
+            return None
+    except sqlite3.Error as e:
+        logging.error(f"Datenbankfehler in get_material_price: {str(e)}")
+        return None
     finally:
         cursor.close()
 
@@ -173,101 +187,67 @@ def get_taetigkeit_faktor(self, taetigkeit):
     finally:
         cursor.close()
 
-def get_positionsnummer(self, bauteil, dammdicke, dn=None, da=None, category="Aufmaß"):
-    cursor = self.conn.cursor()
-    try:
-        if category == "Aufmaß":
-            # Hole zuerst die Tätigkeits-ID
-            taetigkeit = self.taetigkeit_dropdown.value
-            cursor.execute('SELECT id FROM Faktoren WHERE Art = "Tätigkeit" AND Bezeichnung = ?', (taetigkeit,))
-            taetigkeit_id = cursor.fetchone()
-            if not taetigkeit_id:
-                logging.warning(f"Keine Tätigkeits-ID gefunden für: {taetigkeit}")
-                return None
-            taetigkeit_id = taetigkeit_id[0]
-
-            if self.is_formteil(bauteil):
-                # Logik für Formteile
-                cursor.execute('SELECT id FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ?', (bauteil,))
-                formteil_id = cursor.fetchone()
-                if not formteil_id:
-                    logging.warning(f"Keine Formteil-ID gefunden für: {bauteil}")
-                    return None
-                formteil_id = formteil_id[0]
-
-                cursor.execute("SELECT Positionsnummer FROM price_list WHERE Bauteil = 'Rohrleitung' AND Size = ? AND DN = ? AND DA = ? LIMIT 1", (dammdicke, dn, da))
-                rohrleitung_nummer = cursor.fetchone()
-                if not rohrleitung_nummer:
-                    logging.warning(f"Keine Rohrleitung-Nummer gefunden für: Dämmdicke={dammdicke}, DN={dn}, DA={da}")
-                    return None
-                rohrleitung_nummer = rohrleitung_nummer[0]
-
-                return f"{taetigkeit_id}.{formteil_id}.{rohrleitung_nummer}"
-
-            elif self.is_rohrleitung(bauteil):
-                # Logik für Rohrleitungen
-                query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = 'Rohrleitung' AND Size = ? AND DN = ? AND DA = ? LIMIT 1"
-                cursor.execute(query, (dammdicke, dn, da))
-                bauteil_nummer = cursor.fetchone()
-                
-                if bauteil_nummer:
-                    return f"{taetigkeit_id}.{bauteil_nummer[0]}"
-                else:
-                    logging.warning(f"Keine Rohrleitung-Nummer gefunden für: Dämmdicke={dammdicke}, DN={dn}, DA={da}")
-                    return None
-
-            else:
-                # Logik für andere Bauteile
-                query = "SELECT Positionsnummer FROM price_list WHERE Bauteil = ? AND Size = ? LIMIT 1"
-                cursor.execute(query, (bauteil, dammdicke))
-                bauteil_nummer = cursor.fetchone()
-                
-                if bauteil_nummer:
-                    return f"{taetigkeit_id}.{bauteil_nummer[0]}"
-                else:
-                    logging.warning(f"Keine Bauteil-Nummer gefunden für: Bauteil={bauteil}, Dämmdicke={dammdicke}")
-                    return None
-
-        elif category == "Material":
-            cursor.execute("SELECT Positionsnummer FROM Materialpreise WHERE Benennung = ? LIMIT 1", (bauteil,))
-            result = cursor.fetchone()
-            return result[0] if result else None
+def get_positionsnummer(self, bauteil, dammdicke, dn, da, category):
+    if category == "Material":
+        return "M"
+    elif self.is_rohrleitung(bauteil):
+        if dn and da:
+            return f"{dn}.{da}.{dammdicke}"
         else:
-            logging.warning(f"Unbekannte Kategorie: {category}")
-            return None
-    finally:
-        cursor.close()
-
-
+            return f"50.{dammdicke}"
+    elif self.is_formteil(bauteil):
+        if dn and da:
+            return f"51.{dn}.{da}.{dammdicke}"
+        else:
+            return f"51.{dammdicke}"
+    else:
+        bauteil_code = {
+            "Armatur": "52",
+            "Flansch": "53",
+            "Tankmantel/Glattblech": "54",
+            "Tankboden": "55",
+            "Tankdach": "56",
+            "Stutzen": "57",
+            "Behälter": "58",
+            "Apparat": "59",
+            "Kanal": "60"
+        }.get(bauteil, "50")
+        return f"{bauteil_code}.{dammdicke}"
 
 def update_price(self, e=None):
-    category = self.current_category
     bauteil = self.bauteil_dropdown.value
+    dammdicke = self.dammdicke_dropdown.value
     dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
     da = self.da_dropdown.value if self.da_dropdown.visible else None
-    dammdicke = self.dammdicke_dropdown.value
     taetigkeit = self.taetigkeit_dropdown.value
+    category = self.current_category
     quantity = self.quantity_input.value
 
-    if not all([category, bauteil, quantity]):
+    # Überprüfen Sie, ob alle notwendigen Felder ausgefüllt sind
+    if not all([category, bauteil]):
         self.price_field.value = ""
         self.zwischensumme_field.value = ""
         return
 
     try:
-        quantity = float(quantity)
+        quantity = float(quantity) if quantity else 0
     except ValueError:
         self.show_error("Ungültige Menge")
         self.price_field.value = ""
         self.zwischensumme_field.value = ""
         return
 
-    # Hole die Positionsnummer
-    positionsnummer = get_positionsnummer(self, bauteil, dammdicke, dn, da, category)
+    if bauteil is not None:
+        positionsnummer = get_positionsnummer(self, bauteil, dammdicke, dn, da, category)
+    else:
+        positionsnummer = None
+
     if positionsnummer:
         self.position_field.value = str(positionsnummer)
     else:
         self.position_field.value = ""
+
+    price = 0
 
     if category == "Aufmaß":
         if not all([taetigkeit, dammdicke]):
@@ -331,4 +311,12 @@ def apply_zuschlaege(self, total_amount):
     for _, faktor in self.selected_zuschlaege:
         total_amount *= faktor
     return total_amount
+
+
+
+
+
+
+
+
 

@@ -9,7 +9,7 @@ from database.db_operations import get_db_connection
 from .invoice_pdf_generator import generate_pdf
 from .invoice_form_helpers import (
     load_items, get_dammdicke_options, get_base_price,
-    get_material_price, get_taetigkeit_faktor, update_price
+    get_material_price, get_taetigkeit_faktor, update_price, get_positionsnummer
 )
 
 class InvoiceForm(ft.UserControl):
@@ -17,7 +17,7 @@ class InvoiceForm(ft.UserControl):
         super().__init__()
         self.page = page
         self.conn = get_db_connection()
-        self.next_aufmass_nr = self.get_current_aufmass_nr()
+        self.next_aufmass_nr = self.get_next_aufmass_nr()
         self.cache = {}
         self.article_summaries = []
         self.selected_sonderleistungen = []
@@ -240,10 +240,10 @@ class InvoiceForm(ft.UserControl):
         )
 
         self.new_aufmass_button = ft.ElevatedButton(
-            "Neues Aufmaß",
-            on_click=self.reset_form,
+            "Speichern und neues Aufmaß erstellen",
+            on_click=self.save_and_create_new_aufmass,
             style=button_style,
-            width=150,
+            width=250,
             height=50,
         )
         
@@ -460,9 +460,9 @@ class InvoiceForm(ft.UserControl):
     def get_next_aufmass_nr(self):
         cursor = self.conn.cursor()
         try:
-            cursor.execute("SELECT MAX(id) FROM invoice")
-            max_id = cursor.fetchone()[0]
-            return str(max_id + 1) if max_id else "1"
+            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
+            max_nr = cursor.fetchone()[0]
+            return str(int(max_nr or 0) + 1)
         finally:
             cursor.close()
 
@@ -577,7 +577,10 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
-        return bauteil == 'Rohrleitung' or self.is_formteil(bauteil)
+        return self.is_rohrleitung(bauteil) or self.is_formteil(bauteil)
+
+    def is_rohrleitung(self, bauteil):
+        return bauteil is not None and bauteil.lower() == "rohrleitung"
 
     def is_formteil(self, bauteil):
         cursor = self.conn.cursor()
@@ -745,10 +748,10 @@ class InvoiceForm(ft.UserControl):
 
         logging.info("Füge neuen Artikel hinzu")
         # Wenn der Artikel noch nicht in der Liste ist, fügen Sie ihn hinzu
-        position = self.position_field.value
+        position = get_positionsnummer(self, self.bauteil_dropdown.value, self.dammdicke_dropdown.value, self.dn_dropdown.value if self.dn_dropdown.visible else None, self.da_dropdown.value if self.da_dropdown.visible else None, self.current_category)
         bauteil = self.bauteil_dropdown.value
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else ""
-        da = self.da_dropdown.value if self.da_dropdown.visible else ""
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
         dammdicke = self.dammdicke_dropdown.value
         einheit = self.einheit_field.value
         taetigkeit = self.taetigkeit_dropdown.value
@@ -780,7 +783,7 @@ class InvoiceForm(ft.UserControl):
                     ], alignment=ft.MainAxisAlignment.CENTER)
                 )
             ],
-            on_select_changed=self.on_row_select
+            on_select_changed=lambda e, row_index=len(self.article_list_header.rows): self.edit_article_row(row_index)
         )
         self.article_list_header.rows.append(new_row)
 
@@ -801,11 +804,6 @@ class InvoiceForm(ft.UserControl):
         self.page.update()
         logging.info(f"Neue Artikelzeile hinzugefügt: {position}")
 
-    def on_row_select(self, e):
-        if e.data == "true":  # Zeile wurde ausgewählt
-            selected_index = self.article_list_header.rows.index(e.control)
-            self.edit_article_row(selected_index)
-
     def edit_article_row(self, row_index):
         logging.info(f"Bearbeite Artikelzeile {row_index}")
         if 0 <= row_index < len(self.article_list_header.rows):
@@ -847,56 +845,10 @@ class InvoiceForm(ft.UserControl):
             self.update()
 
             # Scrollen Sie zu den Eingabefeldern
-            self.page.scroll_to(self.position_field)
+            self.page.update()
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
 
-    def edit_article_row(self, row_index):
-        logging.info(f"Bearbeite Artikelzeile {row_index}")
-        if 0 <= row_index < len(self.article_list_header.rows):
-            row = self.article_list_header.rows[row_index]
-            self.edit_mode = True
-            self.edit_row_index = row_index
-            self.update_position_button.visible = True
-
-            # Füllen Sie die Eingabefelder mit den Werten aus der ausgewählten Zeile
-            self.position_field.value = row.cells[0].content.content.value
-            self.bauteil_dropdown.value = row.cells[1].content.content.value
-            self.dn_dropdown.value = row.cells[2].content.content.value
-            self.da_dropdown.value = row.cells[3].content.content.value
-            self.dammdicke_dropdown.value = row.cells[4].content.content.value
-            self.einheit_field.value = row.cells[5].content.content.value
-            self.taetigkeit_dropdown.value = row.cells[6].content.content.value
-
-            # Behandeln Sie Sonderleistungen
-            sonderleistungen_str = row.cells[7].content.content.value
-            self.selected_sonderleistungen = []
-            if sonderleistungen_str:
-                sonderleistungen = sonderleistungen_str.split(', ')
-                for sl in sonderleistungen:
-                    faktor = self.get_sonderleistung_faktor(sl)
-                    self.selected_sonderleistungen.append((sl, faktor))
-
-            self.price_field.value = row.cells[8].content.content.value.replace(' €', '')
-            self.quantity_input.value = row.cells[9].content.content.value
-            self.zwischensumme_field.value = row.cells[10].content.content.value.replace(' €', '')
-
-            # Aktualisieren Sie die Sichtbarkeit der DN/DA Felder
-            self.dn_dropdown.visible = bool(self.dn_dropdown.value)
-            self.da_dropdown.visible = bool(self.da_dropdown.value)
-
-            # Aktualisieren Sie den Sonderleistungen-Button
-            self.update_sonderleistungen_button()
-
-            # Aktualisieren Sie die Benutzeroberfläche
-            self.update()
-
-            # Scrollen Sie zu den Eingabefeldern
-            self.page.scroll_to(self.position_field)
-        else:
-            logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
-
-    # Fügen Sie diese Hilfsmethode hinzu, falls sie noch nicht existiert
     def get_sonderleistung_faktor(self, sonderleistung):
         for sl, faktor in self.sonderleistungen_options:
             if sl == sonderleistung:
@@ -956,15 +908,6 @@ class InvoiceForm(ft.UserControl):
                 self.update()
         else:
             logging.warning("Versuch, eine Zeile zu aktualisieren, ohne im Bearbeitungsmodus zu sein")
-
-    def get_sonderleistung_faktor(self, sonderleistung):
-        for sl, faktor in self.sonderleistungen_options:
-            if sl == sonderleistung:
-                return faktor
-        return 1.0  # Standardfaktor, falls nicht gefunden
-
-    def is_rohrleitung(self, bauteil):
-        return bauteil.lower() == "rohrleitung"
 
     def back_to_main_menu(self, e=None):
         if self.page:
@@ -1394,6 +1337,11 @@ class InvoiceForm(ft.UserControl):
         logging.info("Speichere Rechnung in der Datenbank")
         logging.debug(f"Rechnungsdaten: {invoice_data}")
 
+        # Überprüfen, ob Artikel vorhanden sind
+        if not invoice_data['articles']:
+            self.show_error("Es können keine leeren Aufmaße ohne Artikel gespeichert werden.")
+            return None
+
         nettobetrag = sum(float(article['zwischensumme'].replace(',', '.').replace('€', '').strip() or '0') for article in invoice_data['articles'])
         zuschlaege_summe = 0
         for zuschlag, faktor in invoice_data['zuschlaege']:
@@ -1435,9 +1383,7 @@ class InvoiceForm(ft.UserControl):
                 cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
             else:
                 # Wenn keine Rechnung mit dieser Nummer existiert, erstellen wir eine neue
-                cursor.execute('SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice')
-                max_aufmass_nr = cursor.fetchone()[0]
-                new_aufmass_nr = str(int(max_aufmass_nr or 0) + 1)
+                new_aufmass_nr = self.get_next_aufmass_nr()
                 
                 cursor.execute('''
                 INSERT INTO invoice (
@@ -1618,3 +1564,60 @@ class InvoiceForm(ft.UserControl):
             field.disabled = False
         self.bemerkung_field.disabled = False
         self.update()
+
+
+    def save_and_create_new_aufmass(self, e):
+        # Zuerst das aktuelle Aufmaß speichern
+        invoice_data = self.get_invoice_data()
+        self.save_invoice_to_db(invoice_data)
+        
+        # Dann ein neues Aufmaß erstellen
+        self.reset_form()
+        
+        # Aktualisieren Sie die Benutzeroberfläche
+        self.update()
+
+    def reset_form(self):
+        # Behalten Sie die Kopfdaten bei
+        kopfdaten = {
+            'client_name': self.invoice_detail_fields['client_name'].value,
+            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
+            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
+            'baustelle': self.invoice_detail_fields['baustelle'].value,
+            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
+            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
+            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
+            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
+        }
+
+        # Setzen Sie die Aufmaß-Nummer auf die nächste verfügbare Nummer
+        self.next_aufmass_nr = self.get_next_aufmass_nr()
+        self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+
+        # Setzen Sie alle anderen Felder zurück
+        self.clear_input_fields()
+        self.article_list_header.rows.clear()
+        self.article_summaries.clear()
+        self.selected_sonderleistungen.clear()
+        self.selected_zuschlaege.clear()
+        self.bemerkung_field.value = ""
+
+        # Setzen Sie die Kopfdaten wieder ein
+        for field, value in kopfdaten.items():
+            self.invoice_detail_fields[field].value = value
+
+        # Setzen Sie die Buttons auf sichtbar
+        self.save_invoice_with_pdf_button.visible = True
+        self.save_invoice_without_pdf_button.visible = True
+        self.new_aufmass_button.visible = True
+
+        # Aktualisieren Sie die Gesamtpreise
+        self.update_total_price()
+        self.update_pdf_buttons()
+        self.update_topbar()
+
+        # Aktualisieren Sie die Benutzeroberfläche
+        self.update()
+        self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
+
+    # ... (andere Methoden bleiben unverändert)

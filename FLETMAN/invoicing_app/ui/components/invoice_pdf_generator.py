@@ -98,7 +98,7 @@ def generate_pdf(invoice_data, filename, include_prices=True):
      ""],
     ["", "", Paragraph("Getreidestraße 3<br/>28217 Bremen<br/>Deutschland", styles['Normal_RIGHT'])],
     ["", "", ""],
-    ["", Paragraph("<b>Rechnung</b>", styles['Normal_CENTER']), ""]
+    ["", Paragraph("<b>{}</b>".format("Rechnung" if include_prices else "Aufmaß"), styles['Normal_CENTER']), ""]
     ]
     header_table = Table(header_data, colWidths=[60*mm, 70*mm, 60*mm])
     header_table.setStyle(TableStyle([
@@ -282,3 +282,4 @@ def generate_pdf(invoice_data, filename, include_prices=True):
     
     doc.build(elements)
     logging.info("PDF-Generierung abgeschlossen")
+
