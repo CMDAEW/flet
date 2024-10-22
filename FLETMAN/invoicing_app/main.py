@@ -279,7 +279,9 @@ def main(page: ft.Page):
 
     def show_invoice_form(aufmass_nr=None):
         content_column.controls.clear()
-        invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False)
+        invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False, 
+                                   initial_color_scheme=get_color_scheme(), 
+                                   initial_theme_mode=page.theme_mode)
         page.invoice_form = invoice_form
         
         if aufmass_nr is None:
@@ -322,3 +324,4 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Ein Fehler ist aufgetreten: {e}")
         raise
+

@@ -13,7 +13,7 @@ from .invoice_form_helpers import (
 )
 
 class InvoiceForm(ft.UserControl):
-    def __init__(self, page, aufmass_nr=None, is_preview=False):
+    def __init__(self, page, aufmass_nr=None, is_preview=False, initial_color_scheme="BLUE", initial_theme_mode=ft.ThemeMode.LIGHT):
         super().__init__()
         self.page = page
         self.next_aufmass_nr = self.get_next_aufmass_nr()
@@ -27,6 +27,8 @@ class InvoiceForm(ft.UserControl):
         self.article_count = 0
         self.pdf_generated = False
         self.is_preview = is_preview
+        self.color_scheme = initial_color_scheme
+        self.theme_mode = initial_theme_mode
 
         # Erstellen Sie die UI-Elemente
         self.create_ui_elements()
@@ -106,8 +108,13 @@ class InvoiceForm(ft.UserControl):
 
     def show_dialog(self, dialog):
         self.page.dialog = dialog
-        self.page.dialog.open = True
+        dialog.open = True
         self.page.update()
+
+    def close_dialog(self):
+        if self.page.dialog:
+            self.page.dialog.open = False
+            self.page.update()
 
     def close_settings_dialog(self, e):
         if self.page.dialog:
@@ -133,18 +140,16 @@ class InvoiceForm(ft.UserControl):
             ft.dropdown.Option("ORANGE")
         ]
         
-        current_color = self.get_color_scheme()
-        
         color_dropdown = ft.Dropdown(
             label="Farbschema",
             options=color_options,
-            value=current_color,
+            value=self.color_scheme,
             on_change=self.change_color_scheme
         )
 
         theme_switch = ft.Switch(
             label="Dunkles Theme",
-            value=self.page.theme_mode == ft.ThemeMode.DARK,
+            value=self.theme_mode == ft.ThemeMode.DARK,
             on_change=self.toggle_theme
         )
         
@@ -200,11 +205,6 @@ class InvoiceForm(ft.UserControl):
         dialog.open = True
         self.page.update()
 
-    def close_dialog(self):
-        if self.page.dialog:    
-            self.page.dialog.open = False
-            self.page.update()
-
     def add_logo_and_topbar(self):
         logo_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", "KAE_Logo_RGB_300dpi2.jpg")
         if os.path.exists(logo_path):
@@ -213,10 +213,10 @@ class InvoiceForm(ft.UserControl):
             logo = ft.Text("KAEFER")  # Fallback, wenn das Logo nicht gefunden wird
             logging.warning(f"Logo-Datei nicht gefunden: {logo_path}")
 
-        self.page.appbar = ft.AppBar(
+        self.topbar = ft.AppBar(
             leading=logo,
             leading_width=100,
-            title=ft.Text(""),  # Leerer Text anstelle des Titels
+            title=ft.Text(""),
             center_title=False,
             bgcolor=ft.colors.SURFACE_VARIANT,
             actions=[
@@ -224,7 +224,7 @@ class InvoiceForm(ft.UserControl):
                 ft.IconButton(ft.icons.HELP_OUTLINE, on_click=self.show_help),
             ],
         )
-        self.page.update()
+      
 
     def disable_all_inputs(self):
         for field in self.invoice_detail_fields.values():
@@ -251,7 +251,7 @@ class InvoiceForm(ft.UserControl):
         return ft.Container(
             content=ft.Column(
                 [
-                    self.topbar,  # Add this line to include the TopBar
+                    self.topbar,
                     invoice_details,
                     article_input,
                     article_list,
@@ -1929,9 +1929,23 @@ class InvoiceForm(ft.UserControl):
         self.update_theme()
     
     def change_color_scheme(self, e):
-        color_scheme = e.data
-        self.page.theme.color_scheme = color_scheme
-        self.update()   
+        self.color_scheme = e.control.value
+        self.update_theme()
+
+    def toggle_theme(self, e):
+        self.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
+        self.update_theme()
+
+    def update_theme(self):
+        self.page.theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=getattr(ft.colors, self.color_scheme),
+                on_primary=ft.colors.WHITE,
+            )
+        )
+        self.page.bgcolor = ft.colors.WHITE if self.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
+        self.update()
+        self.page.update()
 
     def close_settings_dialog(self, dialog):
         dialog.open = False
@@ -1942,28 +1956,15 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def load_color_scheme(self):
-        color_scheme = self.get_color_scheme()
-        return color_scheme
+        self.color_scheme = self.get_color_scheme()
+        self.update_theme()
+
+    def get_color_scheme(self):
+        return self.color_scheme
     
     def set_color_scheme(self, color):
         if hasattr(self.page, 'client_storage'):
             self.page.client_storage.set("color_scheme", color)
-
-    def toggle_theme(self, e):
-        self.page.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
-        self.update_theme()
-
-    def update_theme(self):
-        color = self.get_color_scheme()
-        self.page.theme = ft.Theme(
-            color_scheme=ft.ColorScheme(
-                primary=getattr(ft.colors, color),
-                on_primary=ft.colors.WHITE,
-            )
-        )
-        self.page.bgcolor = ft.colors.WHITE if self.page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
-        self.update()
-        self.page.update()
 
     def update_summary_buttons(self):
         if self.article_summaries:
@@ -2019,7 +2020,7 @@ class InvoiceForm(ft.UserControl):
     def settings_dialog_load_color_scheme_callback(self, e):
         self.load_color_scheme(e)
 
-  
+
 
 
 
