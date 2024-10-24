@@ -411,18 +411,18 @@ class InvoiceForm(ft.UserControl):
         self.price_field = ft.TextField(label="Preis", read_only=True, width=120, tooltip="Preis pro Einheit")
         self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.on_quantity_change, width=120, tooltip="Anzahl der Einheiten")
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=200, tooltip="Zwischensumme für den Artikel")
-    
-        # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
+
+            # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=220)
         self.sonderleistungen_row = ft.Row([self.sonderleistungen_button], alignment=ft.MainAxisAlignment.START)
-    
+
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         # Category buttons
         self.category_buttons = [
-            ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=160),
-            ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=160),
-            ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=160),
-            ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=160)
+        ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=160),
+        ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=160),
+        ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=160),
+        ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=160)
         ]
         self.category_row = ft.Row(controls=self.category_buttons, spacing=5)
 
@@ -438,7 +438,18 @@ class InvoiceForm(ft.UserControl):
     def on_dn_change(self, e):
         dn = e.control.value
         if dn:
-            self.update_da_options(dn)
+            # Finden Sie den korrespondierenden DA-Wert
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute('SELECT DA FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ? ORDER BY DA', (dn,))
+                da_value = cursor.fetchone()
+                if da_value:
+                    self.da_dropdown.value = str(da_value[0])
+            finally:
+                cursor.close()
+                conn.close()
+
             self.update_dammdicke_options()
             self.update_price()
         self.update()
@@ -446,7 +457,18 @@ class InvoiceForm(ft.UserControl):
     def on_da_change(self, e):
         da = e.control.value
         if da:
-            self.update_dn_options(da)
+            # Finden Sie den korrespondierenden DN-Wert
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute('SELECT DN FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ? ORDER BY DN', (da,))
+                dn_value = cursor.fetchone()
+                if dn_value:
+                    self.dn_dropdown.value = str(int(dn_value[0]))
+            finally:
+                cursor.close()
+                conn.close()
+
             self.update_dammdicke_options()
             self.update_price()
         self.update()
@@ -468,19 +490,21 @@ class InvoiceForm(ft.UserControl):
         cursor = conn.cursor()
         try:
             if self.is_rohrleitung_or_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
-                dn_options = [row[0] for row in cursor.fetchall()]
-                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
-                self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
+                # Abfrage, um DN-DA-Paare zu laden
+                cursor.execute('SELECT DN, DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN, DA')
+                dn_da_pairs = cursor.fetchall()
 
-                cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
-                da_options = [row[0] for row in cursor.fetchall()]
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+                # Optionen für DN und DA basierend auf den Paaren erstellen
+                dn_options = list(set(pair[0] for pair in dn_da_pairs))
+                da_options = list(set(pair[1] for pair in dn_da_pairs))
 
-                if dn_options:
-                    cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
-                    first_valid_da = cursor.fetchone()[0]
-                    self.da_dropdown.value = str(first_valid_da) if first_valid_da else None
+                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in sorted(dn_options)]
+                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in sorted(da_options)]
+
+                # Setzen Sie die Standardwerte für DN und DA
+                if dn_da_pairs:
+                    self.dn_dropdown.value = str(int(dn_da_pairs[0][0]))
+                    self.da_dropdown.value = str(dn_da_pairs[0][1])
 
                 self.dn_dropdown.visible = True
                 self.da_dropdown.visible = True
@@ -1879,20 +1903,22 @@ class InvoiceForm(ft.UserControl):
         cursor = conn.cursor()
         try:
             if self.is_rohrleitung_or_formteil(bauteil):
-                cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
-                dn_options = [row[0] for row in cursor.fetchall()]
-                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
-                self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
+                # Abfrage, um DN-DA-Paare zu laden
+                cursor.execute('SELECT DN, DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN, DA')
+                dn_da_pairs = cursor.fetchall()
 
-                cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
-                da_options = [row[0] for row in cursor.fetchall()]
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+                # Optionen für DN und DA basierend auf den Paaren erstellen
+                dn_options = list(set(pair[0] for pair in dn_da_pairs))
+                da_options = list(set(pair[1] for pair in dn_da_pairs))
 
-                if dn_options:
-                    cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
-                    first_valid_da = cursor.fetchone()[0]
-                    self.da_dropdown.value = str(first_valid_da) if first_valid_da else None
-    
+                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in sorted(dn_options)]
+                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in sorted(da_options)]
+
+                # Setzen Sie die Standardwerte für DN und DA
+                if dn_da_pairs:
+                    self.dn_dropdown.value = str(int(dn_da_pairs[0][0]))
+                    self.da_dropdown.value = str(dn_da_pairs[0][1])
+
                 self.dn_dropdown.visible = True
                 self.da_dropdown.visible = True
             else:
