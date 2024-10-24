@@ -1,6 +1,5 @@
 import logging
 import sqlite3
-from tkinter import dialog
 import flet as ft
 import re
 import os
@@ -12,6 +11,7 @@ from .invoice_form_helpers import (
     load_items, get_dammdicke_options, get_base_price,
     get_material_price, get_taetigkeit_faktor, update_price, get_positionsnummer
 )
+
 
 class InvoiceForm(ft.UserControl):
     def __init__(self, page, aufmass_nr=None, is_preview=False, initial_color_scheme="BLUE", initial_theme_mode=ft.ThemeMode.LIGHT):
@@ -400,31 +400,31 @@ class InvoiceForm(ft.UserControl):
         self.update()
 
     def create_article_input_fields(self):
-        # Article input fields
-        self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=80)
-        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.on_bauteil_change, width=220)
-        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.on_dn_change, width=80, options=[])
-        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.on_da_change, width=80, options=[])
-        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.on_dammdicke_change, width=140)
-        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.on_taetigkeit_change, width=300)
-        self.position_field = ft.TextField(label="Position", read_only=True, width=100)
-        self.price_field = ft.TextField(label="Preis", read_only=True, width=80)
-        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.on_quantity_change, width=80)
-        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=150)
-        
+        # Article input fields with increased width
+        self.einheit_field = ft.TextField(label="Einheit", read_only=True, width=120, tooltip="Einheit des Artikels")
+        self.bauteil_dropdown = ft.Dropdown(label="Bauteil", on_change=self.on_bauteil_change, width=260, tooltip="Wählen Sie ein Bauteil")
+        self.dn_dropdown = ft.Dropdown(label="DN", on_change=self.on_dn_change, width=120, options=[], tooltip="Nennweite (DN)")
+        self.da_dropdown = ft.Dropdown(label="DA", on_change=self.on_da_change, width=120, options=[], tooltip="Außendurchmesser (DA)")
+        self.dammdicke_dropdown = ft.Dropdown(label="Dämmdicke", on_change=self.on_dammdicke_change, width=180, tooltip="Dämmstärke")
+        self.taetigkeit_dropdown = ft.Dropdown(label="Tätigkeit", on_change=self.on_taetigkeit_change, width=140, tooltip="Wählen Sie eine Tätigkeit")
+        self.position_field = ft.TextField(label="Position", read_only=True, width=120, tooltip="Position des Artikels")
+        self.price_field = ft.TextField(label="Preis", read_only=True, width=120, tooltip="Preis pro Einheit")
+        self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.on_quantity_change, width=120, tooltip="Anzahl der Einheiten")
+        self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=200, tooltip="Zwischensumme für den Artikel")
+    
         # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
-        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=200)
+        self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=220)
         self.sonderleistungen_row = ft.Row([self.sonderleistungen_button], alignment=ft.MainAxisAlignment.START)
-        
+    
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         # Category buttons
         self.category_buttons = [
-            ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=150),
-            ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=150),
-            ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=150),
-            ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=150)
+            ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=160),
+            ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=160),
+            ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=160),
+            ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=160)
         ]
-        self.category_row = ft.Row(controls=self.category_buttons, spacing=1)
+        self.category_row = ft.Row(controls=self.category_buttons, spacing=5)
 
     def on_bauteil_change(self, e):
         bauteil = e.control.value
@@ -672,20 +672,19 @@ class InvoiceForm(ft.UserControl):
             border_radius=10,
             margin=ft.margin.only(bottom=20),
         )
-
     def build_article_input(self):
         # Anpassen der Feldbreiten für bessere Darstellung
         field_widths = {
-            'position': 80,
-            'bauteil': 200,
-            'dn': 60,
-            'da': 60,
-            'dammdicke': 80,
-            'einheit': 60,
-            'taetigkeit': 250,
+            'position': 100,
+            'bauteil': 250,
+            'dn': 80,
+            'da': 80,
+            'dammdicke': 130,
+            'einheit': 80,
+            'taetigkeit': 300,
             'preis': 80,
-            'menge': 60,
-            'zwischensumme': 100
+            'menge': 70,
+            'zwischensumme': 160
         }
 
         # Setze die Feldbreiten
@@ -699,24 +698,6 @@ class InvoiceForm(ft.UserControl):
         self.price_field.width = field_widths['preis']
         self.quantity_input.width = field_widths['menge']
         self.zwischensumme_field.width = field_widths['zwischensumme']
-
-        # Labels in einer Zeile
-        labels_row = ft.Row(
-            controls=[
-                ft.Text("Position", size=12, width=field_widths['position']),
-                ft.Text("Bauteil", size=12, width=field_widths['bauteil']),
-                ft.Text("DN", size=12, width=field_widths['dn']),
-                ft.Text("DA", size=12, width=field_widths['da']),
-                ft.Text("Dämmdicke", size=12, width=field_widths['dammdicke']),
-                ft.Text("Einheit", size=12, width=field_widths['einheit']),
-                ft.Text("Tätigkeit", size=12, width=field_widths['taetigkeit']),
-                ft.Text("Preis", size=12, width=field_widths['preis']),
-                ft.Text("Menge", size=12, width=field_widths['menge']),
-                ft.Text("Zwischensumme", size=12, width=field_widths['zwischensumme']),
-            ],
-            alignment=ft.MainAxisAlignment.START,
-            spacing=5,
-        )
 
         # Eingabefelder in einer Zeile
         input_row = ft.Row(
@@ -750,7 +731,6 @@ class InvoiceForm(ft.UserControl):
         return ft.Container(
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
-                labels_row,
                 input_row,
                 buttons_row,
             ], spacing=5),
@@ -931,7 +911,7 @@ class InvoiceForm(ft.UserControl):
         try:
             cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
             max_nr = cursor.fetchone()[0]
-            return str(int(max_nr or 0) + 1)
+            return str(max(int(max_nr or 0) + 1, 1))
         finally:
             cursor.close()
             conn.close()
@@ -987,7 +967,9 @@ class InvoiceForm(ft.UserControl):
                 cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
             else:
                 # Wenn keine Rechnung mit dieser Nummer existiert, erstellen wir eine neue
-                new_aufmass_nr = self.get_next_aufmass_nr()
+                cursor.execute('SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice')
+                max_aufmass_nr = cursor.fetchone()[0]
+                new_aufmass_nr = str(max(int(max_aufmass_nr or 0) + 1, 1))  # Stellen Sie sicher, dass die erste Nummer 1 ist
                 
                 cursor.execute('''
                 INSERT INTO invoice (
@@ -1183,11 +1165,11 @@ class InvoiceForm(ft.UserControl):
 
     def save_and_create_new_aufmass(self, e):
         # Zuerst das aktuelle Aufmaß speichern
-        invoice_data = self.get_invoice_data()
-        self.save_invoice_to_db(invoice_data)
+        rechnungsdaten = self.get_invoice_data()
+        self.save_invoice_to_db(rechnungsdaten)
         
         # Dann ein neues Aufmaß erstellen
-        self.reset_form()
+        self.reset_form(e)
         
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
@@ -1289,316 +1271,6 @@ class InvoiceForm(ft.UserControl):
         dialog.open = False
         self.page.update()
         self.update_sonderleistungen_button()
-
-    def update_sonderleistungen_button(self):
-        count = len(self.selected_sonderleistungen)
-        self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
-        self.update()
-
-    def update_article_row(self, e):
-        """Aktualisiert eine bestehende Artikelzeile im Bearbeitungsmodus"""
-        if self.edit_mode and self.edit_row_index is not None:
-            if 0 <= self.edit_row_index < len(self.article_list_header.rows):
-                sonderleistungen = ", ".join([sl[0] for sl in self.selected_sonderleistungen])
-                updated_row = ft.DataRow(
-                    cells=[
-                    ft.DataCell(ft.Container(content=ft.Text(self.position_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.bauteil_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.dammdicke_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.einheit_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.taetigkeit_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(sonderleistungen, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.price_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.quantity_input.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.zwischensumme_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(
-                        ft.Row([
-                            ft.IconButton(
-                                icon=ft.icons.DELETE,
-                                icon_color="red500",
-                                on_click=lambda _, row=self.edit_row_index: self.delete_article_row(row)
-                            )
-                        ], alignment=ft.MainAxisAlignment.CENTER)
-                    )
-                ],
-                on_select_changed=lambda e, index=self.edit_row_index: self.edit_article_row(index)
-            )
-
-            self.article_list_header.rows[self.edit_row_index] = updated_row
-            self.article_summaries[self.edit_row_index] = {
-                'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
-                'sonderleistungen': self.selected_sonderleistungen.copy()
-            }
-
-
-
-    def build_bemerkung_container(self):
-        # Build bemerkung container
-        return ft.Container(
-            content=self.bemerkung_field,
-            padding=20,
-            border=ft.border.all(1, ft.colors.GREY_400),
-            border_radius=10,
-            margin=ft.margin.only(bottom=20),
-        )
-
-    def get_next_aufmass_nr(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
-            max_nr = cursor.fetchone()[0]
-            return str(int(max_nr or 0) + 1)
-        finally:
-            cursor.close()
-            conn.close()
-
-    def get_current_aufmass_nr(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
-            max_id = cursor.fetchone()[0]
-            return str(max_id) if max_id else "0"
-        finally:
-            cursor.close()
-            conn.close()
-
-    def load_invoice_options(self):
-        for field in self.invoice_detail_fields:
-            if field == 'aufmass_nr':
-                continue
-            options = self.get_from_cache_or_db(f"invoice_options_{field}", f"SELECT DISTINCT {field} FROM invoice WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}")
-            self.invoice_detail_fields[field].options = [ft.dropdown.Option(str(option[0])) for option in options]
-            self.invoice_detail_fields[field].options.append(ft.dropdown.Option("Neuer Eintrag"))
-
-    def get_from_cache_or_db(self, key, query, params=None):
-        if key not in self.cache:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(query, params or ())
-            self.cache[key] = cursor.fetchall()
-            cursor.close()
-            conn.close()
-        return self.cache[key]
-
-    def load_data(self):
-        # Load necessary data from the database
-        self.load_faktoren("Sonderleistung")
-        self.load_faktoren("Zuschläge")
-        self.update_field_visibility()
-        self.update_einheit()
-        self.update_price()
-
-    def load_faktoren(self, art):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
-            faktoren = cursor.fetchall()
-            if art == "Sonderleistung":
-                self.sonderleistungen_options = [(bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren]
-            elif art == "Zuschläge":
-                self.zuschlaege_options = [(bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren]
-        finally:
-            cursor.close()
-            conn.close()
-
-    def toggle_new_entry(self, e, field):
-        dropdown = self.invoice_detail_fields[field]
-        text_field = self.new_entry_fields[field]
-        text_field.visible = dropdown.value == "Neuer Eintrag"
-        self.update()
-
-    def validate_number_field(self, e, field_name):
-        value = e.control.value
-        pattern = r'^[0-9-]*$'
-        if not re.match(pattern, value):
-            e.control.error_text = "Nur Zahlen und Bindestriche erlaubt"
-        else:
-            e.control.error_text = None
-        self.update()
-
-    def on_bestelldatum_change(self, e):
-        self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
-
-    def on_ausfuehrungsbeginn_change(self, e):
-        self.update_date_field(e, 'ausfuehrungsbeginn', self.ausfuehrungsbeginn_button)
-
-    def on_ausfuehrungsende_change(self, e):
-        self.update_date_field(e, 'ausfuehrungsende', self.ausfuehrungsende_button)
-
-    def update_date_field(self, e, field_name, button):
-        if e.control.value:
-            date_obj = e.control.value
-            date_str = date_obj.strftime("%d.%m.%Y")
-            self.invoice_detail_fields[field_name].value = date_str
-            button.text = f"{self.invoice_detail_fields[field_name].label}: {date_str}"
-        else:
-            self.invoice_detail_fields[field_name].value = ""
-            button.text = f"{self.invoice_detail_fields[field_name].label} wählen"
-        self.update()
-
-    def on_category_click(self, e):
-        # Update category selection
-        for button in self.category_buttons:
-            button.style = None
-        e.control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE)
-        self.current_category = e.control.data
-        load_items(self, self.current_category)
-        self.update_field_visibility()
-        self.update()
-
-    def update_field_visibility(self):
-        is_aufmass = self.current_category == "Aufmaß"
-        self.dn_dropdown.visible = self.da_dropdown.visible = is_aufmass
-        self.dammdicke_dropdown.visible = is_aufmass
-        self.taetigkeit_dropdown.visible = is_aufmass
-        self.update()
-
-    def update_dn_da_fields(self, e):
-        bauteil = self.bauteil_dropdown.value
-        if self.is_rohrleitung_or_formteil(bauteil):
-            self.auto_fill_rohrleitung_or_formteil(bauteil)
-        else:
-            self.dn_dropdown.visible = False
-            self.da_dropdown.visible = False
-            self.dn_dropdown.value = None
-            self.da_dropdown.value = None
-        self.update_dammdicke_options()
-        self.update_einheit()
-        update_price(self)
-        self.update()
-
-    def is_rohrleitung_or_formteil(self, bauteil):
-        return self.is_rohrleitung(bauteil) or self.is_formteil(bauteil)
-
-    def is_rohrleitung(self, bauteil):
-        return bauteil is not None and bauteil.lower() == "rohrleitung"
-
-    def is_formteil(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ? LIMIT 1', (bauteil,))
-            return cursor.fetchone() is not None
-        finally:
-            cursor.close()
-            conn.close()
-
-    def auto_fill_rohrleitung_or_formteil(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
-            dn_options = [row[0] for row in cursor.fetchall()]
-            self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
-            self.dn_dropdown.value = str(int(dn_options[0]))
-
-            cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
-            da_options = [row[0] for row in cursor.fetchall()]
-            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
-
-            cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
-            first_valid_da = cursor.fetchone()[0]
-            self.da_dropdown.value = str(first_valid_da)
-
-            self.dn_dropdown.visible = True
-            self.da_dropdown.visible = True
-
-            self.update_dammdicke_options()
-            if self.dammdicke_dropdown.options:
-                self.dammdicke_dropdown.value = self.dammdicke_dropdown.options[0].key
-
-            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung LIMIT 1')
-            first_taetigkeit = cursor.fetchone()[0]
-            self.taetigkeit_dropdown.value = first_taetigkeit
-
-            update_price(self)
-        finally:
-            cursor.close()
-            conn.close()
-
-    def update_einheit(self):
-        bauteil = self.bauteil_dropdown.value
-        if bauteil:
-            if self.is_formteil(bauteil):
-                self.einheit_field.value = "m²"
-            else:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                try:
-                    cursor.execute('SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1', (bauteil,))
-                    result = cursor.fetchone()
-                    if result:
-                        self.einheit_field.value = result[0]
-                    else:
-                        self.einheit_field.value = ""
-                finally:
-                    cursor.close()
-                    conn.close()
-        else:
-            self.einheit_field.value = ""
-        self.update()
-
-    def update_dn_fields(self, e):
-        bauteil = self.bauteil_dropdown.value
-        dn = self.dn_dropdown.value
-        if self.is_rohrleitung_or_formteil(bauteil):
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            try:
-                cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn,))
-                first_valid_da = cursor.fetchone()[0]
-                if first_valid_da:
-                    self.da_dropdown.value = str(first_valid_da)
-                else:
-                    self.da_dropdown.value = None
-            finally:
-                cursor.close()
-                conn.close()
-        self.update_dammdicke_options()
-        update_price(self)
-        self.update()
-
-    def update_da_fields(self, e):
-        bauteil = self.bauteil_dropdown.value
-        da = self.da_dropdown.value
-        if self.is_rohrleitung_or_formteil(bauteil):
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            try:
-                cursor.execute('SELECT MIN(DN) FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ?', (da,))
-                first_valid_dn = cursor.fetchone()[0]
-                if first_valid_dn:
-                    self.dn_dropdown.value = str(int(first_valid_dn))
-                else:
-                    self.dn_dropdown.value = None
-            finally:
-                cursor.close()
-                conn.close()
-        self.update_dammdicke_options()
-        update_price(self)
-        self.update()
-
-    def update_dammdicke_options(self):
-        bauteil = self.bauteil_dropdown.value
-        if not bauteil:
-            return
-        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
-        da = self.da_dropdown.value if self.da_dropdown.visible else None
-        dammdicke_options = get_dammdicke_options(self, bauteil, dn, da)
-        self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
-        if dammdicke_options:
-            self.dammdicke_dropdown.value = str(dammdicke_options[0])
-        else:
-            self.dammdicke_dropdown.value = None
-        self.dammdicke_dropdown.update()
-
-    def update_price(self, e=None):
-        update_price(self)
 
     def add_article_row(self, e):
         logging.info("Starte add_article_row Methode")
@@ -2202,7 +1874,7 @@ class InvoiceForm(ft.UserControl):
         try:
             cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
             max_nr = cursor.fetchone()[0]
-            return str(int(max_nr or 0) + 1)
+            return str(max(int(max_nr or 0) + 1, 1))
         finally:
             cursor.close()
             conn.close()
@@ -2258,7 +1930,9 @@ class InvoiceForm(ft.UserControl):
                 cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
             else:
                 # Wenn keine Rechnung mit dieser Nummer existiert, erstellen wir eine neue
-                new_aufmass_nr = self.get_next_aufmass_nr()
+                cursor.execute('SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice')
+                max_aufmass_nr = cursor.fetchone()[0]
+                new_aufmass_nr = str(max(int(max_aufmass_nr or 0) + 1, 1))  # Stellen Sie sicher, dass die erste Nummer 1 ist
                 
                 cursor.execute('''
                 INSERT INTO invoice (
@@ -2310,233 +1984,329 @@ class InvoiceForm(ft.UserControl):
             logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
             conn.rollback()
             raise Exception(f"Datenbankfehler: {str(e)}")
-        except Exception as e:
-            logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
-            conn.rollback()
-            raise
         finally:
             cursor.close()
             conn.close()
 
-    def load_invoice_data(self, aufmass_nr):
+    def on_category_click(self, e):
+        # Update category selection
+        for button in self.category_buttons:
+            button.style = None
+        e.control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE)
+        self.current_category = e.control.data
+        load_items(self, self.current_category)
+        self.update_field_visibility()
+        self.update()
+
+    def update_sonderleistungen_button(self):
+        count = len(self.selected_sonderleistungen)
+        self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
+        self.update()
+
+    def update_article_row(self, e):
+        """Aktualisiert eine bestehende Artikelzeile im Bearbeitungsmodus"""
+        if self.edit_mode and self.edit_row_index is not None:
+            if 0 <= self.edit_row_index < len(self.article_list_header.rows):
+                sonderleistungen = ", ".join([sl[0] for sl in self.selected_sonderleistungen])
+                updated_row = ft.DataRow(
+                    cells=[
+                    ft.DataCell(ft.Container(content=ft.Text(self.position_field.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.bauteil_dropdown.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.dammdicke_dropdown.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.einheit_field.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.taetigkeit_dropdown.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(sonderleistungen, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.price_field.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.quantity_input.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(ft.Container(content=ft.Text(self.zwischensumme_field.value, size=16), alignment=ft.alignment.center)),
+                    ft.DataCell(
+                        ft.Row([
+                            ft.IconButton(
+                                icon=ft.icons.DELETE,
+                                icon_color="red500",
+                                on_click=lambda _, row=self.edit_row_index: self.delete_article_row(row)
+                            )
+                        ], alignment=ft.MainAxisAlignment.CENTER)
+                    )
+                ],
+                on_select_changed=lambda e, index=self.edit_row_index: self.edit_article_row(index)
+            )
+
+            self.article_list_header.rows[self.edit_row_index] = updated_row
+            self.article_summaries[self.edit_row_index] = {
+                'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
+                'sonderleistungen': self.selected_sonderleistungen.copy()
+            }
+
+
+
+    def build_bemerkung_container(self):
+        # Build bemerkung container
+        return ft.Container(
+            content=self.bemerkung_field,
+            padding=20,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=10,
+            margin=ft.margin.only(bottom=20),
+        )
+
+    def get_next_aufmass_nr(self):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            # Lade Rechnungskopfdaten
-            cursor.execute('''
-            SELECT client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
-                   auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende, bemerkungen, zuschlaege, total_amount
-            FROM invoice
-            WHERE aufmass_nr = ?
-            ''', (aufmass_nr,))
-            invoice_data = cursor.fetchone()
-            
-            if invoice_data:
-                self.invoice_detail_fields['client_name'].value = invoice_data[0]
-                self.invoice_detail_fields['bestell_nr'].value = invoice_data[1]
-                self.invoice_detail_fields['bestelldatum'].value = invoice_data[2]
-                self.invoice_detail_fields['baustelle'].value = invoice_data[3]
-                self.invoice_detail_fields['anlagenteil'].value = invoice_data[4]
-                self.invoice_detail_fields['aufmass_nr'].value = aufmass_nr
-                self.invoice_detail_fields['auftrags_nr'].value = invoice_data[5]
-                self.invoice_detail_fields['ausfuehrungsbeginn'].value = invoice_data[6]
-                self.invoice_detail_fields['ausfuehrungsende'].value = invoice_data[7]
-                self.bemerkung_field.value = invoice_data[8]
-                
-                # Lade Zuschläge
-                self.selected_zuschlaege = []
-                if invoice_data[9]:
-                    zuschlaege = invoice_data[9].split(',')
-                    for zuschlag in zuschlaege:
-                        bezeichnung, faktor = zuschlag.split(':')
-                        self.selected_zuschlaege.append((bezeichnung, float(faktor)))
-                
-                # Lade Artikeldaten
-                cursor.execute('''
-                    SELECT position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen
-                    FROM invoice_items
-                    WHERE invoice_id = (SELECT id FROM invoice WHERE aufmass_nr = ?)
-                    ORDER BY position
-                ''', (aufmass_nr,))
-                items = cursor.fetchall()
-                
-                self.article_list_header.rows.clear()
-                self.article_summaries.clear()
-                
-                for item in items:
-                    row_index = len(self.article_list_header.rows)
-                    new_row = ft.DataRow(
-                        cells=[
-                            ft.DataCell(ft.Container(content=ft.Text(item[0], size=16), alignment=ft.alignment.center)),  # Position
-                            ft.DataCell(ft.Container(content=ft.Text(item[1], size=16), alignment=ft.alignment.center)),  # Bauteil
-                            ft.DataCell(ft.Container(content=ft.Text(item[2], size=16), alignment=ft.alignment.center)),  # DN
-                            ft.DataCell(ft.Container(content=ft.Text(item[3], size=16), alignment=ft.alignment.center)),  # DA
-                            ft.DataCell(ft.Container(content=ft.Text(item[4], size=16), alignment=ft.alignment.center)),  # Dämmdicke
-                            ft.DataCell(ft.Container(content=ft.Text(item[6], size=16), alignment=ft.alignment.center)),  # Einheit
-                            ft.DataCell(ft.Container(content=ft.Text(item[5], size=16), alignment=ft.alignment.center)),  # Tätigkeit
-                            ft.DataCell(ft.Container(content=ft.Text(item[10], size=16), alignment=ft.alignment.center)),  # Sonderleistungen
-                            ft.DataCell(ft.Container(content=ft.Text(f"{item[7]:.2f}", size=16), alignment=ft.alignment.center)),  # Preis
-                            ft.DataCell(ft.Container(content=ft.Text(str(item[8]), size=16), alignment=ft.alignment.center)),  # Menge
-                            ft.DataCell(ft.Container(content=ft.Text(f"{item[9]:.2f}", size=16), alignment=ft.alignment.center)),  # Zwischensumme
-                            ft.DataCell(
-                                    ft.Row([
-                                        ft.IconButton(
-                                            icon=ft.icons.DELETE,
-                                            icon_color="red500",
-                                            on_click=lambda _, row=row_index: self.delete_article_row(row)
-                                        )
-                                    ], alignment=ft.MainAxisAlignment.CENTER)
-                                )
-                        ],
-                        on_select_changed=lambda e, index=row_index: self.edit_article_row(index)
-                    )
-                    self.article_list_header.rows.append(new_row)
-                    
-                    summary_data = {
-                        'zwischensumme': float(item[9]) if item[9] else 0,
-                        'sonderleistungen': item[10].split(', ') if item[10] else []
-                    }
-                    self.article_summaries.append(summary_data)
-                
-                if self.article_list_header.rows:
-                    self.save_invoice_with_pdf_button.visible = True
-                    self.save_invoice_without_pdf_button.visible = True
-                    self.new_aufmass_button.visible = True
-                else:
-                    self.save_invoice_with_pdf_button.visible = False
-                    self.save_invoice_without_pdf_button.visible = False
-                    self.new_aufmass_button.visible = False
-                
-                self.update_total_price()
-                self.update_pdf_buttons()
-                self.update_date_picker_buttons()
-                self.pdf_generated = True
-                self.update_topbar()  # Hier hinzugefügt
-                self.update()
-
-                # Nachdem alle Daten geladen wurden, aktivieren Sie die Eingabefelder
-                self.enable_all_inputs()
-
-                self.update()
-            else:
-                logging.warning(f"Keine Rechnung mit Aufmaß-Nr. {aufmass_nr} gefunden")
-        except Exception as e:
-            logging.error(f"Fehler beim Laden der Rechnungsdaten: {str(e)}")
+            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
+            max_nr = cursor.fetchone()[0]
+            return str(int(max_nr or 0) + 1)
         finally:
             cursor.close()
             conn.close()
 
-    def enable_all_inputs(self):
-        for field in self.invoice_detail_fields.values():
-            if hasattr(field, 'disabled'):
-                field.disabled = False
-        if hasattr(self.bemerkung_field, 'disabled'):
-            self.bemerkung_field.disabled = False
-        if hasattr(self.zuschlaege_button, 'disabled'):
-            self.zuschlaege_button.disabled = False
-        if hasattr(self.new_aufmass_button, 'disabled'):
-            self.new_aufmass_button.disabled = False
-        if hasattr(self.save_invoice_with_pdf_button, 'disabled'):
-            self.save_invoice_with_pdf_button.disabled = False
-        if hasattr(self.save_invoice_without_pdf_button, 'disabled'):
-            self.save_invoice_without_pdf_button.disabled = False
-        # Aktiviere andere relevante Felder und Buttons
+    def get_current_aufmass_nr(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
+            max_id = cursor.fetchone()[0]
+            return str(max_id) if max_id else "0"
+        finally:
+            cursor.close()
+            conn.close()
+
+    def load_invoice_options(self):
+        for field in self.invoice_detail_fields:
+            if field == 'aufmass_nr':
+                continue
+            options = self.get_from_cache_or_db(f"invoice_options_{field}", f"SELECT DISTINCT {field} FROM invoice WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}")
+            self.invoice_detail_fields[field].options = [ft.dropdown.Option(str(option[0])) for option in options]
+            self.invoice_detail_fields[field].options.append(ft.dropdown.Option("Neuer Eintrag"))
+
+    def get_from_cache_or_db(self, key, query, params=None):
+        if key not in self.cache:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, params or ())
+            self.cache[key] = cursor.fetchall()
+            cursor.close()
+            conn.close()
+        return self.cache[key]
+
+    def load_data(self):
+        # Load necessary data from the database
+        self.load_faktoren("Sonderleistung")
+        self.load_faktoren("Zuschläge")
+        self.update_field_visibility()
+        self.update_einheit()
+        self.update_price()
+
+    def load_faktoren(self, art):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT Bezeichnung, Faktor FROM Faktoren WHERE Art = ?', (art,))
+            faktoren = cursor.fetchall()
+            if art == "Sonderleistung":
+                self.sonderleistungen_options = [(bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren]
+            elif art == "Zuschläge":
+                self.zuschlaege_options = [(bezeichnung, float(faktor)) for bezeichnung, faktor in faktoren]
+        finally:
+            cursor.close()
+            conn.close()
+
+    def toggle_new_entry(self, e, field):
+        dropdown = self.invoice_detail_fields[field]
+        text_field = self.new_entry_fields[field]
+        text_field.visible = dropdown.value == "Neuer Eintrag"
         self.update()
 
-    def enable_header_fields(self):
-        for field in self.invoice_detail_fields.values():
-            if hasattr(field, 'disabled'):
-                field.disabled = False
-        if hasattr(self.bemerkung_field, 'disabled'):
-            self.bemerkung_field.disabled = False
+    def validate_number_field(self, e, field_name):
+        value = e.control.value
+        pattern = r'^[0-9-]*$'
+        if not re.match(pattern, value):
+            e.control.error_text = "Nur Zahlen und Bindestriche erlaubt"
+        else:
+            e.control.error_text = None
         self.update()
 
+    def on_bestelldatum_change(self, e):
+        self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
 
-    def save_and_create_new_aufmass(self, e):
-        # Zuerst das aktuelle Aufmaß speichern
-        invoice_data = self.get_invoice_data()
-        self.save_invoice_to_db(invoice_data)
-        
-        # Dann ein neues Aufmaß erstellen
-        self.reset_form()
-        
-        # Aktualisieren Sie die Benutzeroberfläche
+    def on_ausfuehrungsbeginn_change(self, e):
+        self.update_date_field(e, 'ausfuehrungsbeginn', self.ausfuehrungsbeginn_button)
+
+    def on_ausfuehrungsende_change(self, e):
+        self.update_date_field(e, 'ausfuehrungsende', self.ausfuehrungsende_button)
+
+    def update_date_field(self, e, field_name, button):
+        if e.control.value:
+            date_obj = e.control.value
+            date_str = date_obj.strftime("%d.%m.%Y")
+            self.invoice_detail_fields[field_name].value = date_str
+            button.text = f"{self.invoice_detail_fields[field_name].label}: {date_str}"
+        else:
+            self.invoice_detail_fields[field_name].value = ""
+            button.text = f"{self.invoice_detail_fields[field_name].label} wählen"
         self.update()
 
-    def reset_form(self):
-        # Behalten Sie die Kopfdaten bei
-        kopfdaten = {
-            'client_name': self.invoice_detail_fields['client_name'].value,
-            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
-            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
-            'baustelle': self.invoice_detail_fields['baustelle'].value,
-            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
-            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
-            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
-            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
-        }
-
-        # Setzen Sie die Aufmaß-Nummer auf die nächste verfügbare Nummer
-        self.next_aufmass_nr = self.get_next_aufmass_nr()
-        self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
-
-        # Setzen Sie alle anderen Felder zurück
-        self.clear_input_fields()
-        self.article_list_header.rows.clear()
-        self.article_summaries.clear()
-        self.selected_sonderleistungen.clear()
-        self.selected_zuschlaege.clear()
-        self.bemerkung_field.value = ""
-
-        # Setzen Sie die Kopfdaten wieder ein
-        for field, value in kopfdaten.items():
-            self.invoice_detail_fields[field].value = value
-
-        # Setzen Sie die Buttons auf sichtbar
-        self.save_invoice_with_pdf_button.visible = True
-        self.save_invoice_without_pdf_button.visible = True
-        self.new_aufmass_button.visible = True
-
-        # Aktualisieren Sie die Gesamtpreise
-        self.update_total_price()
-        self.update_pdf_buttons()
-        self.update_topbar()
-
-        # Aktualisieren Sie die Benutzeroberfläche
+    def on_category_click(self, e):
+        # Update category selection
+        for button in self.category_buttons:
+            button.style = None
+        e.control.style = ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE)
+        self.current_category = e.control.data
+        load_items(self, self.current_category)
+        self.update_field_visibility()
         self.update()
-        self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
 
-    def change_color_scheme(self, e):
-        color = e.control.value
-        self.set_color_scheme(color)
-        self.update_theme()
-    
-    def change_color_scheme(self, e):
-        self.color_scheme = e.control.value
-        self.update_theme()
-
-    def toggle_theme(self, e):
-        self.theme_mode = ft.ThemeMode.DARK if e.control.value else ft.ThemeMode.LIGHT
-        self.update_theme()
-
-    def update_theme(self):
-        self.page.theme = ft.Theme(
-            color_scheme=ft.ColorScheme(
-                primary=getattr(ft.colors, self.color_scheme),
-                on_primary=ft.colors.WHITE,
-            )
-        )
-        self.page.bgcolor = ft.colors.WHITE if self.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
+    def update_field_visibility(self):
+        is_aufmass = self.current_category == "Aufmaß"
+        self.dn_dropdown.visible = self.da_dropdown.visible = is_aufmass
+        self.dammdicke_dropdown.visible = is_aufmass
+        self.taetigkeit_dropdown.visible = is_aufmass
         self.update()
-        self.page.update()
 
-    def close_settings_dialog(self, dialog):
-        dialog.open = False
-        self.update()   
-
-    def close_help_dialog(self, dialog):
-        dialog.open = False
+    def update_dn_da_fields(self, e):
+        bauteil = self.bauteil_dropdown.value
+        if self.is_rohrleitung_or_formteil(bauteil):
+            self.auto_fill_rohrleitung_or_formteil(bauteil)
+        else:
+            self.dn_dropdown.visible = False
+            self.da_dropdown.visible = False
+            self.dn_dropdown.value = None
+            self.da_dropdown.value = None
+        self.update_dammdicke_options()
+        self.update_einheit()
+        update_price(self)
         self.update()
+
+    def is_rohrleitung_or_formteil(self, bauteil):
+        return self.is_rohrleitung(bauteil) or self.is_formteil(bauteil)
+
+    def is_rohrleitung(self, bauteil):
+        return bauteil is not None and bauteil.lower() == "rohrleitung"
+
+    def is_formteil(self, bauteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT 1 FROM Faktoren WHERE Art = "Formteil" AND Bezeichnung = ? LIMIT 1', (bauteil,))
+            return cursor.fetchone() is not None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def auto_fill_rohrleitung_or_formteil(self, bauteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
+            dn_options = [row[0] for row in cursor.fetchall()]
+            self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
+            self.dn_dropdown.value = str(int(dn_options[0]))
+
+            cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
+            da_options = [row[0] for row in cursor.fetchall()]
+            self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+
+            cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
+            first_valid_da = cursor.fetchone()[0]
+            self.da_dropdown.value = str(first_valid_da)
+
+            self.dn_dropdown.visible = True
+            self.da_dropdown.visible = True
+
+            self.update_dammdicke_options()
+            if self.dammdicke_dropdown.options:
+                self.dammdicke_dropdown.value = self.dammdicke_dropdown.options[0].key
+
+            cursor.execute('SELECT Bezeichnung FROM Faktoren WHERE Art = "Tätigkeit" ORDER BY Bezeichnung LIMIT 1')
+            first_taetigkeit = cursor.fetchone()[0]
+            self.taetigkeit_dropdown.value = first_taetigkeit
+
+            update_price(self)
+        finally:
+            cursor.close()
+            conn.close()
+
+    def update_einheit(self):
+        bauteil = self.bauteil_dropdown.value
+        if bauteil:
+            if self.is_formteil(bauteil):
+                self.einheit_field.value = "m²"
+            else:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute('SELECT Unit FROM price_list WHERE Bauteil = ? LIMIT 1', (bauteil,))
+                    result = cursor.fetchone()
+                    if result:
+                        self.einheit_field.value = result[0]
+                    else:
+                        self.einheit_field.value = ""
+                finally:
+                    cursor.close()
+                    conn.close()
+        else:
+            self.einheit_field.value = ""
+        self.update()
+
+    def update_dn_fields(self, e):
+        bauteil = self.bauteil_dropdown.value
+        dn = self.dn_dropdown.value
+        if self.is_rohrleitung_or_formteil(bauteil):
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn,))
+                first_valid_da = cursor.fetchone()[0]
+                if first_valid_da:
+                    self.da_dropdown.value = str(first_valid_da)
+                else:
+                    self.da_dropdown.value = None
+            finally:
+                cursor.close()
+                conn.close()
+        self.update_dammdicke_options()
+        update_price(self)
+        self.update()
+
+    def update_da_fields(self, e):
+        bauteil = self.bauteil_dropdown.value
+        da = self.da_dropdown.value
+        if self.is_rohrleitung_or_formteil(bauteil):
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute('SELECT MIN(DN) FROM price_list WHERE Bauteil = "Rohrleitung" AND DA = ?', (da,))
+                first_valid_dn = cursor.fetchone()[0]
+                if first_valid_dn:
+                    self.dn_dropdown.value = str(int(first_valid_dn))
+                else:
+                    self.dn_dropdown.value = None
+            finally:
+                cursor.close()
+                conn.close()
+        self.update_dammdicke_options()
+        update_price(self)
+        self.update()
+
+    def update_dammdicke_options(self):
+        bauteil = self.bauteil_dropdown.value
+        if not bauteil:
+            return
+        dn = self.dn_dropdown.value if self.dn_dropdown.visible else None
+        da = self.da_dropdown.value if self.da_dropdown.visible else None
+        dammdicke_options = get_dammdicke_options(self, bauteil, dn, da)
+        self.dammdicke_dropdown.options = [ft.dropdown.Option(str(size)) for size in dammdicke_options]
+        if dammdicke_options:
+            self.dammdicke_dropdown.value = str(dammdicke_options[0])
+        else:
+            self.dammdicke_dropdown.value = None
+        self.dammdicke_dropdown.update()
+
+    def update_price(self, e=None):
+        update_price(self)
 
     def load_color_scheme(self):
         self.color_scheme = self.get_color_scheme()
@@ -2559,47 +2329,9 @@ class InvoiceForm(ft.UserControl):
 
     def theme_changed(self, e):
         self.update_summary_buttons()
+
         self.update()
+        self.page.update()
 
-    def theme_changed_callback(self, e):
-        self.theme_changed(e)
-
-    def update_summary_buttons_callback(self, e):
-        self.update_summary_buttons(e)
-
-    def show_settings(self, e):
-        self.open_settings(e)
-
-    def show_help(self, e):
-        self.open_help(e)
-
-    def open_help(self, e):
-        self.show_dialog(self.help_dialog)  
-
-    def show_error_dialog(self, message):
-        dialog = ft.AlertDialog(
-            title=ft.Text("Fehler"),
-            content=ft.Text(message),
-            actions=[ft.TextButton("OK", on_click=lambda _: self.close_error_dialog(dialog))],
-        )
-        self.show_dialog(dialog)
-
-    def close_error_dialog(self, dialog):
+    def close_settings_dialog(self, dialog):
         dialog.open = False
-        self.update()
-
-    def help_dialog_callback(self, e):
-        self.show_help(e)
-
-    def settings_dialog_callback(self, e):
-        self.show_settings(e)
-
-    def settings_dialog_close_callback(self, e):
-        self.close_settings_dialog(e)
-
-    def settings_dialog_change_color_scheme_callback(self, e):
-        self.change_color_scheme(e)
-
-    def settings_dialog_load_color_scheme_callback(self, e):
-        self.load_color_scheme(e)
-
