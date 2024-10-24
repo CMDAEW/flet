@@ -763,245 +763,17 @@ class InvoiceForm(ft.UserControl):
             border_radius=10,
         )
 
-    def delete_article_row(self, row_index):
-        logging.info(f"Versuche Artikelzeile {row_index} zu löschen")
-        if 0 <= row_index < len(self.article_list_header.rows):
-            del self.article_list_header.rows[row_index]
-            if row_index < len(self.article_summaries):
-                del self.article_summaries[row_index]
-
-            # Aktualisieren Sie die Indizes für die verbleibenden Zeilen
-            for i, row in enumerate(self.article_list_header.rows):
-                for cell in row.cells:
-                    if isinstance(cell.content, ft.Row):
-                        for control in cell.content.controls:
-                            if isinstance(control, ft.IconButton):
-                                if control.icon == ft.icons.DELETE:
-                                    control.on_click = lambda _, r=i: self.delete_article_row(r)
-
-            if self.edit_mode and self.edit_row_index is not None:
-                if row_index < self.edit_row_index:
-                    self.edit_row_index -= 1
-                elif row_index == self.edit_row_index:
-                    self.edit_mode = False
-                    self.edit_row_index = None
-                    self.update_position_button.visible = False
-                    self.clear_input_fields()
-
-            # Überprüfen Sie, ob noch Artikel übrig sind
-            if len(self.article_list_header.rows) == 0:
-                self.save_invoice_with_pdf_button.visible = False
-                self.save_invoice_without_pdf_button.visible = False
-                self.new_aufmass_button.visible = False
-
-            self.update_total_price()
-            self.update_pdf_buttons()
-            self.update()
-            logging.info(f"Artikelzeile {row_index} erfolgreich gelöscht")
-        else:
-            logging.warning(f"Ungültiger Zeilenindex beim Löschen: {row_index}")
-
-        # Aktualisieren Sie die Positionen der verbleibenden Artikel
-        self.update_article_positions()
-
     def update_article_positions(self):
         for i, row in enumerate(self.article_list_header.rows):
             row.cells[0].content.content.value = str(i + 1)  # Aktualisiere die Position
         self.update()
 
-    def validate_invoice_details(self):
-        required_fields = [
-            'client_name', 'bestell_nr', 'bestelldatum', 'baustelle', 'anlagenteil',
-            'auftrags_nr', 'ausfuehrungsbeginn', 'ausfuehrungsende'
-        ]
-
-        for field in required_fields:
-            value = self.invoice_detail_fields[field].value
-            if value is None or value == "" or value == "Neuer Eintrag":
-                if self.new_entry_fields.get(field) and self.new_entry_fields[field].visible and self.new_entry_fields[field].value:
-                    continue
-                return False, f"Bitte füllen Sie das Feld '{self.invoice_detail_fields[field].label}' aus."
-
-        return True, ""
 
     def show_snack_bar(self, message):
         self.page.snack_bar = ft.SnackBar(content=ft.Text(message))
         self.page.snack_bar.open = True
         self.page.update()
 
-    def get_invoice_data(self):
-        logging.info("Sammle Rechnungsdaten")
-        invoice_data = {
-            'client_name': self.invoice_detail_fields['client_name'].value if self.invoice_detail_fields['client_name'].value != "Neuer Eintrag" else self.new_entry_fields['client_name'].value,
-            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value if self.invoice_detail_fields['bestell_nr'].value != "Neuer Eintrag" else self.new_entry_fields['bestell_nr'].value,
-            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
-            'baustelle': self.invoice_detail_fields['baustelle'].value if self.invoice_detail_fields['baustelle'].value != "Neuer Eintrag" else self.new_entry_fields['baustelle'].value,
-            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value if self.invoice_detail_fields['anlagenteil'].value != "Neuer Eintrag" else self.new_entry_fields['anlagenteil'].value,
-            'aufmass_nr': self.next_aufmass_nr,
-            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value if self.invoice_detail_fields['auftrags_nr'].value != "Neuer Eintrag" else self.new_entry_fields['auftrags_nr'].value,
-            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
-            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
-            'category': self.current_category,
-            'bemerkung': self.bemerkung_field.value,
-            'zuschlaege': self.selected_zuschlaege,
-            'articles': [],
-            'net_total': 0,
-            'total_price': 0
-        }
-
-        for row in self.article_list_header.rows:
-            article = {
-                'position': row.cells[0].content.content.value,
-                'artikelbeschreibung': row.cells[1].content.content.value,
-                'dn': row.cells[2].content.content.value,
-                'da': row.cells[3].content.content.value,
-                'dammdicke': row.cells[4].content.content.value,
-                'einheit': row.cells[5].content.content.value,
-                'taetigkeit': row.cells[6].content.content.value,
-                'sonderleistungen': row.cells[7].content.content.value,
-                'einheitspreis': row.cells[8].content.content.value,
-                'quantity': row.cells[9].content.content.value,
-                'zwischensumme': row.cells[10].content.content.value
-            }
-            invoice_data['articles'].append(article)
-            try:
-                zwischensumme = float(article['zwischensumme'].replace(',', '.').replace('€', '').strip() or '0')
-                invoice_data['net_total'] += zwischensumme
-            except ValueError:
-                logging.warning(f"Ungültiger Zwischensummenwert: {article['zwischensumme']}")
-
-        total_price = invoice_data['net_total']
-        for _, faktor in invoice_data['zuschlaege']:
-            total_price *= float(faktor)
-
-        invoice_data['total_price'] = total_price
-
-        logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
-        return invoice_data
-
-    def get_next_aufmass_nr(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
-            max_nr = cursor.fetchone()[0]
-            return str(max(int(max_nr or 0) + 1, 1))
-        finally:
-            cursor.close()
-            conn.close()
-
-    def save_invoice_to_db(self, invoice_data):
-        logging.info("Speichere Rechnung in der Datenbank")
-        logging.debug(f"Rechnungsdaten: {invoice_data}")
-
-        # Überprüfen, ob Artikel vorhanden sind
-        if not invoice_data['articles']:
-            self.show_error("Es können keine leeren Aufmaße ohne Artikel gespeichert werden.")
-            return None
-
-        nettobetrag = sum(float(article['zwischensumme'].replace(',', '.').replace('€', '').strip() or '0') for article in invoice_data['articles'])
-        zuschlaege_summe = 0
-        for zuschlag, faktor in invoice_data['zuschlaege']:
-            zuschlag_betrag = nettobetrag * (float(faktor) - 1)
-            zuschlaege_summe += zuschlag_betrag
-        total_price = nettobetrag + zuschlaege_summe
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            # Prüfen, ob bereits eine Rechnung mit dieser Aufmaß-Nummer existiert
-            cursor.execute('SELECT id, aufmass_nr FROM invoice WHERE aufmass_nr = ?', (self.invoice_detail_fields['aufmass_nr'].value,))
-            existing_invoice = cursor.fetchone()
-
-            if existing_invoice:
-                # Wenn eine Rechnung mit dieser Nummer existiert, aktualisieren wir sie
-                invoice_id, existing_aufmass_nr = existing_invoice
-                cursor.execute('''
-                UPDATE invoice SET
-                    client_name = ?, bestell_nr = ?, bestelldatum = ?, baustelle = ?, anlagenteil = ?,
-                    auftrags_nr = ?, ausfuehrungsbeginn = ?, ausfuehrungsende = ?,
-                    total_amount = ?, zuschlaege = ?, bemerkungen = ?
-                WHERE id = ?
-                ''', (
-                    invoice_data['client_name'],
-                    invoice_data['bestell_nr'],
-                    invoice_data['bestelldatum'],
-                    invoice_data['baustelle'],
-                    invoice_data['anlagenteil'],
-                    invoice_data['auftrags_nr'],
-                    invoice_data['ausfuehrungsbeginn'],
-                    invoice_data['ausfuehrungsende'],
-                    total_price,
-                    ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
-                    invoice_data.get('bemerkungen', ''),
-                    invoice_id
-                ))
-
-                # Löschen der alten Artikel für diese Rechnung
-                cursor.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
-            else:
-                # Wenn keine Rechnung mit dieser Nummer existiert, erstellen wir eine neue
-                cursor.execute('SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice')
-                max_aufmass_nr = cursor.fetchone()[0]
-                new_aufmass_nr = str(max(int(max_aufmass_nr or 0) + 1, 1))  # Stellen Sie sicher, dass die erste Nummer 1 ist
-                
-                cursor.execute('''
-                INSERT INTO invoice (
-                    client_name, bestell_nr, bestelldatum, baustelle, anlagenteil,
-                    aufmass_nr, auftrags_nr, ausfuehrungsbeginn, ausfuehrungsende,
-                    total_amount, zuschlaege, bemerkungen
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    invoice_data['client_name'],
-                    invoice_data['bestell_nr'],
-                    invoice_data['bestelldatum'],
-                    invoice_data['baustelle'],
-                    invoice_data['anlagenteil'],
-                    new_aufmass_nr,
-                    invoice_data['auftrags_nr'],
-                    invoice_data['ausfuehrungsbeginn'],
-                    invoice_data['ausfuehrungsende'],
-                    total_price,
-                    ','.join([f"{z[0]}:{z[1]}" for z in invoice_data['zuschlaege']]),
-                    invoice_data.get('bemerkungen', '')
-                ))
-                invoice_id = cursor.lastrowid
-                self.invoice_detail_fields['aufmass_nr'].value = new_aufmass_nr
-
-            # Fügen Sie die Artikel für diese Rechnung hinzu
-            for article in invoice_data['articles']:
-                cursor.execute('''
-                    INSERT INTO invoice_items (invoice_id, position, Bauteil, DN, DA, Size, taetigkeit, Unit, Value, quantity, zwischensumme, sonderleistungen)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    invoice_id,
-                    article['position'],
-                    article['artikelbeschreibung'],
-                    article.get('dn', ''),
-                    article.get('da', ''),
-                    article.get('dammdicke', ''),
-                    article.get('taetigkeit', ''),
-                    article.get('einheit', ''),
-                    article.get('einheitspreis', 0),
-                    article.get('quantity', 0),
-                    article.get('zwischensumme', 0),
-                    str(article.get('sonderleistungen', ''))
-                ))
-
-            conn.commit()
-            logging.info(f"Rechnung mit ID {invoice_id} erfolgreich in der Datenbank gespeichert")
-            return invoice_id
-        except sqlite3.Error as e:
-            logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
-            conn.rollback()
-            raise Exception(f"Datenbankfehler: {str(e)}")
-        except Exception as e:
-            logging.error(f"Unerwarteter Fehler beim Speichern der Rechnung: {str(e)}")
-            conn.rollback()
-            raise
-        finally:
-            cursor.close()
-            conn.close()
 
     def load_invoice_data(self, aufmass_nr):
         conn = get_db_connection()
@@ -1852,17 +1624,6 @@ class InvoiceForm(ft.UserControl):
         logging.info(f"Gesammelte Rechnungsdaten: {invoice_data}")
         return invoice_data
 
-    def get_next_aufmass_nr(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT MAX(CAST(aufmass_nr AS INTEGER)) FROM invoice")
-            max_nr = cursor.fetchone()[0]
-            return str(max(int(max_nr or 0) + 1, 1))
-        finally:
-            cursor.close()
-            conn.close()
-
     def save_invoice_to_db(self, invoice_data):
         logging.info("Speichere Rechnung in der Datenbank")
         logging.debug(f"Rechnungsdaten: {invoice_data}")
@@ -2112,19 +1873,40 @@ class InvoiceForm(ft.UserControl):
         self.taetigkeit_dropdown.visible = is_aufmass
         self.update()
 
-    def update_dn_da_fields(self, e):
-        bauteil = self.bauteil_dropdown.value
-        if self.is_rohrleitung_or_formteil(bauteil):
-            self.auto_fill_rohrleitung_or_formteil(bauteil)
-        else:
-            self.dn_dropdown.visible = False
-            self.da_dropdown.visible = False
-            self.dn_dropdown.value = None
-            self.da_dropdown.value = None
-        self.update_dammdicke_options()
-        self.update_einheit()
-        update_price(self)
-        self.update()
+
+    def update_dn_da_fields(self, bauteil):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            if self.is_rohrleitung_or_formteil(bauteil):
+                cursor.execute('SELECT DISTINCT DN FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN')
+                dn_options = [row[0] for row in cursor.fetchall()]
+                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in dn_options]
+                self.dn_dropdown.value = str(int(dn_options[0])) if dn_options else None
+
+                cursor.execute('SELECT DISTINCT DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DA')
+                da_options = [row[0] for row in cursor.fetchall()]
+                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in da_options]
+
+                if dn_options:
+                    cursor.execute('SELECT MIN(DA) FROM price_list WHERE Bauteil = "Rohrleitung" AND DN = ?', (dn_options[0],))
+                    first_valid_da = cursor.fetchone()[0]
+                    self.da_dropdown.value = str(first_valid_da) if first_valid_da else None
+    
+                self.dn_dropdown.visible = True
+                self.da_dropdown.visible = True
+            else:
+                self.dn_dropdown.visible = False
+                self.da_dropdown.visible = False
+                self.dn_dropdown.value = None
+                self.da_dropdown.value = None
+
+            self.update_dammdicke_options()
+            self.update_taetigkeit_options()
+        finally:
+            cursor.close()
+            conn.close()
+            self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return self.is_rohrleitung(bauteil) or self.is_formteil(bauteil)
