@@ -676,16 +676,16 @@ class InvoiceForm(ft.UserControl):
     def build_article_input(self):
         # Anpassen der Feldbreiten für bessere Darstellung
         field_widths = {
-            'position': 100,
-            'bauteil': 300,  # Breiter für lange Bauteilnamen
-            'dn': 80,
-            'da': 80,
-            'dammdicke': 100,
-            'einheit': 80,
-            'taetigkeit': 300,  # Feste Breite für Tätigkeit
-            'preis': 100,
-            'menge': 80,
-            'zwischensumme': 120
+            'position': 80,
+            'bauteil': 200,
+            'dn': 60,
+            'da': 60,
+            'dammdicke': 80,
+            'einheit': 60,
+            'taetigkeit': 250,
+            'preis': 80,
+            'menge': 60,
+            'zwischensumme': 100
         }
 
         # Setze die Feldbreiten
@@ -700,65 +700,26 @@ class InvoiceForm(ft.UserControl):
         self.quantity_input.width = field_widths['menge']
         self.zwischensumme_field.width = field_widths['zwischensumme']
 
-        # Labels in einer Zeile über den Feldern
+        # Labels in einer Zeile
         labels_row = ft.Row(
             controls=[
-                ft.Container(
-                    content=ft.Text("Position", size=14),
-                    width=field_widths['position'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Bauteil", size=14),
-                    width=field_widths['bauteil'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("DN", size=14),
-                    width=field_widths['dn'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("DA", size=14),
-                    width=field_widths['da'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Dämmdicke", size=14),
-                    width=field_widths['dammdicke'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Einheit", size=14),
-                    width=field_widths['einheit'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Tätigkeit", size=14),
-                    width=field_widths['taetigkeit'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Preis", size=14),
-                    width=field_widths['preis'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Menge", size=14),
-                    width=field_widths['menge'],
-                    alignment=ft.alignment.center
-                ),
-                ft.Container(
-                    content=ft.Text("Zwischensumme", size=14),
-                    width=field_widths['zwischensumme'],
-                    alignment=ft.alignment.center
-                ),
+                ft.Text("Position", size=12, width=field_widths['position']),
+                ft.Text("Bauteil", size=12, width=field_widths['bauteil']),
+                ft.Text("DN", size=12, width=field_widths['dn']),
+                ft.Text("DA", size=12, width=field_widths['da']),
+                ft.Text("Dämmdicke", size=12, width=field_widths['dammdicke']),
+                ft.Text("Einheit", size=12, width=field_widths['einheit']),
+                ft.Text("Tätigkeit", size=12, width=field_widths['taetigkeit']),
+                ft.Text("Preis", size=12, width=field_widths['preis']),
+                ft.Text("Menge", size=12, width=field_widths['menge']),
+                ft.Text("Zwischensumme", size=12, width=field_widths['zwischensumme']),
             ],
+            alignment=ft.MainAxisAlignment.START,
             spacing=5,
         )
 
         # Eingabefelder in einer Zeile
-        fields_row = ft.Row(
+        input_row = ft.Row(
             controls=[
                 self.position_field,
                 self.bauteil_dropdown,
@@ -771,6 +732,7 @@ class InvoiceForm(ft.UserControl):
                 self.quantity_input,
                 self.zwischensumme_field,
             ],
+            alignment=ft.MainAxisAlignment.START,
             spacing=5,
         )
 
@@ -789,9 +751,9 @@ class InvoiceForm(ft.UserControl):
             content=ft.Column([
                 ft.Text("Artikel hinzufügen", size=20, weight=ft.FontWeight.BOLD),
                 labels_row,
-                fields_row,
+                input_row,
                 buttons_row,
-            ], spacing=10),
+            ], spacing=5),
             padding=20,
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
@@ -2543,7 +2505,7 @@ class InvoiceForm(ft.UserControl):
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
         self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
-    
+
     def change_color_scheme(self, e):
         color = e.control.value
         self.set_color_scheme(color)
@@ -2640,3 +2602,4 @@ class InvoiceForm(ft.UserControl):
 
     def settings_dialog_load_color_scheme_callback(self, e):
         self.load_color_scheme(e)
+
