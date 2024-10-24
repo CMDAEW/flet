@@ -266,12 +266,13 @@ class InvoiceForm(ft.UserControl):
         # Add the TopBar
         self.add_logo_and_topbar()
 
+        # Fügen Sie die article_input_row zur Seite hinzu
         return ft.Container(
             content=ft.Column(
                 [
                     self.topbar,
                     invoice_details,
-                    article_input,
+                    self.article_input_row,  # Stellen Sie sicher, dass dies zur Seite hinzugefügt wird
                     article_list,
                     bemerkung_container,
                     summary_and_actions,
@@ -412,19 +413,37 @@ class InvoiceForm(ft.UserControl):
         self.quantity_input = ft.TextField(label="Menge", value="1", on_change=self.on_quantity_change, width=120, tooltip="Anzahl der Einheiten")
         self.zwischensumme_field = ft.TextField(label="Zwischensumme", read_only=True, width=200, tooltip="Zwischensumme für den Artikel")
 
-            # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
+        # Sonderleistungen in neue Zeile verschoben und linksbündig ausgerichtet
         self.sonderleistungen_button = ft.ElevatedButton("Sonderleistungen", on_click=self.show_sonderleistungen_dialog, width=220)
         self.sonderleistungen_row = ft.Row([self.sonderleistungen_button], alignment=ft.MainAxisAlignment.START)
 
         self.update_position_button = ft.ElevatedButton("Position aktualisieren", on_click=self.update_article_row, visible=False)
         # Category buttons
         self.category_buttons = [
-        ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=160),
-        ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=160),
-        ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=160),
-        ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=160)
+            ft.ElevatedButton("Aufmaß", on_click=self.on_category_click, data="Aufmaß", width=160),
+            ft.ElevatedButton("Material", on_click=self.on_category_click, data="Material", width=160),
+            ft.ElevatedButton("Lohn", on_click=self.on_category_click, data="Lohn", width=160),
+            ft.ElevatedButton("Festpreis", on_click=self.on_category_click, data="Festpreis", width=160)
         ]
         self.category_row = ft.Row(controls=self.category_buttons, spacing=5)
+
+        # Wrap the fields in a Row with expand
+        self.article_input_row = ft.Row(
+            controls=[
+                ft.Container(content=self.position_field, expand=1),
+                ft.Container(content=self.bauteil_dropdown, expand=2),
+                ft.Container(content=self.dn_dropdown, expand=1, visible=self.dn_dropdown.visible),
+                ft.Container(content=self.da_dropdown, expand=1, visible=self.da_dropdown.visible),
+                ft.Container(content=self.dammdicke_dropdown, expand=1.5),
+                ft.Container(content=self.einheit_field, expand=1),
+                ft.Container(content=self.taetigkeit_dropdown, expand=2),
+                ft.Container(content=self.price_field, expand=1),
+                ft.Container(content=self.quantity_input, expand=1),
+                ft.Container(content=self.zwischensumme_field, expand=1.5),
+            ],
+            alignment=ft.MainAxisAlignment.START,
+            spacing=5,
+        )
 
     def on_bauteil_change(self, e):
         bauteil = e.control.value
@@ -508,17 +527,27 @@ class InvoiceForm(ft.UserControl):
 
                 self.dn_dropdown.visible = True
                 self.da_dropdown.visible = True
+                self.dn_dropdown.expand = 1
+                self.da_dropdown.expand = 1
             else:
                 self.dn_dropdown.visible = False
                 self.da_dropdown.visible = False
                 self.dn_dropdown.value = None
                 self.da_dropdown.value = None
+                self.dn_dropdown.expand = 0
+                self.da_dropdown.expand = 0
+
+            # Adjust expand for other fields
+            self.einheit_field.expand = 1 if not self.dn_dropdown.visible else 0
+            self.dammdicke_dropdown.expand = 1 if not self.da_dropdown.visible else 0
 
             self.update_dammdicke_options()
             self.update_taetigkeit_options()
         finally:
             cursor.close()
             conn.close()
+            if self.article_input_row in self.page.controls:
+                self.article_input_row.update()
 
     def update_da_options(self, dn):
         conn = get_db_connection()
@@ -531,6 +560,7 @@ class InvoiceForm(ft.UserControl):
         finally:
             cursor.close()
             conn.close()
+            self.article_input_row.update()  # Update the row to reflect changes
 
     def update_dn_options(self, da):
         conn = get_db_connection()
@@ -1897,42 +1927,6 @@ class InvoiceForm(ft.UserControl):
         self.taetigkeit_dropdown.visible = is_aufmass
         self.update()
 
-
-    def update_dn_da_fields(self, bauteil):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            if self.is_rohrleitung_or_formteil(bauteil):
-                # Abfrage, um DN-DA-Paare zu laden
-                cursor.execute('SELECT DN, DA FROM price_list WHERE Bauteil = "Rohrleitung" ORDER BY DN, DA')
-                dn_da_pairs = cursor.fetchall()
-
-                # Optionen für DN und DA basierend auf den Paaren erstellen
-                dn_options = list(set(pair[0] for pair in dn_da_pairs))
-                da_options = list(set(pair[1] for pair in dn_da_pairs))
-
-                self.dn_dropdown.options = [ft.dropdown.Option(str(int(dn))) for dn in sorted(dn_options)]
-                self.da_dropdown.options = [ft.dropdown.Option(str(da)) for da in sorted(da_options)]
-
-                # Setzen Sie die Standardwerte für DN und DA
-                if dn_da_pairs:
-                    self.dn_dropdown.value = str(int(dn_da_pairs[0][0]))
-                    self.da_dropdown.value = str(dn_da_pairs[0][1])
-
-                self.dn_dropdown.visible = True
-                self.da_dropdown.visible = True
-            else:
-                self.dn_dropdown.visible = False
-                self.da_dropdown.visible = False
-                self.dn_dropdown.value = None
-                self.da_dropdown.value = None
-
-            self.update_dammdicke_options()
-            self.update_taetigkeit_options()
-        finally:
-            cursor.close()
-            conn.close()
-            self.update()
 
     def is_rohrleitung_or_formteil(self, bauteil):
         return self.is_rohrleitung(bauteil) or self.is_formteil(bauteil)
