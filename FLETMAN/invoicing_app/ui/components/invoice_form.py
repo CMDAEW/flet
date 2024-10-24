@@ -14,9 +14,12 @@ from .invoice_form_helpers import (
 
 
 class InvoiceForm(ft.UserControl):
-    def __init__(self, page, aufmass_nr=None, is_preview=False, initial_color_scheme="BLUE", initial_theme_mode=ft.ThemeMode.LIGHT):
+    def __init__(self, page, aufmass_nr=None, is_preview=False, initial_color_scheme="BLUE", initial_theme_mode=ft.ThemeMode.LIGHT, on_back_to_main_menu=None):
         super().__init__()
         self.page = page
+        if not self.page:
+            raise ValueError("Page object cannot be None")
+        self.on_back_to_main_menu = on_back_to_main_menu
         self.next_aufmass_nr = self.get_next_aufmass_nr()
         self.cache = {}
         self.article_summaries = []
@@ -726,6 +729,7 @@ class InvoiceForm(ft.UserControl):
             border_radius=10,
             margin=ft.margin.only(bottom=20),
         )
+
     def build_article_input(self):
         # Eingabefelder in einer Zeile
         input_row = ft.Row(
@@ -1297,16 +1301,17 @@ class InvoiceForm(ft.UserControl):
             logging.warning("Versuch, eine Zeile zu aktualisieren, ohne im Bearbeitungsmodus zu sein")
 
     def back_to_main_menu(self, e=None):
-        if self.page:
-            if hasattr(self.page, 'go'):
-                # Setze das Logo zurück
-                self.reset_logo()
-                # Navigiere zum Hauptmenü
-                self.page.go('/')
-            else:
-                logging.error("Page object does not have 'go' method")
+        if self.page and hasattr(self.page, 'go'):
+            # Setze das Logo zurück
+            self.reset_logo()
+            # Navigiere zum Hauptmenü
+            self.page.go('/')
+        elif hasattr(self, 'on_back_to_main_menu'):
+            # Fallback: Verwende eine Callback-Funktion, falls vorhanden
+            self.on_back_to_main_menu()
         else:
-            logging.error("Page object is None in InvoiceForm")
+            logging.error("Page object is None or does not have 'go' method, and no fallback is available")
+        self.show_error("Fehler: Die Seite kann nicht zum Hauptmenü navigieren.")
 
     def reset_logo(self):
         if hasattr(self.page, 'appbar'):

@@ -221,10 +221,9 @@ def main(page: ft.Page):
         if hasattr(page, 'dialog'):
             page.dialog.open = False
         content_column.controls.clear()
-    content_column.controls.append(create_start_screen())
-    update_all_buttons()
-    # Entfernen Sie den Aufruf zur Aktualisierung der appbar hier
-    page.update()
+        content_column.controls.append(create_start_screen())
+        update_all_buttons()
+        page.update()
 
     def show_aufmass_screen():
         def aufmass_button_clicked(e):
@@ -280,9 +279,14 @@ def main(page: ft.Page):
 
     def show_invoice_form(aufmass_nr=None):
         content_column.controls.clear()
-        invoice_form = InvoiceForm(page, aufmass_nr, is_preview=False, 
-                                   initial_color_scheme=get_color_scheme(), 
-                                   initial_theme_mode=page.theme_mode)
+        invoice_form = InvoiceForm(
+            page, 
+            aufmass_nr, 
+            is_preview=False, 
+            initial_color_scheme=get_color_scheme(), 
+            initial_theme_mode=page.theme_mode,
+            on_back_to_main_menu=show_start_screen  # Fügen Sie diese Zeile hinzu
+        )
         page.invoice_form = invoice_form
         
         if aufmass_nr is None:

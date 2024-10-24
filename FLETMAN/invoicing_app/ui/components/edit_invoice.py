@@ -48,7 +48,7 @@ def build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview
                 DataRow(
                     cells=[
                         DataCell(ft.Text(invoice['aufmass_nr'])),
-                        DataCell(ft.Text(invoice['client_name'])),
+                        DataCell(ft.Text(invoice['client_name'])),  # Kundennamen anzeigen
                         DataCell(ft.Text(f"{invoice['total_amount']:.2f} €")),
                         DataCell(
                             ft.Row([
@@ -88,7 +88,7 @@ def build_invoice_list_content(invoices, on_invoice_selected, on_invoice_preview
             DataTable(
                 columns=[
                     DataColumn(ft.Text("Aufmaß-Nr.")),
-                    DataColumn(ft.Text("Kunde")),
+                    DataColumn(ft.Text("Kunde")),  # Kundennamen anzeigen
                     DataColumn(ft.Text("Summe")),
                     DataColumn(ft.Text("Aktionen"))
                 ],
@@ -176,9 +176,7 @@ def print_invoice_dialog(page):
 def confirm_delete_invoice(aufmass_nr, page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, back_to_main_menu_func):
     def delete_confirmed(e):
         delete_invoice(aufmass_nr, page)
-        page.dialog.open = False
-        page.update()
-        # Aktualisieren Sie die Liste der Aufmaße
+        # Aktualisieren Sie die Liste der Aufmaße im Dialog
         show_edit_invoice_dialog(page, on_invoice_selected, on_invoice_preview, on_pdf_with_prices, on_pdf_without_prices, back_to_main_menu_func)
 
     def cancel_delete(e):
