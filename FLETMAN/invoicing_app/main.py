@@ -248,12 +248,21 @@ def main(page: ft.Page):
             page.update()
 
         def on_pdf_with_prices(aufmass_nr):
-            invoice_form = InvoiceForm(page, aufmass_nr)
-            invoice_form.create_pdf(include_prices=True, force_new=True)
+            if hasattr(page, 'invoice_form'):
+                page.invoice_form.create_pdf(include_prices=True, force_new=True)
+            else:
+                show_error("Fehler: Kein aktives Aufmaßformular gefunden.")
 
         def on_pdf_without_prices(aufmass_nr):
-            invoice_form = InvoiceForm(page, aufmass_nr)
-            invoice_form.create_pdf(include_prices=False, force_new=True)
+            if hasattr(page, 'invoice_form'):
+                page.invoice_form.create_pdf(include_prices=False, force_new=True)
+            else:
+                show_error("Fehler: Kein aktives Aufmaßformular gefunden.")
+
+        def show_error(message):
+            page.snack_bar = ft.SnackBar(content=ft.Text(message))
+            page.snack_bar.open = True
+            page.update()
 
         aufmass_screen = ft.Container(
             content=ft.Column([

@@ -83,6 +83,10 @@ class InvoiceForm(ft.UserControl):
             self.page.bgcolor = ft.colors.WHITE if self.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BLACK
             self.update()
             self.page.update()
+    
+    def save_invoice_without_pdf(self, e):
+        self.create_pdf(include_prices=False)
+
 
     def change_color_scheme(self, color):
         """Ändert das Farbschema des Formulars"""
@@ -978,49 +982,6 @@ class InvoiceForm(ft.UserControl):
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
 
-    def reset_form(self):
-        # Behalten Sie die Kopfdaten bei
-        kopfdaten = {
-            'client_name': self.invoice_detail_fields['client_name'].value,
-            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
-            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
-            'baustelle': self.invoice_detail_fields['baustelle'].value,
-            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
-            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
-            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
-            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
-        }
-
-        # Setzen Sie die Aufmaß-Nummer auf die nächste verfügbare Nummer
-        self.next_aufmass_nr = self.get_next_aufmass_nr()
-        self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
-
-        # Setzen Sie alle anderen Felder zurück
-        self.clear_input_fields()
-        self.article_list_header.rows.clear()
-        self.article_summaries.clear()
-        self.selected_sonderleistungen.clear()
-        self.selected_zuschlaege.clear()
-        self.bemerkung_field.value = ""
-
-        # Setzen Sie die Kopfdaten wieder ein
-        for field, value in kopfdaten.items():
-            self.invoice_detail_fields[field].value = value
-
-        # Setzen Sie die Buttons auf sichtbar
-        self.save_invoice_with_pdf_button.visible = True
-        self.save_invoice_without_pdf_button.visible = True
-        self.new_aufmass_button.visible = True
-
-        # Aktualisieren Sie die Gesamtpreise
-        self.update_total_price()
-        self.update_pdf_buttons()
-        self.update_topbar()
-
-        # Aktualisieren Sie die Benutzeroberfläche
-        self.update()
-        self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
-
     def on_bestelldatum_change(self, e):
         self.update_date_field(e, 'bestelldatum', self.bestelldatum_button)
 
@@ -1324,33 +1285,24 @@ class InvoiceForm(ft.UserControl):
             self.page.update()
 
     def update_topbar(self):
-        if self.topbar:
+         if self.topbar:
             aufmass_nr = self.invoice_detail_fields['aufmass_nr'].value
             title = f"Aufmaß Nr. {aufmass_nr}" if aufmass_nr else "Neues Aufmaß"
             self.topbar.content.controls[1] = ft.Text(title, expand=True)
             self.update()
             
-    def reset_form(self, e):
+    def reset_form(self):
         # Behalten Sie die Kopfdaten bei
         kopfdaten = {
             'client_name': self.invoice_detail_fields['client_name'].value,
-            'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
-            'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
-            'baustelle': self.invoice_detail_fields['baustelle'].value,
-            'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
-            'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
-            'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
-            'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
-        }
-
-        # Setzen Sie die Aufmaß-Nummer nur zurück, wenn zuvor eine Rechnung erstellt wurde
-        if self.pdf_generated:
-            self.next_aufmass_nr = str(int(self.next_aufmass_nr) + 1)
-            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
-            self.pdf_generated = False
-        else:
-            # Wenn keine Rechnung erstellt wurde, behalten Sie die aktuelle Aufmaß-Nummer bei
-            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+        'bestell_nr': self.invoice_detail_fields['bestell_nr'].value,
+        'bestelldatum': self.invoice_detail_fields['bestelldatum'].value,
+        'baustelle': self.invoice_detail_fields['baustelle'].value,
+        'anlagenteil': self.invoice_detail_fields['anlagenteil'].value,
+        'auftrags_nr': self.invoice_detail_fields['auftrags_nr'].value,
+        'ausfuehrungsbeginn': self.invoice_detail_fields['ausfuehrungsbeginn'].value,
+        'ausfuehrungsende': self.invoice_detail_fields['ausfuehrungsende'].value,
+    }
 
         # Setzen Sie alle anderen Felder zurück
         self.clear_input_fields()
@@ -1360,23 +1312,16 @@ class InvoiceForm(ft.UserControl):
         self.selected_zuschlaege.clear()
         self.bemerkung_field.value = ""
 
-        # Setzen Sie die Kopfdaten wieder ein
+    # Setzen Sie die Kopfdaten wieder ein
         for field, value in kopfdaten.items():
             self.invoice_detail_fields[field].value = value
-
-        # Setzen Sie die Buttons auf unsichtbar
-        self.save_invoice_with_pdf_button.visible = False
-        self.save_invoice_without_pdf_button.visible = False
-        self.new_aufmass_button.visible = False
 
         # Aktualisieren Sie die Gesamtpreise
         self.update_total_price()
         self.update_pdf_buttons()
-        self.update_topbar()  # Hier hinzugefügt
 
         # Aktualisieren Sie die Benutzeroberfläche
         self.update()
-        self.show_snack_bar("Neues Aufmaß erstellt. Kopfdaten wurden beibehalten.")
 
     def show_sonderleistungen_dialog(self, e):
         dialog = ft.AlertDialog(
@@ -1421,14 +1366,11 @@ class InvoiceForm(ft.UserControl):
     def save_invoice_with_pdf(self, e):
         self.create_pdf(include_prices=True)
 
-    def save_invoice_without_pdf(self, e):
-        self.create_pdf(include_prices=False)
-
     def create_pdf(self, include_prices=True, force_new=False):
         logging.info("Starte PDF-Erstellung")
         is_valid, error_message = self.validate_invoice_details()
         if not is_valid:
-            self.show_snack_bar(error_message)
+            self.show_error(error_message)
             return
 
         try:
@@ -1453,21 +1395,19 @@ class InvoiceForm(ft.UserControl):
 
             if os.path.exists(filepath):
                 logging.info(f"PDF erfolgreich erstellt: {filepath}")
-                self.show_snack_bar(f"PDF wurde erstellt: {filepath}")
+                self.show_info(f"PDF wurde erstellt: {filepath}")
                 self.pdf_generated = True
                 self.update_pdf_buttons()
-                self.update_topbar()  # Aktualisiere die TopBar nach der PDF-Erstellung
             else:
                 raise FileNotFoundError(f"PDF-Datei wurde nicht erstellt: {filepath}")
 
         except Exception as ex:
             logging.error(f"Fehler beim Erstellen des PDFs: {str(ex)}", exc_info=True)
-            self.show_snack_bar(f"Fehler beim Erstellen des PDFs: {str(ex)}")
+            self.show_error(f"Fehler beim Erstellen des PDFs: {str(ex)}")
         finally:
-            self.update_pdf_buttons()  # Stelle sicher, dass die Buttons in jedem Fall aktualisiert werden
-            self.update_topbar()  # Stelle sicher, dass die TopBar in jedem Fall aktualisiert wird
+            self.update_pdf_buttons()
             self.update()
-
+    
     def check_existing_pdf(self, invoice_id):
         downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
         for filename in os.listdir(downloads_dir):
@@ -1783,6 +1723,16 @@ class InvoiceForm(ft.UserControl):
 
             conn.commit()
             logging.info(f"Rechnung mit ID {invoice_id} erfolgreich in der Datenbank gespeichert")
+            
+            # Aktualisieren Sie die Aufmaßnummer für das nächste Aufmaß
+            self.next_aufmass_nr = str(int(self.next_aufmass_nr) + 1)
+            self.invoice_detail_fields['aufmass_nr'].value = self.next_aufmass_nr
+            
+            # Formular zurücksetzen und GUI aktualisieren
+            self.reset_form()
+            self.update_topbar()
+            self.update()
+            
             return invoice_id
         except sqlite3.Error as e:
             logging.error(f"Datenbankfehler beim Speichern der Rechnung: {str(e)}")
