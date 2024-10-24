@@ -673,45 +673,19 @@ class InvoiceForm(ft.UserControl):
             margin=ft.margin.only(bottom=20),
         )
     def build_article_input(self):
-        # Anpassen der Feldbreiten für bessere Darstellung
-        field_widths = {
-            'position': 100,
-            'bauteil': 250,
-            'dn': 80,
-            'da': 80,
-            'dammdicke': 130,
-            'einheit': 80,
-            'taetigkeit': 300,
-            'preis': 80,
-            'menge': 70,
-            'zwischensumme': 160
-        }
-
-        # Setze die Feldbreiten
-        self.position_field.width = field_widths['position']
-        self.bauteil_dropdown.width = field_widths['bauteil']
-        self.dn_dropdown.width = field_widths['dn']
-        self.da_dropdown.width = field_widths['da']
-        self.dammdicke_dropdown.width = field_widths['dammdicke']
-        self.einheit_field.width = field_widths['einheit']
-        self.taetigkeit_dropdown.width = field_widths['taetigkeit']
-        self.price_field.width = field_widths['preis']
-        self.quantity_input.width = field_widths['menge']
-        self.zwischensumme_field.width = field_widths['zwischensumme']
-
         # Eingabefelder in einer Zeile
         input_row = ft.Row(
             controls=[
-                self.position_field,
-                self.bauteil_dropdown,
-                self.dn_dropdown,
-                self.da_dropdown,
-                self.dammdicke_dropdown,
-                self.einheit_field,
-                self.taetigkeit_dropdown,
-                self.price_field,
-                self.quantity_input,
-                self.zwischensumme_field,
+                ft.Container(content=self.position_field, expand=1),
+                ft.Container(content=self.bauteil_dropdown, expand=2),
+                ft.Container(content=self.dn_dropdown, expand=1, visible=self.dn_dropdown.visible),
+                ft.Container(content=self.da_dropdown, expand=1, visible=self.da_dropdown.visible),
+                ft.Container(content=self.dammdicke_dropdown, expand=1.5),
+                ft.Container(content=self.einheit_field, expand=1),
+                ft.Container(content=self.taetigkeit_dropdown, expand=2),
+                ft.Container(content=self.price_field, expand=1),
+                ft.Container(content=self.quantity_input, expand=1),
+                ft.Container(content=self.zwischensumme_field, expand=1.5),
             ],
             alignment=ft.MainAxisAlignment.START,
             spacing=5,
@@ -738,7 +712,7 @@ class InvoiceForm(ft.UserControl):
             border=ft.border.all(1, ft.colors.GREY_400),
             border_radius=10,
             margin=ft.margin.only(bottom=20),
-            width=self.page.window_width - 40,
+            expand=True,
         )
 
     def build_article_list(self):
@@ -1427,6 +1401,15 @@ class InvoiceForm(ft.UserControl):
         else:
             logging.warning(f"Ungültiger Zeilenindex beim Bearbeiten: {row_index}")
 
+        # Aktualisieren Sie den Sonderleistungen-Button
+        self.update_sonderleistungen_button()
+
+        # Aktualisieren Sie die Benutzeroberfläche
+        self.update()
+
+        # Scrollen Sie zu den Eingabefeldern
+        self.page.update()
+
     def get_sonderleistung_faktor(self, sonderleistung):
         for sl, faktor in self.sonderleistungen_options:
             if sl == sonderleistung:
@@ -1794,8 +1777,9 @@ class InvoiceForm(ft.UserControl):
         self.update_article_positions()
 
     def update_article_positions(self):
-        for i, row in enumerate(self.article_list_header.rows):
-            row.cells[0].content.content.value = str(i + 1)  # Aktualisiere die Position
+     for i, row in enumerate(self.article_list_header.rows):
+        logging.info(f"Aktualisiere Position für Zeile {i}: {row}")
+        row.cells[0].content.content.value = str(i + 1)  # Aktualisiere die Position
         self.update()
 
     def validate_invoice_details(self):
@@ -2002,44 +1986,6 @@ class InvoiceForm(ft.UserControl):
         count = len(self.selected_sonderleistungen)
         self.sonderleistungen_button.text = f"Sonderleistungen ({count})"
         self.update()
-
-    def update_article_row(self, e):
-        """Aktualisiert eine bestehende Artikelzeile im Bearbeitungsmodus"""
-        if self.edit_mode and self.edit_row_index is not None:
-            if 0 <= self.edit_row_index < len(self.article_list_header.rows):
-                sonderleistungen = ", ".join([sl[0] for sl in self.selected_sonderleistungen])
-                updated_row = ft.DataRow(
-                    cells=[
-                    ft.DataCell(ft.Container(content=ft.Text(self.position_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.bauteil_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.dn_dropdown.value if self.dn_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.da_dropdown.value if self.da_dropdown.visible else "", size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.dammdicke_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.einheit_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.taetigkeit_dropdown.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(sonderleistungen, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.price_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.quantity_input.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(ft.Container(content=ft.Text(self.zwischensumme_field.value, size=16), alignment=ft.alignment.center)),
-                    ft.DataCell(
-                        ft.Row([
-                            ft.IconButton(
-                                icon=ft.icons.DELETE,
-                                icon_color="red500",
-                                on_click=lambda _, row=self.edit_row_index: self.delete_article_row(row)
-                            )
-                        ], alignment=ft.MainAxisAlignment.CENTER)
-                    )
-                ],
-                on_select_changed=lambda e, index=self.edit_row_index: self.edit_article_row(index)
-            )
-
-            self.article_list_header.rows[self.edit_row_index] = updated_row
-            self.article_summaries[self.edit_row_index] = {
-                'zwischensumme': float(self.zwischensumme_field.value.replace(',', '.')),
-                'sonderleistungen': self.selected_sonderleistungen.copy()
-            }
-
 
 
     def build_bemerkung_container(self):
