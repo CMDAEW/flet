@@ -272,7 +272,7 @@ class InvoiceForm(ft.UserControl):
                 [
                     self.topbar,
                     invoice_details,
-                    self.article_input_row,  # Stellen Sie sicher, dass dies zur Seite hinzugefügt wird
+                    article_input,  # Stellen Sie sicher, dass dies zur Seite hinzugefügt wird
                     article_list,
                     bemerkung_container,
                     summary_and_actions,
